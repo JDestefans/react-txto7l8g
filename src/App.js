@@ -634,7 +634,7 @@ const DEP_LABELS = {
 
 async function callAI(system, prompt, onChunk, operation) {
   const res = await fetch(
-    'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/ai-proxy',
+    'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/super-endpoint',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -698,7 +698,7 @@ async function callAIWithDoc(system, textBefore, fileData, onChunk) {
       });
   }
   const res = await fetch(
-    'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/ai-proxy',
+    'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/super-endpoint',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3299,11 +3299,9 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 style={{
                   padding: '6px 12px',
                   borderRadius: '6px 6px 0 0',
-                  border: `1px solid ${
-                    tab === t.id ? B.border : 'transparent'
-                  }`,
+                  border: `1px solid ${tab === t.id ? B.border : 'tranSPRent'}`,
                   borderBottom: `1px solid ${tab === t.id ? B.card : B.border}`,
-                  background: tab === t.id ? B.card : 'transparent',
+                  background: tab === t.id ? B.card : 'tranSPRent',
                   color: tab === t.id ? B.teal : B.muted,
                   fontSize: 12,
                   fontWeight: tab === t.id ? 700 : 500,
@@ -4563,11 +4561,9 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                 style={{
                   padding: '6px 12px',
                   borderRadius: '6px 6px 0 0',
-                  border: `1px solid ${
-                    tab === t.id ? B.border : 'transparent'
-                  }`,
+                  border: `1px solid ${tab === t.id ? B.border : 'tranSPRent'}`,
                   borderBottom: `1px solid ${tab === t.id ? B.card : B.border}`,
-                  background: tab === t.id ? B.card : 'transparent',
+                  background: tab === t.id ? B.card : 'tranSPRent',
                   color: tab === t.id ? B.indigo : B.muted,
                   fontSize: 12,
                   fontWeight: tab === t.id ? 700 : 500,
@@ -7554,7 +7550,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
                   background:
                     view === item.id ? 'rgba(27,201,196,0.12)' : 'none',
                   border: `1px solid ${
-                    view === item.id ? 'rgba(27,201,196,0.3)' : 'transparent'
+                    view === item.id ? 'rgba(27,201,196,0.3)' : 'tranSPRent'
                   }`,
                   color:
                     view === item.id
@@ -8891,11 +8887,9 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                 style={{
                   padding: '6px 12px',
                   borderRadius: '6px 6px 0 0',
-                  border: `1px solid ${
-                    tab === t.id ? B.border : 'transparent'
-                  }`,
+                  border: `1px solid ${tab === t.id ? B.border : 'tranSPRent'}`,
                   borderBottom: `1px solid ${tab === t.id ? B.card : B.border}`,
-                  background: tab === t.id ? B.card : 'transparent',
+                  background: tab === t.id ? B.card : 'tranSPRent',
                   color: tab === t.id ? B.green : B.muted,
                   fontSize: 12,
                   fontWeight: tab === t.id ? 700 : 500,
@@ -10070,7 +10064,7 @@ function ThiraView({ data, setData }) {
       }
 
       const res = await fetch(
-        'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/ai-proxy',
+        'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/super-endpoint',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -10133,7 +10127,7 @@ function ThiraView({ data, setData }) {
   };
 
   // Generate a full THIRA/SPR document
-  const generateSpar = async () => {
+  const generateSPR = async () => {
     setGenLoad(true);
     setGenDoc('');
     const hazList = (thira.hazards || [])
@@ -10176,7 +10170,7 @@ function ThiraView({ data, setData }) {
     setGenLoad(false);
   };
 
-  const downloadSpar = () => {
+  const downloadSPR = () => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([genDoc], { type: 'text/plain' }));
     a.download = `${data.orgName || 'planrr'}-SPR-THIRA-${today()}.txt`;
@@ -10250,9 +10244,9 @@ function ThiraView({ data, setData }) {
             style={{
               padding: '7px 16px',
               borderRadius: '7px 7px 0 0',
-              border: `1px solid ${tab === t.id ? B.border : 'transparent'}`,
+              border: `1px solid ${tab === t.id ? B.border : 'tranSPRent'}`,
               borderBottom: `1px solid ${tab === t.id ? B.card : B.border}`,
-              background: tab === t.id ? B.card : 'transparent',
+              background: tab === t.id ? B.card : 'tranSPRent',
               color: tab === t.id ? B.blue : B.muted,
               fontSize: 12,
               fontWeight: tab === t.id ? 700 : 500,
@@ -11026,7 +11020,7 @@ function ThiraView({ data, setData }) {
             }}
           >
             <button
-              onClick={generateSpar}
+              onClick={generateSPR}
               disabled={genLoad}
               style={{
                 background: B.purple,
@@ -11050,10 +11044,10 @@ function ThiraView({ data, setData }) {
                 : 'Generate THIRA/SPR Document'}
             </button>
             {genDoc && !genLoad && (
-              <Btn label="↓ Download .txt" onClick={downloadSpar} />
+              <Btn label="↓ Download .txt" onClick={downloadSPR} />
             )}
             {genDoc && !genLoad && (
-              <Btn label="Regenerate" onClick={generateSpar} />
+              <Btn label="Regenerate" onClick={generateSPR} />
             )}
           </div>
           {genLoad && (
@@ -11123,7 +11117,7 @@ function ThiraView({ data, setData }) {
                   {data.orgName || 'Your Organization'} — THIRA/SPR Document
                 </div>
                 <div style={{ display: 'flex', gap: 7 }}>
-                  <Btn label="↓ Download .txt" onClick={downloadSpar} small />
+                  <Btn label="↓ Download .txt" onClick={downloadSPR} small />
                   <button
                     onClick={() => {
                       navigator.clipboard?.writeText(genDoc);
@@ -12014,12 +12008,12 @@ function SettingsView({ data, updateData }) {
               padding: '8px 16px',
               borderRadius: '8px 8px 0 0',
               border: `1px solid ${
-                activeTab === t.id ? B.border : 'transparent'
+                activeTab === t.id ? B.border : 'tranSPRent'
               }`,
               borderBottom: `1px solid ${
                 activeTab === t.id ? B.card : B.border
               }`,
-              background: activeTab === t.id ? B.card : 'transparent',
+              background: activeTab === t.id ? B.card : 'tranSPRent',
               color: activeTab === t.id ? B.teal : B.muted,
               fontSize: 13,
               fontWeight: activeTab === t.id ? 700 : 500,
@@ -12187,7 +12181,7 @@ function SettingsView({ data, updateData }) {
             </div>
             <div style={{ fontSize: 12, color: B.faint, marginBottom: 14 }}>
               Appears top-left on all PDF exports and printed reports.
-              Recommended: PNG or SVG, transparent background, at least 200px
+              Recommended: PNG or SVG, tranSPRent background, at least 200px
               wide.
             </div>
             <div
@@ -12377,7 +12371,7 @@ function SettingsView({ data, updateData }) {
                     borderRadius: 8,
                     background: c,
                     border: `2px solid ${
-                      brand.accentColor === c ? '#111' : 'transparent'
+                      brand.accentColor === c ? '#111' : 'tranSPRent'
                     }`,
                     cursor: 'pointer',
                     boxShadow:
@@ -13480,7 +13474,7 @@ function Dashboard({ data, setView, orgName }) {
                   (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')
                 }
                 onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = 'transparent')
+                  (e.currentTarget.style.background = 'tranSPRent')
                 }
               >
                 <span
@@ -13893,7 +13887,7 @@ function BulkIntake({ data, updateData }) {
           });
         }
         const res = await fetch(
-          'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/ai-proxy',
+          'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/super-endpoint',
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -14766,7 +14760,7 @@ function GlobalSearch({ data, setView, onClose }) {
                 outline: 'none',
                 fontSize: 14,
                 color: B.text,
-                background: 'transparent',
+                background: 'tranSPRent',
                 fontFamily: "'DM Sans',sans-serif",
               }}
             />
@@ -15231,7 +15225,7 @@ function PackageBuilder({ data, setView }) {
               flex: 1,
               padding: '10px 6px',
               background:
-                step === i ? accent : step > i ? `${accent}18` : 'transparent',
+                step === i ? accent : step > i ? `${accent}18` : 'tranSPRent',
               border: 'none',
               borderRight:
                 i < steps.length - 1 ? `1px solid ${B.border}` : 'none',
@@ -16752,7 +16746,8 @@ function AccreditationJourney({ data, updateData, setView }) {
 ═══════════════════════════════════════════════════════ */
 /* AUTH */
 var SB_URL = 'https://ltnbvwnhtsaebyslbhil.supabase.co';
-var SB_KEY = 'REPLACE_WITH_YOUR_ANON_KEY';
+var SB_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0bmJ2d25odHNhZWJ5c2xiaGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMTk0NDYsImV4cCI6MjA4OTU5NTQ0Nn0.VrfVyQPiWzVo7VpQJtRyKQgNBtoq3Du-uGCAGsH815c';
 async function sbSignIn(email, pw) {
   const r = await fetch(SB_URL + '/auth/v1/token?grant_type=password', {
     method: 'POST',
@@ -16764,14 +16759,14 @@ async function sbSignIn(email, pw) {
   localStorage.setItem('sb_session', JSON.stringify(d));
   return d;
 }
-async function sbSignUp(email, pw, org, name) {
+async function sbSignUp(email, pw, org, name, jur, state) {
   const r = await fetch(SB_URL + '/auth/v1/signup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: SB_KEY },
     body: JSON.stringify({
       email,
       password: pw,
-      data: { org_name: org, full_name: name },
+      data: { org_name: org, full_name: name, jurisdiction: jur, state: state },
     }),
   });
   const d = await r.json();
@@ -16824,6 +16819,8 @@ function AuthScreen({ onAuth }) {
   const [fp2, setFp2] = useState('');
   const [fn, setFn] = useState('');
   const [fo, setFo] = useState('');
+  const [fj, setFj] = useState('');
+  const [fs, setFs] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
@@ -16898,8 +16895,8 @@ function AuthScreen({ onAuth }) {
     }
     setLoading(true);
     try {
-      await sbSignUp(fe, fp, fo.trim(), fn.trim());
-      setOk('Check your email to confirm your account, then sign in.');
+      await sbSignUp(fe, fp, fo.trim(), fn.trim(), fj, fs);
+      setOk('Account created! You can now sign in.');
     } catch (x) {
       setErr(x.message);
     }
@@ -17085,6 +17082,101 @@ function AuthScreen({ onAuth }) {
               style={iS}
               required
             />
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '0 12px',
+              }}
+            >
+              <div>
+                <label style={lS}>Jurisdiction type</label>
+                <select
+                  value={fj}
+                  onChange={(e) => setFj(e.target.value)}
+                  style={{ ...iS, marginBottom: 12 }}
+                >
+                  <option value="">Select type...</option>
+                  <option>County</option>
+                  <option>Municipal</option>
+                  <option>State</option>
+                  <option>Tribal</option>
+                  <option>Territory</option>
+                  <option>University / College</option>
+                  <option>Hospital / Healthcare</option>
+                  <option>Private Sector</option>
+                  <option>Federal Agency</option>
+                </select>
+              </div>
+              <div>
+                <label style={lS}>State</label>
+                <select
+                  value={fs}
+                  onChange={(e) => setFs(e.target.value)}
+                  style={{ ...iS, marginBottom: 12 }}
+                >
+                  <option value="">Select state...</option>
+                  {[
+                    'AL',
+                    'AK',
+                    'AZ',
+                    'AR',
+                    'CA',
+                    'CO',
+                    'CT',
+                    'DE',
+                    'FL',
+                    'GA',
+                    'HI',
+                    'ID',
+                    'IL',
+                    'IN',
+                    'IA',
+                    'KS',
+                    'KY',
+                    'LA',
+                    'ME',
+                    'MD',
+                    'MA',
+                    'MI',
+                    'MN',
+                    'MS',
+                    'MO',
+                    'MT',
+                    'NE',
+                    'NV',
+                    'NH',
+                    'NJ',
+                    'NM',
+                    'NY',
+                    'NC',
+                    'ND',
+                    'OH',
+                    'OK',
+                    'OR',
+                    'PA',
+                    'RI',
+                    'SC',
+                    'SD',
+                    'TN',
+                    'TX',
+                    'UT',
+                    'VT',
+                    'VA',
+                    'WA',
+                    'WV',
+                    'WI',
+                    'WY',
+                    'DC',
+                    'PR',
+                    'GU',
+                    'VI',
+                  ].map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <label style={lS}>Password</label>
             <input
               type="password"
@@ -17204,10 +17296,10 @@ function FirstRunWelcome({ onDone, setView }) {
     },
     {
       t: 'Build your hazard profile',
-      b: 'Go to SPAR/THIRA to profile your jurisdiction hazards. Drop in an existing THIRA and AI extracts every hazard automatically. Satisfies EMAP 4.1.',
+      b: 'Go to SPR/THIRA to profile your jurisdiction hazards. Drop in an existing THIRA and AI extracts every hazard automatically. Satisfies EMAP 4.1.',
       a: 'Open planrr.app',
       lnk: 'thira',
-      ll: 'Open SPAR/THIRA',
+      ll: 'Open SPR/THIRA',
       last: true,
     },
   ];
@@ -17352,7 +17444,7 @@ function Onboarding({ onComplete }) {
           width: 400,
           height: 400,
           borderRadius: '50%',
-          background: `radial-gradient(circle,${B.teal}12,transparent 70%)`,
+          background: `radial-gradient(circle,${B.teal}12,tranSPRent 70%)`,
           top: '50%',
           left: '50%',
           transform: 'translate(-50%,-50%)',
@@ -17501,6 +17593,7 @@ export default function App() {
           journey: d.journey || {},
         });
         if (!d.orgName) setOnboarding(true);
+        else setFirstRun(true);
       } else {
         const stds = {};
         ALL_STANDARDS.forEach((s) => {
