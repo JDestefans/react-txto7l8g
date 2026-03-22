@@ -1,7 +1,7 @@
 import React from 'react';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
-/* ─── BRAND (fixed contrast) ─────────────────────────── */
+/* --- BRAND (fixed contrast) --------------------------- */
 const B = {
   teal: '#1BC9C4',
   tealDark: '#13A8A4',
@@ -12,7 +12,7 @@ const B = {
   border: '#E2E8EA',
   text: '#111827',
   muted: '#374151',
-  faint: '#6B7280', // ← fixed contrast
+  faint: '#6B7280', // - fixed contrast
   sidebar: '#1C1F22',
   sidebarMid: '#252A2E',
   sidebarBorder: '#2E3439',
@@ -68,10 +68,10 @@ const ST = {
   },
 };
 
-/* ─── WORDMARK + PLACEHOLDER MARK ────────────────────── */
+/* --- WORDMARK + PLACEHOLDER MARK ---------------------- */
 const GOLD = '#c2964a';
 
-/* Minimal square mark — placeholder until final logo is locked */
+/* Minimal square mark - placeholder until final logo is locked */
 const BrainIcon = ({ size = 28, color = B.teal, strokeWidth = 1.2 }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
     <rect
@@ -136,7 +136,7 @@ const Wordmark = ({ dark = false, size = 'md' }) => {
   );
 };
 
-/* ─── ALL 73 STANDARDS ───────────────────────────────── */
+/* --- ALL 73 STANDARDS --------------------------------- */
 const CHAPTERS = [
   {
     id: 'ch3',
@@ -557,9 +557,9 @@ const ALL_STANDARDS = ALL_SECTIONS.flatMap((sec) =>
   sec.standards.map((s) => ({ ...s, section: sec, chapter: sec.chapter }))
 );
 
-/* ─── CASCADING DEPENDENCY MAP (EMAP Applicant Guide) ── */
+/* --- CASCADING DEPENDENCY MAP (EMAP Applicant Guide) -- */
 const STD_DEPS = {
-  // 4.1 is the foundation — all peer reviews require it first
+  // 4.1 is the foundation - all peer reviews require it first
   '4.2.1': '4.1.1',
   '4.2.2': '4.1.1',
   '4.2.3': '4.1.1',
@@ -611,7 +611,7 @@ const STD_DEPS = {
   '4.10.4': '4.6.1',
   '4.10.5': '4.6.1',
   '4.10.6': '4.6.1',
-  // 4.11 requires 4.4–4.9 all complete
+  // 4.11 requires 4.4-4.9 all complete
   '4.11.1': '4.9.1',
   '4.11.2': '4.9.1',
   '4.11.3': '4.9.1',
@@ -624,17 +624,46 @@ const STD_DEPS = {
   '4.12.6': '4.1.1',
   '4.12.7': '4.1.1',
 };
+
+/* --- FEMA/NIMS ALIGNMENT MAPPING --- */
+const NIMS_STANDARDS = [
+  '4.6.1',
+  '4.6.2',
+  '4.6.3',
+  '4.6.4',
+  '4.6.5',
+  '4.6.6',
+  '4.10.1',
+  '4.10.2',
+  '4.10.3',
+  '4.10.4',
+  '4.10.5',
+  '4.10.6',
+  '4.8.1',
+  '4.8.4',
+];
+
+/* --- GRANT-to-EMAP ALIGNMENT --- */
+const GRANT_EMAP_MAP = {
+  EMPG: ['3.1.1', '3.4.1', '3.4.2', '4.1.1', '4.5.1', '4.10.1', '4.11.1'],
+  BSIR: ['4.3.1', '4.3.2', '4.6.1'],
+  UASI: ['4.3.1', '4.6.1', '4.7.1', '4.8.1', '4.9.1'],
+  HMGP: ['4.2.1', '4.2.2', '4.2.3', '4.2.4'],
+  'BRIC/PDM': ['4.2.1', '4.2.2', '4.2.3'],
+  SHSP: ['4.3.1', '4.6.1', '4.7.1'],
+  FMA: ['4.2.1', '4.2.4'],
+};
 const DEP_LABELS = {
   '4.1.1':
     'EMAP requires 4.1 (Hazard ID) to be completed before this section can be peer-reviewed',
   '4.6.1':
     'EMAP requires 4.6 (Incident Management) before 4.10 can be peer-reviewed',
-  '4.9.1': 'EMAP requires sections 4.4–4.9 before 4.11 can be peer-reviewed',
+  '4.9.1': 'EMAP requires sections 4.4-4.9 before 4.11 can be peer-reviewed',
 };
 
 async function callAI(system, prompt, onChunk, operation) {
   const res = await fetch(
-    'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/ai-proxy',
+    'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/super-endpoint',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -698,7 +727,7 @@ async function callAIWithDoc(system, textBefore, fileData, onChunk) {
       });
   }
   const res = await fetch(
-    'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/ai-proxy',
+    'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/super-endpoint',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -735,9 +764,9 @@ async function callAIWithDoc(system, textBefore, fileData, onChunk) {
 }
 
 const SYS =
-  'You are an EMAP accreditation and emergency management expert in PLANRR — Plan Smartr. Deep expertise in EMAP EMS 5-2022, HSEEP, and EM program management. Be specific, practical, and concise. No markdown headers.';
+  'You are an EMAP accreditation and emergency management expert in PLANRR - Plan Smartr. Deep expertise in EMAP EMS 5-2022, HSEEP, and EM program management. Be specific, practical, and concise. No markdown headers.';
 
-/* ─── FILE UTILS ─────────────────────────────────────── */
+/* --- FILE UTILS --------------------------------------- */
 function readFile(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -788,7 +817,7 @@ const fmtDate = (d) =>
         day: 'numeric',
         year: 'numeric',
       })
-    : '—';
+    : '-';
 const daysUntil = (d) =>
   d ? Math.ceil((new Date(d + 'T00:00:00') - new Date()) / 86400000) : null;
 const timeAgo = (ts) => {
@@ -817,7 +846,7 @@ function useCountUp(t, dur = 900) {
   return v;
 }
 
-/* ─── DATA ───────────────────────────────────────────── */
+/* --- DATA --------------------------------------------- */
 function initRecord() {
   return {
     status: 'not_started',
@@ -852,6 +881,8 @@ function initData() {
     capItems: [],
     activityLog: [],
     journey: {},
+    recovery: { priorities: [], functions: {}, notes: '' },
+    mutualAid: [],
   };
 }
 function addActivity(updateData, type, module, detail) {
@@ -862,6 +893,120 @@ function addActivity(updateData, type, module, detail) {
       ...(prev.activityLog || []).slice(0, 199),
     ],
   }));
+}
+
+/* --- CROSS-PLATFORM DATA SYNC: Program Ops → EMAP Standards --- */
+function syncStandardsFromOps(data) {
+  const stds = { ...(data.standards || {}) };
+  let changed = false;
+  // Helper: promote a standard to in_progress if it's not_started, append auto-note
+  const promote = (stdId, note) => {
+    const cur = stds[stdId] || initRecord();
+    if (cur.status === 'not_started') {
+      const autoTag = '[Auto-linked] ';
+      const existingNote = cur.notes || '';
+      const newNote = existingNote.includes(autoTag)
+        ? existingNote
+        : (existingNote ? existingNote + '\n' : '') + autoTag + note;
+      stds[stdId] = {
+        ...cur,
+        status: 'in_progress',
+        notes: newNote,
+        updatedAt: Date.now(),
+      };
+      changed = true;
+    }
+  };
+  // Plans → EMAP sections (4.4 Continuity, 4.5 Operational, 4.2 Mitigation, 4.8 Comms)
+  const PLAN_EMAP = {
+    EOP: ['4.5.1', '4.5.2', '4.5.3', '4.5.5'],
+    COOP: ['4.4.1', '4.4.2', '4.4.3', '4.4.4', '4.4.6'],
+    'COG Plan': ['4.4.2', '4.4.5'],
+    'Hazard Mitigation Plan': ['4.2.1', '4.2.2', '4.2.3'],
+    'Recovery Plan': ['4.5.1', '4.5.4'],
+    'Communications Plan': ['4.8.1', '4.8.3'],
+    'Evacuation Plan': ['4.5.5'],
+  };
+  (data.plans || []).forEach((p) => {
+    const refs = PLAN_EMAP[p.type];
+    if (refs)
+      refs.forEach((sid) =>
+        promote(sid, `${p.type} "${p.name}" added to Plan Library`)
+      );
+  });
+  // Training → 4.10 Training standards
+  if ((data.training || []).length >= 1) {
+    ['4.10.1', '4.10.3', '4.10.5'].forEach((sid) =>
+      promote(sid, `${data.training.length} training record(s) in system`)
+    );
+  }
+  if ((data.training || []).length >= 5) {
+    ['4.10.2', '4.10.4'].forEach((sid) =>
+      promote(
+        sid,
+        `${data.training.length} training records demonstrate needs coverage`
+      )
+    );
+  }
+  // Exercises → 4.11 Exercises, Evaluations & Corrective Actions
+  if ((data.exercises || []).length >= 1) {
+    promote('4.11.1', `${data.exercises.length} exercise(s) logged`);
+    promote(
+      '4.11.2',
+      `${data.exercises.length} exercise(s) available for evaluation`
+    );
+  }
+  if ((data.exercises || []).filter((e) => e.aarFinal).length >= 1) {
+    promote('4.11.2', 'Exercise with final AAR on file');
+  }
+  if (
+    (data.exercises || []).some((e) => (e.corrective || []).length > 0) ||
+    (data.capItems || []).length > 0
+  ) {
+    promote('4.11.3', 'Corrective actions tracked in system');
+  }
+  // Partners/MOUs → 4.7 Resource Management & Mutual Aid
+  if ((data.partners || []).length >= 1) {
+    ['4.7.3', '4.7.4'].forEach((sid) =>
+      promote(sid, `${data.partners.length} partner agreement(s) on file`)
+    );
+  }
+  if ((data.partners || []).length >= 3) {
+    promote(
+      '4.7.1',
+      `${data.partners.length} partner agreements support resource management`
+    );
+  }
+  // THIRA/Hazards → 4.1 Hazard ID & Risk Assessment
+  const hazards = data.thira?.hazards || [];
+  if (hazards.length >= 1) {
+    ['4.1.1', '4.1.2'].forEach((sid) =>
+      promote(sid, `${hazards.length} hazard(s) profiled in THIRA`)
+    );
+  }
+  if (hazards.length >= 3) {
+    promote('4.1.3', 'THIRA hazard profile established with multiple hazards');
+  }
+  // Employees/Personnel → 4.6 Incident Management (personnel assigned to roles)
+  if ((data.employees || []).length >= 1) {
+    promote(
+      '4.6.4',
+      `${data.employees.length} personnel in roster for incident role assignment`
+    );
+  }
+  // Resources → 4.7.5, 4.7.6
+  if ((data.resources || []).length >= 1) {
+    ['4.7.5', '4.7.6'].forEach((sid) =>
+      promote(sid, `${data.resources.length} resource(s) inventoried`)
+    );
+  }
+  // Grants → 3.4 Administration & Finance
+  if ((data.grants || []).filter((g) => g.status === 'active').length >= 1) {
+    ['3.4.1', '3.4.2'].forEach((sid) =>
+      promote(sid, 'Active grant funding tracked')
+    );
+  }
+  return changed ? stds : null;
 }
 async function loadData() {
   try {
@@ -877,7 +1022,7 @@ async function saveData(d) {
   } catch {}
 }
 
-/* ─── STATUS HELPERS ─────────────────────────────────── */
+/* --- STATUS HELPERS ----------------------------------- */
 function sectionAggStatus(section, standards) {
   const s = section.standards.map(
     (s) => standards[s.id]?.status || 'not_started'
@@ -915,7 +1060,7 @@ function buildNotifications(data) {
         id: 'mou-' + p.id,
         urgency: d < 0 ? 'overdue' : d < 30 ? 'urgent' : 'soon',
         title: d < 0 ? `MOU expired: ${p.name}` : `MOU expiring: ${p.name}`,
-        detail: d < 0 ? 'Expired — renew immediately' : `${d} days remaining`,
+        detail: d < 0 ? 'Expired - renew immediately' : `${d} days remaining`,
         module: 'partners',
       });
   });
@@ -980,7 +1125,7 @@ function buildNotifications(data) {
             d < 0
               ? `Credential expired: ${emp.name}`
               : `Credential expiring: ${emp.name}`,
-          detail: `${cr.name} — ${d < 0 ? 'Expired' : d + ' days'}`,
+          detail: `${cr.name} - ${d < 0 ? 'Expired' : d + ' days'}`,
           module: 'employees',
         });
     });
@@ -988,7 +1133,7 @@ function buildNotifications(data) {
   return n;
 }
 
-/* ─── SHARED UI ──────────────────────────────────────── */
+/* --- SHARED UI ---------------------------------------- */
 function Ring({ pct, size = 36, sw = 3 }) {
   const r = (size - sw * 2) / 2,
     circ = 2 * Math.PI * r,
@@ -1144,7 +1289,7 @@ const Btn = ({
     }}
   >
     <span style={{ fontSize: 12 }}>{icon || ''}</span>
-    {loading ? 'Working…' : label}
+    {loading ? 'Working...' : label}
   </button>
 );
 const Card = ({ children, style }) => (
@@ -1319,7 +1464,7 @@ function ConfBar({ score }) {
       >
         <span style={{ fontSize: 10, color: B.faint }}>AI Confidence</span>
         <span style={{ fontSize: 10, fontWeight: 700, color: col }}>
-          {score}% —{' '}
+          {score}% -{' '}
           {score >= 75 ? 'Strong' : score >= 50 ? 'Moderate' : 'Weak'}
         </span>
       </div>
@@ -1345,7 +1490,7 @@ function ConfBar({ score }) {
   );
 }
 
-/* ─── FILE ATTACHMENT WIDGET ─────────────────────────── */
+/* --- FILE ATTACHMENT WIDGET --------------------------- */
 function Attachments({ docs = [], onAdd, onRemove, compact }) {
   const inputRef = useRef();
   const handleFiles = async (files) => {
@@ -1393,7 +1538,7 @@ function Attachments({ docs = [], onAdd, onRemove, compact }) {
                   padding: '0 1px',
                 }}
               >
-                ×
+                -
               </button>
             </span>
           ))}
@@ -1489,17 +1634,17 @@ function Attachments({ docs = [], onAdd, onRemove, compact }) {
         >
           <span style={{ fontSize: 14 }}>
             {d.name.endsWith('.pdf')
-              ? '📕'
+              ? '-'
               : d.name.match(/\.(jpg|jpeg|png)$/)
-              ? '🖼️'
-              : '📄'}
+              ? '--'
+              : '-'}
           </span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: B.text }}>
               {d.name}
             </div>
             <div style={{ fontSize: 10, color: B.faint }}>
-              {fmtSize(d.size)} · {timeAgo(d.uploadedAt)}
+              {fmtSize(d.size)} - {timeAgo(d.uploadedAt)}
             </div>
           </div>
           <button
@@ -1512,7 +1657,7 @@ function Attachments({ docs = [], onAdd, onRemove, compact }) {
               fontSize: 15,
             }}
           >
-            ×
+            -
           </button>
         </div>
       ))}
@@ -1520,7 +1665,7 @@ function Attachments({ docs = [], onAdd, onRemove, compact }) {
   );
 }
 
-/* ─── EVIDENCE UPLOAD (EMAP standards) ──────────────── */
+/* --- EVIDENCE UPLOAD (EMAP standards) ---------------- */
 function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
   const [dragging, setDragging] = useState(false);
   const [analyzing, setAnalyzing] = useState(null);
@@ -1690,7 +1835,7 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
           color: '#1e40af',
         }}
       >
-        EMAP requires a written rationale for every proof of compliance —
+        EMAP requires a written rationale for every proof of compliance -
         explaining <em>how</em> the document demonstrates compliance,
         referencing specific sections and pages. Use the AI draft button on each
         document to generate one.
@@ -1718,14 +1863,12 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
       >
         {docs.length === 0 && (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 22, marginBottom: 4, opacity: 0.4 }}>
-              📄
-            </div>
+            <div style={{ fontSize: 22, marginBottom: 4, opacity: 0.4 }}>-</div>
             <div style={{ fontSize: 12, color: B.faint }}>
               Drop files here or click to upload
             </div>
             <div style={{ fontSize: 10, color: '#d1d8db', marginTop: 2 }}>
-              PDF, Word, images — AI analyzes + drafts rationale
+              PDF, Word, images - AI analyzes + drafts rationale
             </div>
           </div>
         )}
@@ -1767,10 +1910,10 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                       }}
                     >
                       {doc.name.endsWith('.pdf')
-                        ? '📕'
+                        ? '-'
                         : doc.name.match(/\.(jpg|jpeg|png)$/)
-                        ? '🖼️'
-                        : '📄'}
+                        ? '--'
+                        : '-'}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
@@ -1786,7 +1929,7 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                         {doc.name}
                       </div>
                       <div style={{ fontSize: 10, color: B.faint }}>
-                        {fmtSz(doc.size)} · {timeAgo(doc.uploadedAt)}
+                        {fmtSz(doc.size)} - {timeAgo(doc.uploadedAt)}
                         {doc.isDraft ? (
                           <span
                             style={{
@@ -1795,7 +1938,7 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                               marginLeft: 6,
                             }}
                           >
-                            ⚠ Draft — not accepted by EMAP
+                            - Draft - not accepted by EMAP
                           </span>
                         ) : (
                           ''
@@ -1814,7 +1957,7 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                         lineHeight: 1,
                       }}
                     >
-                      ×
+                      -
                     </button>
                   </div>
                   {/* Analyzing state */}
@@ -1835,9 +1978,9 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                           display: 'inline-block',
                         }}
                       >
-                        ⟳
+                        -
                       </span>
-                      AI analyzing document…
+                      AI analyzing document...
                     </div>
                   )}
                   {/* Confidence bar */}
@@ -1912,11 +2055,11 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                             letterSpacing: '0.06em',
                           }}
                         >
-                          {hasDraft ? '✓ Rationale' : '⚠ Rationale required'}
+                          {hasDraft ? 'ok Rationale' : '- Rationale required'}
                         </span>
                         {hasDraft && (
                           <span style={{ fontSize: 10, color: B.faint }}>
-                            — EMAP proof of compliance
+                            - EMAP proof of compliance
                           </span>
                         )}
                       </div>
@@ -1944,7 +2087,9 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                             color={B.purple}
                             strokeWidth={1.5}
                           />
-                          {isDraftLoading ? 'Drafting…' : 'AI Draft Rationale'}
+                          {isDraftLoading
+                            ? 'Drafting...'
+                            : 'AI Draft Rationale'}
                         </button>
                       )}
                     </div>
@@ -1994,9 +2139,9 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                             display: 'inline-block',
                           }}
                         >
-                          ⟳
+                          -
                         </span>
-                        AI drafting rationale…
+                        AI drafting rationale...
                       </div>
                     )}
                   </div>
@@ -2057,7 +2202,7 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
   );
 }
 
-/* ─── STANDARD DETAIL PANEL ──────────────────────────── */
+/* --- STANDARD DETAIL PANEL ---------------------------- */
 function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
   const std = ALL_STANDARDS.find((s) => s.id === stdId);
   const st = standards[stdId] || initRecord();
@@ -2119,7 +2264,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
     if (aiData[aiMode]) {
       update(
         'notes',
-        (st.notes ? st.notes + '\n\n—\n\n' : '') + aiData[aiMode]
+        (st.notes ? st.notes + '\n\n-\n\n' : '') + aiData[aiMode]
       );
       setAdopted(true);
       setTimeout(() => setAdopted(false), 2500);
@@ -2228,7 +2373,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                 fontWeight: 600,
               }}
             >
-              ← Prev
+              - Prev
             </button>
             <button
               onClick={() =>
@@ -2248,7 +2393,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                 fontWeight: 600,
               }}
             >
-              Next →
+              Next -
             </button>
             <span style={{ fontSize: 11, color: B.faint }}>
               {idx + 1}/{allIds.length}
@@ -2267,12 +2412,12 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
               lineHeight: 1,
             }}
           >
-            ✕
+            x
           </button>
         </div>
         <div style={{ padding: '20px 22px 48px' }}>
           <div style={{ fontSize: 11, color: B.faint, marginBottom: 8 }}>
-            {std.chapter.title} › {std.section.title}
+            {std.chapter.title} - {std.section.title}
           </div>
           <div
             style={{
@@ -2325,8 +2470,8 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                   fontWeight: 600,
                 }}
               >
-                📄 {(st.docs || []).length} doc
-                {(st.docs || []).length !== 1 ? 's' : ''} · {bestDocConf}%
+                - {(st.docs || []).length} doc
+                {(st.docs || []).length !== 1 ? 's' : ''} - {bestDocConf}%
               </span>
             )}
             {docsWithRationale > 0 && (
@@ -2341,7 +2486,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                   fontWeight: 600,
                 }}
               >
-                ✓ {docsWithRationale} rationale
+                ok {docsWithRationale} rationale
                 {docsWithRationale > 1 ? 's' : ''}
               </span>
             )}
@@ -2357,7 +2502,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                   fontWeight: 600,
                 }}
               >
-                ⚠ {docsWithoutRationale} rationale
+                - {docsWithoutRationale} rationale
                 {docsWithoutRationale > 1 ? 's' : ''} needed
               </span>
             )}
@@ -2382,7 +2527,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
               <span style={{ flexShrink: 0, marginTop: 1 }}>ⓘ</span>
               <div>
                 <strong>EMAP peer review sequencing note:</strong> {depLabel}.
-                You can continue documenting this standard — this flag is
+                You can continue documenting this standard - this flag is
                 informational only and does not prevent you from moving forward
                 in PLANRR.
               </div>
@@ -2436,9 +2581,9 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
             </div>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
               {[
-                ['interpret', '◉ Interpret'],
-                ['evidence', '◈ Suggest Evidence'],
-                ['action', '◎ Build Action Plan'],
+                ['interpret', '- Interpret'],
+                ['evidence', '- Suggest Evidence'],
+                ['action', '- Build Action Plan'],
               ].map(([mode, lbl]) => (
                 <button
                   key={mode}
@@ -2460,7 +2605,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                     transition: 'all 0.15s',
                   }}
                 >
-                  {aiLoading[mode] ? '⟳ Working…' : lbl}
+                  {aiLoading[mode] ? '- Working...' : lbl}
                 </button>
               ))}
             </div>
@@ -2496,7 +2641,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                         transition: 'all 0.2s',
                       }}
                     >
-                      {adopted ? '✓ Added to notes' : '↓ Add to notes'}
+                      {adopted ? 'ok Added to notes' : '- Add to notes'}
                     </button>
                     <button
                       onClick={() => setAiMode(null)}
@@ -2572,7 +2717,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
               <FInput
                 value={st.assignee || ''}
                 onChange={(v) => update('assignee', v)}
-                placeholder="Name or role…"
+                placeholder="Name or role..."
               />
             </div>
             <div>
@@ -2589,7 +2734,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
             <FTextarea
               value={st.notes || ''}
               onChange={(v) => update('notes', v)}
-              placeholder="Gap analysis, corrective actions, progress notes…"
+              placeholder="Gap analysis, corrective actions, progress notes..."
             />
           </div>
           <div style={{ borderTop: `1px solid ${B.border}`, paddingTop: 16 }}>
@@ -2625,9 +2770,9 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    EMAP STANDARDS VIEW
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function AccreditationView({ data, updateData }) {
   const standards = data.standards || {};
   const [detailId, setDetailId] = useState(null);
@@ -2666,8 +2811,8 @@ function AccreditationView({ data, updateData }) {
           EMAP Standards
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 3 }}>
-          EMS 5-2022 · {compliantSections}/{ALL_SECTIONS.length} sections
-          compliant · {overall.compliant}/{overall.total} standards compliant
+          EMS 5-2022 - {compliantSections}/{ALL_SECTIONS.length} sections
+          compliant - {overall.compliant}/{overall.total} standards compliant
         </p>
         <div
           style={{
@@ -2689,16 +2834,16 @@ function AccreditationView({ data, updateData }) {
         </div>
         <div style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 11 }}>
           <span style={{ color: B.green, fontWeight: 600 }}>
-            ✓ {overall.compliant} compliant
+            ok {overall.compliant} compliant
           </span>
           <span style={{ color: B.amber, fontWeight: 600 }}>
-            ◑ {overall.in_progress} in progress
+            - {overall.in_progress} in progress
           </span>
           <span style={{ color: B.red, fontWeight: 600 }}>
             ! {overall.needs_review} needs review
           </span>
           <span style={{ color: B.faint }}>
-            ○ {overall.not_started} not started
+            o {overall.not_started} not started
           </span>
         </div>
       </div>
@@ -2841,7 +2986,7 @@ function AccreditationView({ data, updateData }) {
                     flexShrink: 0,
                   }}
                 >
-                  ▼
+                  -
                 </span>
               </div>
               {isExpanded && (
@@ -2955,8 +3100,8 @@ function AccreditationView({ data, updateData }) {
                                 fontWeight: 600,
                               }}
                             >
-                              📄{docCount}
-                              {bestConf !== null ? ` · ${bestConf}%` : ''}
+                              -{docCount}
+                              {bestConf !== null ? `  -  ${bestConf}%` : ''}
                             </span>
                           )}
                           {st.assignee && (
@@ -2964,12 +3109,12 @@ function AccreditationView({ data, updateData }) {
                               style={{ fontSize: 10, color: B.faint }}
                               title={st.assignee}
                             >
-                              👤
+                              -
                             </span>
                           )}
                           <StatusPill status={st.status} compact />
                           <span style={{ color: '#d1d8db', fontSize: 14 }}>
-                            ›
+                            -
                           </span>
                         </div>
                       </div>
@@ -2992,7 +3137,7 @@ function AccreditationView({ data, updateData }) {
                     }
                     readOnly
                     onClick={() => setDetailId(sec.standards[0]?.id)}
-                    placeholder="Click to view notes…"
+                    placeholder="Click to view notes..."
                     style={{
                       width: '100%',
                       border: `1px solid ${B.border}`,
@@ -3027,9 +3172,9 @@ function AccreditationView({ data, updateData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
-   EXERCISE & AAR — Full workflow
-═══════════════════════════════════════════════════════ */
+/* -------------------------------------------------------
+   EXERCISE & AAR - Full workflow
+------------------------------------------------------- */
 const HSEEP_TYPES = [
   'Seminar',
   'Workshop',
@@ -3255,8 +3400,8 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 {ex.name}
               </div>
               <div style={{ fontSize: 12, color: B.faint, marginTop: 2 }}>
-                {ex.type} · {fmtDate(ex.date)}
-                {ex.location ? ` · ${ex.location}` : ''}
+                {ex.type} - {fmtDate(ex.date)}
+                {ex.location ? `  -  ${ex.location}` : ''}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -3286,7 +3431,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   lineHeight: 1,
                 }}
               >
-                ✕
+                x
               </button>
             </div>
           </div>
@@ -3299,11 +3444,9 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 style={{
                   padding: '6px 12px',
                   borderRadius: '6px 6px 0 0',
-                  border: `1px solid ${
-                    tab === t.id ? B.border : 'transparent'
-                  }`,
+                  border: `1px solid ${tab === t.id ? B.border : 'tranSPRent'}`,
                   borderBottom: `1px solid ${tab === t.id ? B.card : B.border}`,
-                  background: tab === t.id ? B.card : 'transparent',
+                  background: tab === t.id ? B.card : 'tranSPRent',
                   color: tab === t.id ? B.teal : B.muted,
                   fontSize: 12,
                   fontWeight: tab === t.id ? 700 : 500,
@@ -3321,7 +3464,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
 
         {/* Tab content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 22px 40px' }}>
-          {/* ─ OVERVIEW ─ */}
+          {/* - OVERVIEW - */}
           {tab === 'overview' && (
             <div>
               <div
@@ -3343,7 +3486,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 <div>
                   <Label>HSEEP Exercise Type</Label>
                   <FSel value={ex.type || ''} onChange={(v) => u('type', v)}>
-                    <option value="">Select type…</option>
+                    <option value="">Select type...</option>
                     {HSEEP_TYPES.map((t) => (
                       <option key={t}>{t}</option>
                     ))}
@@ -3368,7 +3511,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 <div>
                   <Label>State (for AAR requirements)</Label>
                   <FSel value={ex.state || ''} onChange={(v) => u('state', v)}>
-                    <option value="">Select state…</option>
+                    <option value="">Select state...</option>
                     {US_STATES.map((s) => (
                       <option key={s}>{s}</option>
                     ))}
@@ -3393,7 +3536,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 <FTextarea
                   value={ex.scenario || ''}
                   onChange={(v) => u('scenario', v)}
-                  placeholder="Describe the scenario, scope, and context of the exercise…"
+                  placeholder="Describe the scenario, scope, and context of the exercise..."
                   rows={4}
                 />
               </div>
@@ -3420,7 +3563,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
             </div>
           )}
 
-          {/* ─ OBJECTIVES & PARTICIPANTS ─ */}
+          {/* - OBJECTIVES & PARTICIPANTS - */}
           {tab === 'objectives' && (
             <div>
               <div style={{ marginBottom: 18 }}>
@@ -3433,7 +3576,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   <FInput
                     value={''}
                     onChange={() => {}}
-                    placeholder="Add objective… (press Enter)"
+                    placeholder="Add objective... (press Enter)"
                     style={{ fontSize: 12 }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -3467,7 +3610,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                       textAlign: 'center',
                     }}
                   >
-                    No objectives added — type above and press Enter
+                    No objectives added - type above and press Enter
                   </div>
                 )}
                 {(ex.objectives || []).map((obj, i) => (
@@ -3510,7 +3653,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                         fontSize: 14,
                       }}
                     >
-                      ×
+                      -
                     </button>
                   </div>
                 ))}
@@ -3546,7 +3689,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   <FTextarea
                     value={ex.participantNotes || ''}
                     onChange={(v) => u('participantNotes', v)}
-                    placeholder="List agencies, roles, or other participation details…"
+                    placeholder="List agencies, roles, or other participation details..."
                     rows={3}
                   />
                 </div>
@@ -3556,7 +3699,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 <FTextarea
                   value={ex.controllers || ''}
                   onChange={(v) => u('controllers', v)}
-                  placeholder="List controllers and evaluators assigned to this exercise…"
+                  placeholder="List controllers and evaluators assigned to this exercise..."
                   rows={3}
                 />
               </div>
@@ -3565,14 +3708,14 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 <FTextarea
                   value={ex.observerNotes || ''}
                   onChange={(v) => u('observerNotes', v)}
-                  placeholder="Hot wash notes, observer observations during exercise…"
+                  placeholder="Hot wash notes, observer observations during exercise..."
                   rows={3}
                 />
               </div>
             </div>
           )}
 
-          {/* ─ EVALUATION (Strengths, AFIs, CAs) ─ */}
+          {/* - EVALUATION (Strengths, AFIs, CAs) - */}
           {tab === 'eval' && (
             <div>
               <div
@@ -3589,7 +3732,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   <FInput
                     value={strengthText}
                     onChange={setStrengthText}
-                    placeholder="Add a strength…"
+                    placeholder="Add a strength..."
                     style={{ fontSize: 12 }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -3630,7 +3773,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                         marginTop: 1,
                       }}
                     >
-                      ✓
+                      ok
                     </span>
                     <span style={{ flex: 1, fontSize: 12, color: B.text }}>
                       {s}
@@ -3645,7 +3788,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                         fontSize: 13,
                       }}
                     >
-                      ×
+                      -
                     </button>
                   </div>
                 ))}
@@ -3664,7 +3807,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   <FInput
                     value={afiText}
                     onChange={setAfiText}
-                    placeholder="Add an area for improvement…"
+                    placeholder="Add an area for improvement..."
                     style={{ fontSize: 12 }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -3705,7 +3848,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                         marginTop: 1,
                       }}
                     >
-                      △
+                      -
                     </span>
                     <span style={{ flex: 1, fontSize: 12, color: B.text }}>
                       {a}
@@ -3720,7 +3863,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                         fontSize: 13,
                       }}
                     >
-                      ×
+                      -
                     </button>
                   </div>
                 ))}
@@ -3733,12 +3876,12 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   padding: '14px 16px',
                 }}
               >
-                <Label>Improvement Plan — Corrective Actions</Label>
+                <Label>Improvement Plan - Corrective Actions</Label>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                   <FInput
                     value={caText}
                     onChange={setCaText}
-                    placeholder="Add corrective action…"
+                    placeholder="Add corrective action..."
                     style={{ fontSize: 12 }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -3792,7 +3935,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
             </div>
           )}
 
-          {/* ─ AAR DRAFT ─ */}
+          {/* - AAR DRAFT - */}
           {tab === 'aar_draft' && (
             <div>
               <div
@@ -3828,7 +3971,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                       AI AAR Draft Generator
                     </div>
                     <div style={{ fontSize: 11, color: B.faint }}>
-                      HSEEP-compliant draft · EMAP 4.11 requirements ·{' '}
+                      HSEEP-compliant draft - EMAP 4.11 requirements -{' '}
                       {ex.state
                         ? `${ex.state} state considerations`
                         : 'Add state for state-specific guidance'}
@@ -3836,7 +3979,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   </div>
                   <Btn
                     label={
-                      aarDraftLoading ? '⟳ Drafting…' : 'Generate AAR Draft'
+                      aarDraftLoading ? '- Drafting...' : 'Generate AAR Draft'
                     }
                     onClick={genAARDraft}
                     loading={aarDraftLoading}
@@ -3867,9 +4010,9 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                         display: 'inline-block',
                       }}
                     >
-                      ⟳
+                      -
                     </span>
-                    Drafting HSEEP-compliant AAR…
+                    Drafting HSEEP-compliant AAR...
                   </div>
                 )}
               </div>
@@ -3878,7 +4021,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 <FTextarea
                   value={ex.aarDraft || ''}
                   onChange={(v) => u('aarDraft', v)}
-                  placeholder="AAR draft will appear here after AI generation, or type/paste your draft…"
+                  placeholder="AAR draft will appear here after AI generation, or type/paste your draft..."
                   rows={20}
                 />
               </div>
@@ -3897,7 +4040,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
             </div>
           )}
 
-          {/* ─ AAR FINAL ─ */}
+          {/* - AAR FINAL - */}
           {tab === 'aar_final' && (
             <div>
               <div
@@ -3937,7 +4080,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                     </div>
                   </div>
                   <Btn
-                    label={aarFinalLoading ? '⟳ Finalizing…' : 'Finalize AAR'}
+                    label={aarFinalLoading ? '- Finalizing...' : 'Finalize AAR'}
                     onClick={finalizeAAR}
                     loading={aarFinalLoading}
                     primary
@@ -3974,7 +4117,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   <FInput
                     value={ex.aarDistribution || ''}
                     onChange={(v) => u('aarDistribution', v)}
-                    placeholder="Stakeholders, agencies…"
+                    placeholder="Stakeholders, agencies..."
                   />
                 </div>
               </div>
@@ -4002,7 +4145,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                     color: '#065f46',
                   }}
                 >
-                  ✓ Final AAR on file — counts as evidence for EMAP 4.11.2
+                  ok Final AAR on file - counts as evidence for EMAP 4.11.2
                 </div>
               )}
             </div>
@@ -4081,7 +4224,7 @@ function ExerciseManager({ data, setData }) {
             Exercises & AARs
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.11 · HSEEP-aligned · {data.exercises.length} exercises ·
+            EMAP 4.11 - HSEEP-aligned - {data.exercises.length} exercises -
             AI-assisted AAR drafting
           </p>
         </div>
@@ -4099,7 +4242,7 @@ function ExerciseManager({ data, setData }) {
           color: '#5b21b6',
         }}
       >
-        ↑ Completed exercises with AARs directly satisfy{' '}
+        - Completed exercises with AARs directly satisfy{' '}
         <strong>EMAP 4.11.2</strong>. AI drafts meet HSEEP doctrine
         requirements.
       </div>
@@ -4167,7 +4310,7 @@ function ExerciseManager({ data, setData }) {
       )}
       {data.exercises.length === 0 ? (
         <Card style={{ textAlign: 'center', padding: '36px', color: B.faint }}>
-          No exercises yet — create your first exercise to start building EMAP
+          No exercises yet - create your first exercise to start building EMAP
           4.11 evidence
         </Card>
       ) : (
@@ -4242,7 +4385,7 @@ function ExerciseManager({ data, setData }) {
                         </span>
                         {hasAAR && (
                           <Tag
-                            label={ex.aarFinal ? 'AAR Final ✓' : 'AAR Draft'}
+                            label={ex.aarFinal ? 'AAR Final ok' : 'AAR Draft'}
                             color={ex.aarFinal ? B.green : B.amber}
                             bg={ex.aarFinal ? B.greenLight : B.amberLight}
                             border={ex.aarFinal ? B.greenBorder : B.amberBorder}
@@ -4261,14 +4404,14 @@ function ExerciseManager({ data, setData }) {
                         <span>{fmtDate(ex.date)}</span>
                         {ex.location && <span>📍 {ex.location}</span>}
                         {ex.participantCount && (
-                          <span>👥 {ex.participantCount} participants</span>
+                          <span>- {ex.participantCount} participants</span>
                         )}
                         {(ex.objectives || []).length > 0 && (
                           <span>🎯 {ex.objectives.length} objectives</span>
                         )}
                         {openCAs > 0 && (
                           <span style={{ color: B.red, fontWeight: 600 }}>
-                            ⚠ {openCAs} open CAs
+                            - {openCAs} open CAs
                           </span>
                         )}
                       </div>
@@ -4287,9 +4430,9 @@ function ExerciseManager({ data, setData }) {
                         padding: '4px',
                       }}
                     >
-                      ×
+                      -
                     </button>
-                    <span style={{ color: B.border, fontSize: 14 }}>›</span>
+                    <span style={{ color: B.border, fontSize: 14 }}>-</span>
                   </div>
                 </div>
               );
@@ -4307,9 +4450,9 @@ function ExerciseManager({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    EMPLOYEES & CREDENTIALS
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 const CERT_TYPES = [
   'ICS-100',
   'ICS-200',
@@ -4445,6 +4588,8 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
     { id: 'certs', label: 'Certifications' },
     { id: 'taskbooks', label: 'Task Books' },
     { id: 'training', label: 'Training History' },
+    { id: 'deployment', label: 'Deployment' },
+    { id: 'evaluation', label: 'Evaluation' },
   ];
   const expiringSoon = (emp.credentials || []).filter((c) => {
     const d = daysUntil(c.expires);
@@ -4517,7 +4662,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                 </div>
                 <div style={{ fontSize: 12, color: B.faint }}>
                   {emp.title || ''}
-                  {emp.title && emp.department ? ' · ' : ''}
+                  {emp.title && emp.department ? '  -  ' : ''}
                   {emp.department || ''}
                 </div>
               </div>
@@ -4535,7 +4680,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                     fontWeight: 600,
                   }}
                 >
-                  ⚠ {expiringSoon.length} expiring
+                  - {expiringSoon.length} expiring
                 </span>
               )}
               <button
@@ -4551,7 +4696,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                   lineHeight: 1,
                 }}
               >
-                ✕
+                x
               </button>
             </div>
           </div>
@@ -4563,11 +4708,9 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                 style={{
                   padding: '6px 12px',
                   borderRadius: '6px 6px 0 0',
-                  border: `1px solid ${
-                    tab === t.id ? B.border : 'transparent'
-                  }`,
+                  border: `1px solid ${tab === t.id ? B.border : 'tranSPRent'}`,
                   borderBottom: `1px solid ${tab === t.id ? B.card : B.border}`,
-                  background: tab === t.id ? B.card : 'transparent',
+                  background: tab === t.id ? B.card : 'tranSPRent',
                   color: tab === t.id ? B.indigo : B.muted,
                   fontSize: 12,
                   fontWeight: tab === t.id ? 700 : 500,
@@ -4583,7 +4726,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 22px 40px' }}>
-          {/* ─ PROFILE ─ */}
+          {/* - PROFILE - */}
           {tab === 'profile' && (
             <div>
               <div
@@ -4644,6 +4787,18 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                   />
                 </div>
                 <div>
+                  <Label>Availability</Label>
+                  <FSel
+                    value={emp.availability || 'full'}
+                    onChange={(v) => u('availability', v)}
+                  >
+                    <option value="full">Full Time (40h)</option>
+                    <option value="parttime">Part Time</option>
+                    <option value="oncall">On Call Only</option>
+                    <option value="limited">Limited</option>
+                  </FSel>
+                </div>
+                <div>
                   <Label>Date Hired</Label>
                   <FInput
                     type="date"
@@ -4662,7 +4817,62 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                     <option value="part_time">Part-Time</option>
                     <option value="volunteer">Volunteer</option>
                     <option value="contractor">Contractor</option>
+                    <option value="intern">Intern</option>
+                    <option value="dsw">Disaster Service Worker (DSW)</option>
                   </FSel>
+                </div>
+              </div>
+              <div
+                style={{
+                  marginBottom: 12,
+                  paddingTop: 12,
+                  borderTop: `1px solid ${B.border}`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: B.muted,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    marginBottom: 10,
+                  }}
+                >
+                  Emergency Contact
+                </div>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 10,
+                    marginBottom: 12,
+                  }}
+                >
+                  <div>
+                    <Label>Contact Name</Label>
+                    <FInput
+                      value={emp.emergencyContact || ''}
+                      onChange={(v) => u('emergencyContact', v)}
+                      placeholder="Name"
+                    />
+                  </div>
+                  <div>
+                    <Label>Contact Phone</Label>
+                    <FInput
+                      value={emp.emergencyPhone || ''}
+                      onChange={(v) => u('emergencyPhone', v)}
+                      placeholder="(555) 000-0000"
+                    />
+                  </div>
+                  <div>
+                    <Label>Relationship</Label>
+                    <FInput
+                      value={emp.emergencyRelation || ''}
+                      onChange={(v) => u('emergencyRelation', v)}
+                      placeholder="Spouse, Parent..."
+                    />
+                  </div>
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
@@ -4670,7 +4880,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                 <FTextarea
                   value={emp.notes || ''}
                   onChange={(v) => u('notes', v)}
-                  placeholder="Additional notes about this employee…"
+                  placeholder="Additional notes about this employee..."
                   rows={3}
                 />
               </div>
@@ -4687,7 +4897,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
             </div>
           )}
 
-          {/* ─ CERTIFICATIONS ─ */}
+          {/* - CERTIFICATIONS - */}
           {tab === 'certs' && (
             <div>
               {expiringSoon.length > 0 && (
@@ -4708,11 +4918,11 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                       marginBottom: 4,
                     }}
                   >
-                    ⚠ Credentials Expiring Soon
+                    - Credentials Expiring Soon
                   </div>
                   {expiringSoon.map((c) => (
                     <div key={c.id} style={{ fontSize: 12, color: B.red }}>
-                      {c.name} —{' '}
+                      {c.name} -{' '}
                       {daysUntil(c.expires) < 0
                         ? 'EXPIRED'
                         : `${daysUntil(c.expires)} days`}
@@ -4773,7 +4983,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                       onChange={(v) =>
                         setCertForm((p) => ({ ...p, issuer: v }))
                       }
-                      placeholder="FEMA, State OES, IAEM…"
+                      placeholder="FEMA, State OES, IAEM..."
                     />
                   </div>
                   <div>
@@ -4898,7 +5108,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                             flexWrap: 'wrap',
                           }}
                         >
-                          {c.issuer && <span>🏛 {c.issuer}</span>}
+                          {c.issuer && <span>- {c.issuer}</span>}
                           {c.certNumber && <span>#{c.certNumber}</span>}
                           {c.issued && <span>Issued: {fmtDate(c.issued)}</span>}
                           {c.expires && (
@@ -4926,7 +5136,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                           fontSize: 14,
                         }}
                       >
-                        ×
+                        -
                       </button>
                     </div>
                   </div>
@@ -4935,7 +5145,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
             </div>
           )}
 
-          {/* ─ TASK BOOKS ─ */}
+          {/* - TASK BOOKS - */}
           {tab === 'taskbooks' && (
             <div>
               <div
@@ -4971,7 +5181,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                       value={tbForm.type}
                       onChange={(v) => setTbForm((p) => ({ ...p, type: v }))}
                     >
-                      <option value="">Select position…</option>
+                      <option value="">Select position...</option>
                       {TASKBOOK_TYPES.map((t) => (
                         <option key={t}>{t}</option>
                       ))}
@@ -5007,7 +5217,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                     fontSize: 13,
                   }}
                 >
-                  No task books yet — FEMA task books track position
+                  No task books yet - FEMA task books track position
                   qualification
                 </div>
               )}
@@ -5129,7 +5339,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                           fontSize: 14,
                         }}
                       >
-                        ×
+                        -
                       </button>
                     </div>
                     <div style={{ padding: '12px 14px' }}>
@@ -5137,7 +5347,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                         <FInput
                           value={newTask}
                           onChange={setNewTask}
-                          placeholder="Add task item…"
+                          placeholder="Add task item..."
                           style={{ fontSize: 12 }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -5237,7 +5447,257 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
             </div>
           )}
 
-          {/* ─ TRAINING HISTORY ─ */}
+          {/* - TRAINING HISTORY - */}
+          {tab === 'deployment' && (
+            <div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 12,
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    background: B.card,
+                    border: `1px solid ${B.border}`,
+                    borderRadius: 9,
+                    padding: '14px 16px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: B.muted,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      marginBottom: 10,
+                    }}
+                  >
+                    Deployment Status
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <Label>Deployable</Label>
+                    <FSel
+                      value={emp.deployable || 'yes'}
+                      onChange={(v) => u('deployable', v)}
+                    >
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                      <option value="limited">Limited</option>
+                    </FSel>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <Label>Currently Deployed</Label>
+                    <FSel
+                      value={emp.currentlyDeployed || 'no'}
+                      onChange={(v) => u('currentlyDeployed', v)}
+                    >
+                      <option value="no">No</option>
+                      <option value="yes">Yes</option>
+                    </FSel>
+                  </div>
+                  {emp.currentlyDeployed === 'yes' && (
+                    <>
+                      <div style={{ marginBottom: 10 }}>
+                        <Label>Deployment Location</Label>
+                        <FInput
+                          value={emp.deployLocation || ''}
+                          onChange={(v) => u('deployLocation', v)}
+                          placeholder="City, State or Incident Name"
+                        />
+                      </div>
+                      <div style={{ marginBottom: 10 }}>
+                        <Label>Point of Contact</Label>
+                        <FInput
+                          value={emp.deployPOC || ''}
+                          onChange={(v) => u('deployPOC', v)}
+                          placeholder="Name and phone"
+                        />
+                      </div>
+                      <div>
+                        <Label>Expected Return Date</Label>
+                        <FInput
+                          type="date"
+                          value={emp.deployReturn || ''}
+                          onChange={(v) => u('deployReturn', v)}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div
+                  style={{
+                    background: B.card,
+                    border: `1px solid ${B.border}`,
+                    borderRadius: 9,
+                    padding: '14px 16px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: B.muted,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      marginBottom: 10,
+                    }}
+                  >
+                    Deployment History
+                  </div>
+                  {(emp.deployHistory || []).length === 0 ? (
+                    <div
+                      style={{
+                        color: B.faint,
+                        fontSize: 12,
+                        textAlign: 'center',
+                        padding: '16px 0',
+                      }}
+                    >
+                      No deployments recorded
+                    </div>
+                  ) : (
+                    (emp.deployHistory || []).map((d, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          fontSize: 12,
+                          color: B.text,
+                          padding: '6px 0',
+                          borderBottom: `1px solid ${B.border}`,
+                        }}
+                      >
+                        {d.incident} - {fmtDate(d.start)} -{' '}
+                        {fmtDate(d.end) || 'Ongoing'}
+                      </div>
+                    ))
+                  )}
+                  <div style={{ marginTop: 12 }}>
+                    <Btn
+                      label="+ Log Deployment"
+                      small
+                      onClick={() => {
+                        const incident = prompt('Incident name:');
+                        if (incident)
+                          u('deployHistory', [
+                            ...(emp.deployHistory || []),
+                            { incident, start: today(), end: '', id: uid() },
+                          ]);
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'evaluation' && (
+            <div>
+              <div
+                style={{
+                  background: B.amberLight,
+                  border: `1px solid ${B.amberBorder}`,
+                  borderRadius: 9,
+                  padding: '12px 14px',
+                  marginBottom: 14,
+                  fontSize: 12,
+                  color: '#92400e',
+                }}
+              >
+                Evaluations should follow your agency HR policies. Records here
+                are for EM program tracking only.
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 12,
+                  marginBottom: 14,
+                }}
+              >
+                <div>
+                  <Label>Last Evaluation Date</Label>
+                  <FInput
+                    type="date"
+                    value={emp.lastEvalDate || ''}
+                    onChange={(v) => u('lastEvalDate', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Next Evaluation Due</Label>
+                  <FInput
+                    type="date"
+                    value={emp.nextEvalDate || ''}
+                    onChange={(v) => u('nextEvalDate', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Overall Rating</Label>
+                  <FSel
+                    value={emp.evalRating || ''}
+                    onChange={(v) => u('evalRating', v)}
+                  >
+                    <option value="">Select...</option>
+                    <option>Exceptional</option>
+                    <option>Exceeds Expectations</option>
+                    <option>Meets Expectations</option>
+                    <option>Needs Improvement</option>
+                    <option>Unsatisfactory</option>
+                  </FSel>
+                </div>
+                <div>
+                  <Label>Evaluator</Label>
+                  <FInput
+                    value={emp.evaluator || ''}
+                    onChange={(v) => u('evaluator', v)}
+                    placeholder="Supervisor name"
+                  />
+                </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <Label>Performance Summary</Label>
+                <FTextarea
+                  rows={3}
+                  value={emp.evalSummary || ''}
+                  onChange={(v) => u('evalSummary', v)}
+                  placeholder="Key achievements, strengths, and contributions during evaluation period..."
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <Label>Development Goals</Label>
+                <FTextarea
+                  rows={3}
+                  value={emp.evalGoals || ''}
+                  onChange={(v) => u('evalGoals', v)}
+                  placeholder="Training goals, career development objectives, areas for growth..."
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <Label>EM-Specific Competencies</Label>
+                <FTextarea
+                  rows={3}
+                  value={emp.evalCompetencies || ''}
+                  onChange={(v) => u('evalCompetencies', v)}
+                  placeholder="ICS proficiency, planning skills, interagency coordination, exercise participation..."
+                />
+              </div>
+              <Attachments
+                docs={emp.evalDocs || []}
+                onAdd={(doc) => u('evalDocs', [...(emp.evalDocs || []), doc])}
+                onRemove={(id) =>
+                  u(
+                    'evalDocs',
+                    (emp.evalDocs || []).filter((d) => d.id !== id)
+                  )
+                }
+                label="Evaluation Documents"
+              />
+            </div>
+          )}
+
           {tab === 'training' && (
             <div>
               <div
@@ -5309,8 +5769,8 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                           </div>
                           <div style={{ fontSize: 11, color: B.faint }}>
                             {fmtDate(t.date)}
-                            {t.hours ? ` · ${t.hours}h` : ''}
-                            {t.cert ? ` · Cert #${t.cert}` : ''}
+                            {t.hours ? `  -  ${t.hours}h` : ''}
+                            {t.cert ? `  -  Cert #${t.cert}` : ''}
                           </div>
                         </div>
                         <Tag
@@ -5342,7 +5802,12 @@ function EmployeesView({ data, setData }) {
     title: '',
     department: '',
     email: '',
+    phone: '',
     status: 'active',
+    employeeType: 'active',
+    emergencyContact: '',
+    emergencyPhone: '',
+    deployable: false,
   });
 
   const employees = data.employees || [];
@@ -5365,7 +5830,12 @@ function EmployeesView({ data, setData }) {
       title: '',
       department: '',
       email: '',
+      phone: '',
       status: 'active',
+      employeeType: 'active',
+      emergencyContact: '',
+      emergencyPhone: '',
+      deployable: false,
     });
     setShowForm(false);
     setSelectedId(emp.id);
@@ -5439,7 +5909,7 @@ function EmployeesView({ data, setData }) {
             Employees & Credentials
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            {employees.length} personnel · {totalCerts} credentials ·{' '}
+            {employees.length} personnel - {totalCerts} credentials -{' '}
             {expiring > 0 ? (
               <span style={{ color: B.red, fontWeight: 600 }}>
                 {expiring} expiring
@@ -5464,7 +5934,7 @@ function EmployeesView({ data, setData }) {
             label: 'Total Personnel',
             val: employees.length,
             color: B.indigo,
-            icon: '👥',
+            icon: '-',
           },
           {
             label: 'Certifications Tracked',
@@ -5476,7 +5946,7 @@ function EmployeesView({ data, setData }) {
             label: 'Expiring / Expired',
             val: expiring,
             color: expiring > 0 ? B.red : B.green,
-            icon: expiring > 0 ? '⚠' : '✓',
+            icon: expiring > 0 ? '-' : 'ok',
           },
         ].map((s) => (
           <Card key={s.label} style={{ padding: '14px 16px' }}>
@@ -5509,7 +5979,7 @@ function EmployeesView({ data, setData }) {
           <FInput
             value={search}
             onChange={setSearch}
-            placeholder="Search by name, title, department…"
+            placeholder="Search by name, title, department..."
             style={{ paddingLeft: 30 }}
           />
         </div>
@@ -5517,6 +5987,8 @@ function EmployeesView({ data, setData }) {
           ['all', 'All'],
           ['active', 'Active'],
           ['volunteer', 'Volunteer'],
+          ['intern', 'Intern'],
+          ['dsw', 'DSW'],
           ['expiring', 'Expiring Creds'],
         ].map(([f, lbl]) => (
           <button
@@ -5683,7 +6155,7 @@ function EmployeesView({ data, setData }) {
                     </div>
                     <div style={{ fontSize: 11, color: B.faint }}>
                       {emp.title || ''}
-                      {emp.title && emp.department ? ' · ' : ''}
+                      {emp.title && emp.department ? '  -  ' : ''}
                       {emp.department || ''}
                     </div>
                   </div>
@@ -5718,7 +6190,7 @@ function EmployeesView({ data, setData }) {
                     )}
                     {completedTBs > 0 && (
                       <Tag
-                        label={`✓ ${completedTBs} certified`}
+                        label={`ok ${completedTBs} certified`}
                         color={B.green}
                         bg={B.greenLight}
                         border={B.greenBorder}
@@ -5726,7 +6198,7 @@ function EmployeesView({ data, setData }) {
                     )}
                     {certExpiring > 0 && (
                       <Tag
-                        label={`⚠ ${certExpiring} expiring`}
+                        label={`- ${certExpiring} expiring`}
                         color={B.red}
                         bg={B.redLight}
                         border={B.redBorder}
@@ -5760,9 +6232,9 @@ function EmployeesView({ data, setData }) {
                       padding: '4px',
                     }}
                   >
-                    ×
+                    -
                   </button>
-                  <span style={{ color: B.border, fontSize: 14 }}>›</span>
+                  <span style={{ color: B.border, fontSize: 14 }}>-</span>
                 </div>
               </div>
             );
@@ -5781,9 +6253,9 @@ function EmployeesView({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    TRAINING MANAGER (with attachments)
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function TrainingManager({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -5854,7 +6326,7 @@ function TrainingManager({ data, setData }) {
       data.training.length > 0
         ? data.training
             .slice(-10)
-            .map((t) => `${t.person} · ${t.type} · ${t.date}`)
+            .map((t) => `${t.person}  -  ${t.type}  -  ${t.date}`)
             .join('\n')
         : 'None yet.';
     try {
@@ -5896,14 +6368,14 @@ function TrainingManager({ data, setData }) {
             Training Manager
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.10 · {data.training.length} records ·{' '}
+            EMAP 4.10 - {data.training.length} records -{' '}
             {[...new Set(data.training.map((t) => t.person))].length} personnel
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Btn
             label="AI Needs Assessment"
-            icon="✦"
+            icon="-"
             onClick={runAi}
             loading={aiLoading}
           />
@@ -5977,7 +6449,7 @@ function TrainingManager({ data, setData }) {
                 value={form.type}
                 onChange={(v) => setForm((p) => ({ ...p, type: v }))}
               >
-                <option value="">Select…</option>
+                <option value="">Select...</option>
                 {TYPES.map((t) => (
                   <option key={t}>{t}</option>
                 ))}
@@ -6022,7 +6494,7 @@ function TrainingManager({ data, setData }) {
             <FInput
               value={form.notes}
               onChange={(v) => setForm((p) => ({ ...p, notes: v }))}
-              placeholder="Additional notes…"
+              placeholder="Additional notes..."
             />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -6035,7 +6507,7 @@ function TrainingManager({ data, setData }) {
         <FInput
           value={search}
           onChange={setSearch}
-          placeholder="Search personnel or training type…"
+          placeholder="Search personnel or training type..."
         />
       </div>
       {filtered.length === 0 ? (
@@ -6067,15 +6539,15 @@ function TrainingManager({ data, setData }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: B.text }}>
                     {t.person}{' '}
-                    <span style={{ color: B.faint, fontWeight: 400 }}>·</span>{' '}
+                    <span style={{ color: B.faint, fontWeight: 400 }}> - </span>{' '}
                     <span style={{ color: B.muted }}>{t.type}</span>
                   </div>
                   <div style={{ fontSize: 11, color: B.faint, marginTop: 2 }}>
                     {fmtDate(t.date)}
-                    {t.hours ? ` · ${t.hours}h` : ''}
-                    {t.cert ? ` · #${t.cert}` : ''}
+                    {t.hours ? `  -  ${t.hours}h` : ''}
+                    {t.cert ? `  -  #${t.cert}` : ''}
                     {(t.docs || []).length > 0
-                      ? ` · 📎 ${t.docs.length} file${
+                      ? `  -  📎 ${t.docs.length} file${
                           t.docs.length > 1 ? 's' : ''
                         }`
                       : ''}
@@ -6100,7 +6572,7 @@ function TrainingManager({ data, setData }) {
                     fontSize: 14,
                   }}
                 >
-                  ×
+                  -
                 </button>
                 <span
                   style={{
@@ -6111,7 +6583,7 @@ function TrainingManager({ data, setData }) {
                     transition: 'transform 0.2s',
                   }}
                 >
-                  ▼
+                  -
                 </span>
               </div>
               {expandedId === t.id && (
@@ -6127,7 +6599,7 @@ function TrainingManager({ data, setData }) {
                     <FTextarea
                       value={t.notes || ''}
                       onChange={(v) => updateRec(t.id, 'notes', v)}
-                      placeholder="Notes…"
+                      placeholder="Notes..."
                       rows={2}
                     />
                   </div>
@@ -6154,9 +6626,9 @@ function TrainingManager({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    PARTNERS (with attachments)
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function PartnerRegistry({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
@@ -6262,7 +6734,7 @@ function PartnerRegistry({ data, setData }) {
             Partner & Agreement Registry
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.7 · {data.partners.length} agreements
+            EMAP 4.7 - {data.partners.length} agreements
           </p>
         </div>
         <Btn label="+ Add Partner" onClick={() => setShowForm(true)} primary />
@@ -6419,7 +6891,7 @@ function PartnerRegistry({ data, setData }) {
             <FInput
               value={form.notes}
               onChange={(v) => setForm((p) => ({ ...p, notes: v }))}
-              placeholder="Scope, capabilities…"
+              placeholder="Scope, capabilities..."
             />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -6484,7 +6956,7 @@ function PartnerRegistry({ data, setData }) {
                       flexShrink: 0,
                     }}
                   >
-                    ⊕
+                    -
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
@@ -6523,7 +6995,7 @@ function PartnerRegistry({ data, setData }) {
                         flexWrap: 'wrap',
                       }}
                     >
-                      {p.contact && <span>👤 {p.contact}</span>}
+                      {p.contact && <span>- {p.contact}</span>}
                       <span>Signed: {fmtDate(p.signed)}</span>
                       {p.expires && (
                         <span
@@ -6558,7 +7030,7 @@ function PartnerRegistry({ data, setData }) {
                       fontSize: 14,
                     }}
                   >
-                    ×
+                    -
                   </button>
                   <span
                     style={{
@@ -6569,7 +7041,7 @@ function PartnerRegistry({ data, setData }) {
                       transition: 'transform 0.2s',
                     }}
                   >
-                    ▼
+                    -
                   </span>
                 </div>
                 {expandedId === p.id && (
@@ -6586,7 +7058,7 @@ function PartnerRegistry({ data, setData }) {
                         value={p.notes || ''}
                         onChange={(v) => updatePartner(p.id, 'notes', v)}
                         rows={2}
-                        placeholder="Scope of agreement, capabilities…"
+                        placeholder="Scope of agreement, capabilities..."
                       />
                     </div>
                     <Attachments
@@ -6613,9 +7085,9 @@ function PartnerRegistry({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    PLAN LIBRARY (with attachments)
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function PlanLibrary({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
@@ -6711,7 +7183,7 @@ function PlanLibrary({ data, setData }) {
             Plan Library
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.4, 4.5, 4.8 · {data.plans.length} plans ·{' '}
+            EMAP 4.4, 4.5, 4.8 - {data.plans.length} plans -{' '}
             {data.plans.filter((p) => p.status === 'current').length} current
           </p>
         </div>
@@ -6881,7 +7353,7 @@ function PlanLibrary({ data, setData }) {
                       flexShrink: 0,
                     }}
                   >
-                    ◈
+                    -
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
@@ -6928,7 +7400,7 @@ function PlanLibrary({ data, setData }) {
                         flexWrap: 'wrap',
                       }}
                     >
-                      {plan.owner && <span>👤 {plan.owner}</span>}
+                      {plan.owner && <span>- {plan.owner}</span>}
                       <span>Reviewed: {fmtDate(plan.lastReview)}</span>
                       {plan.nextReview && (
                         <span
@@ -6975,7 +7447,7 @@ function PlanLibrary({ data, setData }) {
                       fontSize: 14,
                     }}
                   >
-                    ×
+                    -
                   </button>
                   <span
                     style={{
@@ -6986,17 +7458,84 @@ function PlanLibrary({ data, setData }) {
                       transition: 'transform 0.2s',
                     }}
                   >
-                    ▼
+                    -
                   </span>
                 </div>
                 {expandedId === plan.id && (
                   <div
                     style={{
-                      padding: '12px 16px',
+                      padding: '16px 16px',
                       borderTop: `1px solid #f4f7f8`,
                       background: '#fafcfc',
                     }}
                   >
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '2fr 1fr 1fr',
+                        gap: 10,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <div>
+                        <Label>Plan Name</Label>
+                        <FInput
+                          value={plan.name}
+                          onChange={(v) => update(plan.id, 'name', v)}
+                          placeholder="Plan name"
+                        />
+                      </div>
+                      <div>
+                        <Label>Version</Label>
+                        <FInput
+                          value={plan.version || ''}
+                          onChange={(v) => update(plan.id, 'version', v)}
+                          placeholder="1.0"
+                        />
+                      </div>
+                      <div>
+                        <Label>Owner</Label>
+                        <FInput
+                          value={plan.owner || ''}
+                          onChange={(v) => update(plan.id, 'owner', v)}
+                          placeholder="EM Director"
+                        />
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 10,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <div>
+                        <Label>Last Reviewed</Label>
+                        <FInput
+                          type="date"
+                          value={plan.lastReview || ''}
+                          onChange={(v) => update(plan.id, 'lastReview', v)}
+                        />
+                      </div>
+                      <div>
+                        <Label>Next Review Due</Label>
+                        <FInput
+                          type="date"
+                          value={plan.nextReview || ''}
+                          onChange={(v) => update(plan.id, 'nextReview', v)}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <Label>Notes</Label>
+                      <FTextarea
+                        rows={2}
+                        value={plan.notes || ''}
+                        onChange={(v) => update(plan.id, 'notes', v)}
+                        placeholder="Plan scope, key contacts, last major update summary..."
+                      />
+                    </div>
                     <Attachments
                       docs={plan.docs || []}
                       onAdd={(doc) =>
@@ -7021,9 +7560,9 @@ function PlanLibrary({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    RESOURCES (with attachments)
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function ResourcesView({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -7103,7 +7642,7 @@ function ResourcesView({ data, setData }) {
             Resource Inventory
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.7 · {data.resources.length} items
+            EMAP 4.7 - {data.resources.length} items
           </p>
         </div>
         <Btn label="+ Add Resource" onClick={() => setShowForm(true)} primary />
@@ -7160,6 +7699,18 @@ function ResourcesView({ data, setData }) {
                 onChange={(v) => setForm((p) => ({ ...p, location: v }))}
                 placeholder="Location"
               />
+            </div>
+            <div>
+              <Label>Status</Label>
+              <FSel
+                value={form.status || 'available'}
+                onChange={(v) => setForm((p) => ({ ...p, status: v }))}
+              >
+                <option value="available">Available</option>
+                <option value="deployed">Deployed</option>
+                <option value="maintenance">In Maintenance</option>
+                <option value="out_of_service">Out of Service</option>
+              </FSel>
             </div>
             <div>
               <Label>Condition</Label>
@@ -7254,7 +7805,7 @@ function ResourcesView({ data, setData }) {
                       color: B.muted,
                     }}
                   >
-                    {r.qty || '—'}
+                    {r.qty || '-'}
                   </td>
                   <td
                     style={{
@@ -7263,7 +7814,7 @@ function ResourcesView({ data, setData }) {
                       color: B.muted,
                     }}
                   >
-                    {r.location || '—'}
+                    {r.location || '-'}
                   </td>
                   <td style={{ padding: '9px 13px' }}>
                     <Tag
@@ -7306,7 +7857,7 @@ function ResourcesView({ data, setData }) {
                         fontSize: 14,
                       }}
                     >
-                      ×
+                      -
                     </button>
                   </td>
                 </tr>
@@ -7319,9 +7870,9 @@ function ResourcesView({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    SIDEBAR
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
   const nav = [
     {
@@ -7329,36 +7880,47 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
       items: [
         { id: 'dashboard', icon: '⊞', label: 'Dashboard' },
         { id: 'calendar', icon: '⊟', label: 'Program Calendar' },
-        { id: 'activity', icon: '◎', label: 'Activity Log' },
-      ],
-    },
-    {
-      group: 'Accreditation',
-      items: [
-        { id: 'accreditation', icon: '★', label: 'EMAP Standards' },
-        { id: 'journey', icon: '◎', label: 'Accreditation Journey' },
-        { id: 'intake', icon: '⊙', label: 'Bulk Doc Intake', highlight: true },
-        { id: 'package', icon: '◧', label: 'Package Builder', highlight: true },
-        { id: 'thira', icon: '◈', label: 'THIRA/SPR' },
-        { id: 'cap', icon: '◎', label: 'Corrective Actions' },
-        { id: 'reports', icon: '◧', label: 'Reports' },
+        { id: 'activity', icon: '-', label: 'Activity Log' },
       ],
     },
     {
       group: 'Program Ops',
       items: [
-        { id: 'training', icon: '◉', label: 'Training' },
-        { id: 'exercises', icon: '◎', label: 'Exercises & AARs' },
-        { id: 'plans', icon: '◈', label: 'Plan Library' },
-        { id: 'partners', icon: '⊕', label: 'Partners & MOUs' },
-        { id: 'resources', icon: '⊗', label: 'Resources' },
-        { id: 'employees', icon: '◈', label: 'Employees' },
+        { id: 'training', icon: '-', label: 'Training' },
+        { id: 'exercises', icon: '-', label: 'Exercises & AARs' },
+        { id: 'plans', icon: '-', label: 'Plan Library' },
+        { id: 'partners', icon: '-', label: 'Partners & MOUs' },
+        { id: 'resources', icon: '-', label: 'Resources' },
+        { id: 'employees', icon: '-', label: 'Employees' },
         { id: 'grants', icon: '$', label: 'Grant Tracker' },
       ],
     },
     {
+      group: 'Accreditation',
+      items: [
+        { id: 'accreditation', icon: '-', label: 'EMAP Standards' },
+        { id: 'journey', icon: '-', label: 'Accreditation Journey' },
+        { id: 'intake', icon: '⊙', label: 'Bulk Doc Intake' },
+        { id: 'package', icon: '◧', label: 'Package Builder' },
+        { id: 'thira', icon: '-', label: 'SPR/THIRA' },
+        { id: 'cap', icon: '-', label: 'Corrective Actions' },
+        { id: 'reports', icon: '◧', label: 'Reports' },
+      ],
+    },
+    {
       group: 'AI',
-      items: [{ id: 'assistant', icon: null, label: 'AI Assistant', ai: true }],
+      items: [
+        { id: 'assistant', icon: null, label: 'AI Assistant', ai: true },
+        { id: 'templates', icon: '◧', label: 'Doc Templates' },
+        { id: 'evidence', icon: '◧', label: 'Evidence Export' },
+      ],
+    },
+    {
+      group: 'Recovery & Mutual Aid',
+      items: [
+        { id: 'recovery', icon: '-', label: 'Recovery Planning' },
+        { id: 'mutualaid', icon: '-', label: 'Mutual Aid Map' },
+      ],
     },
     {
       group: 'Config',
@@ -7510,16 +8072,16 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
             <span style={{ fontSize: 9, color: '#34d399' }}>
-              ✓{overall.compliant}
+              ok{overall.compliant}
             </span>
             <span style={{ fontSize: 9, color: '#fbbf24' }}>
-              ◑{overall.in_progress}
+              -{overall.in_progress}
             </span>
             <span style={{ fontSize: 9, color: '#f87171' }}>
               !{overall.needs_review}
             </span>
             <span style={{ fontSize: 9, color: B.sidebarBorder }}>
-              ○{overall.not_started}
+              o{overall.not_started}
             </span>
           </div>
         </div>
@@ -7554,7 +8116,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
                   background:
                     view === item.id ? 'rgba(27,201,196,0.12)' : 'none',
                   border: `1px solid ${
-                    view === item.id ? 'rgba(27,201,196,0.3)' : 'transparent'
+                    view === item.id ? 'rgba(27,201,196,0.3)' : 'tranSPRent'
                   }`,
                   color:
                     view === item.id
@@ -7650,20 +8212,20 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
             letterSpacing: '0.06em',
           }}
         >
-          PLANRR · EMAP EMS 5-2022 · ANSI
+          PLANRR - EMAP EMS 5-2022 - ANSI
         </span>
       </div>
     </aside>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    DASHBOARD
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    CALENDAR, REPORTS, AI ASSISTANT
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function ProgramCalendar({ data }) {
   const items = useMemo(() => {
     const all = [];
@@ -7673,7 +8235,7 @@ function ProgramCalendar({ data }) {
           date: e.date,
           label: e.name,
           color: B.purple,
-          icon: '◎',
+          icon: '-',
           id: e.id,
         });
     });
@@ -7683,7 +8245,7 @@ function ProgramCalendar({ data }) {
           date: p.expires,
           label: `MOU Expires: ${p.name}`,
           color: daysUntil(p.expires) < 30 ? B.red : B.amber,
-          icon: '⊕',
+          icon: '-',
           id: 'm' + p.id,
         });
     });
@@ -7693,7 +8255,7 @@ function ProgramCalendar({ data }) {
           date: p.nextReview,
           label: `Review Due: ${p.name}`,
           color: daysUntil(p.nextReview) < 0 ? B.red : B.green,
-          icon: '◈',
+          icon: '-',
           id: 'p' + p.id,
         });
     });
@@ -7701,9 +8263,9 @@ function ProgramCalendar({ data }) {
       if (t.date)
         all.push({
           date: t.date,
-          label: `Training: ${t.person} — ${t.type}`,
+          label: `Training: ${t.person} - ${t.type}`,
           color: B.teal,
-          icon: '◉',
+          icon: '-',
           id: 't' + t.id,
         });
     });
@@ -7742,7 +8304,7 @@ function ProgramCalendar({ data }) {
           Program Calendar
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          Exercises · Plan reviews · MOU expirations · Training · Credential
+          Exercises - Plan reviews - MOU expirations - Training - Credential
           renewals
         </p>
       </div>
@@ -7758,7 +8320,7 @@ function ProgramCalendar({ data }) {
               marginBottom: 10,
             }}
           >
-            Upcoming — 180 days
+            Upcoming - 180 days
           </div>
           {upcoming.length === 0 ? (
             <Card
@@ -7931,7 +8493,7 @@ function ReportsView({ data, orgName }) {
     brand.headerLine1 || orgName || 'Emergency Management Program';
   const headerLine2 = brand.headerLine2 || '';
   const footerText =
-    brand.footerDisclaimer || `${orgName || 'EM Program'} · EMAP EMS 5-2022`;
+    brand.footerDisclaimer || `${orgName || 'EM Program'}  -  EMAP EMS 5-2022`;
   const poweredBy =
     brand.showPoweredBy !== false
       ? brand.poweredByText || 'Powered by PLANRR.ai'
@@ -7939,7 +8501,7 @@ function ReportsView({ data, orgName }) {
   const preparedBy = brand.preparedBy || data.emName || data.emTitle || '';
   const subtitle =
     brand.reportSubtitle ||
-    'Emergency Management Program — EMAP Compliance Report';
+    'Emergency Management Program - EMAP Compliance Report';
 
   const generate = async () => {
     setLoading(true);
@@ -7996,7 +8558,7 @@ function ReportsView({ data, orgName }) {
 
   return (
     <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 1040 }}>
-      {/* ── Screen: topbar ── */}
+      {/* -- Screen: topbar -- */}
       <div
         style={{
           display: 'flex',
@@ -8018,8 +8580,10 @@ function ReportsView({ data, orgName }) {
             Compliance Report
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP EMS 5-2022 · {today2}
-            {brand.logoBase64 ? '' : ' · Add your logo in Settings → Branding'}
+            EMAP EMS 5-2022 - {today2}
+            {brand.logoBase64
+              ? ''
+              : '  -  Add your logo in Settings - Branding'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -8038,12 +8602,12 @@ function ReportsView({ data, orgName }) {
               fontFamily: "'DM Sans',sans-serif",
             }}
           >
-            🖨 Print / Export PDF
+            - Print / Export PDF
           </button>
         </div>
       </div>
 
-      {/* ── PRINT COVER PAGE (visible on screen too as preview) ── */}
+      {/* -- PRINT COVER PAGE (visible on screen too as preview) -- */}
       <div className="print-cover" style={{ marginBottom: 20 }}>
         {/* Branded header bar */}
         <div
@@ -8230,7 +8794,7 @@ function ReportsView({ data, orgName }) {
         </div>
       </div>
 
-      {/* ── AI Executive Summary ── */}
+      {/* -- AI Executive Summary -- */}
       <div
         style={{
           border: `1px solid ${B.border}`,
@@ -8264,7 +8828,7 @@ function ReportsView({ data, orgName }) {
             AI Executive Summary
           </div>
           <Btn
-            label={loading ? '⟳ Writing…' : 'Generate with AI'}
+            label={loading ? '- Writing...' : 'Generate with AI'}
             onClick={generate}
             loading={loading}
             primary
@@ -8277,7 +8841,7 @@ function ReportsView({ data, orgName }) {
             className="no-print"
           >
             Generate a professional executive summary from your live compliance
-            data — ready for leadership or accreditation submission.
+            data - ready for leadership or accreditation submission.
           </p>
         )}
         {exec && (
@@ -8307,7 +8871,7 @@ function ReportsView({ data, orgName }) {
         )}
       </div>
 
-      {/* ── Section grid ── */}
+      {/* -- Section grid -- */}
       <div style={{ marginBottom: 6 }}>
         <div
           className="print-section-bar"
@@ -8318,7 +8882,7 @@ function ReportsView({ data, orgName }) {
           }}
         >
           <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
-            EMAP Standards Status — All 17 Sections
+            EMAP Standards Status - All 17 Sections
           </span>
         </div>
         <div
@@ -8385,7 +8949,7 @@ function ReportsView({ data, orgName }) {
         </div>
       </div>
 
-      {/* ── Print footer (hidden on screen, shown when printing via CSS) ── */}
+      {/* -- Print footer (hidden on screen, shown when printing via CSS) -- */}
       <div
         style={{
           marginTop: 28,
@@ -8419,7 +8983,7 @@ function ReportsView({ data, orgName }) {
           }}
         >
           Tip: Upload your agency logo in{' '}
-          <strong style={{ color: B.text }}>Settings → Branding</strong> to add
+          <strong style={{ color: B.text }}>Settings - Branding</strong> to add
           it to exports, along with your accent color and footer disclaimer.
         </div>
       )}
@@ -8435,7 +8999,7 @@ function AiAssistantView({ data, orgName }) {
   const [msgs, setMsgs] = useState([
     {
       role: 'assistant',
-      content: `Hi — I'm your EMAP and EM program expert in PLANRR.\n\nFull context: ${
+      content: `Hi - I'm your EMAP and EM program expert in PLANRR.\n\nFull context: ${
         overall.compliant
       }/${overall.total} standards compliant, ${
         data.training.length
@@ -8499,7 +9063,7 @@ function AiAssistantView({ data, orgName }) {
     'What are my biggest compliance gaps?',
     'Design a tabletop exercise',
     'What do EMAP assessors look for?',
-    'AAR requirements — HSEEP vs EMAP?',
+    'AAR requirements - HSEEP vs EMAP?',
     'How do I prepare my accreditation package?',
     'What credentials does an EM director need?',
   ];
@@ -8537,7 +9101,7 @@ function AiAssistantView({ data, orgName }) {
             AI Assistant
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 1 }}>
-            EMAP expert · knows your full program · Plan Smartr
+            EMAP expert - knows your full program - Plan Smartr
           </p>
         </div>
       </div>
@@ -8662,7 +9226,7 @@ function AiAssistantView({ data, orgName }) {
           <FInput
             value={input}
             onChange={setInput}
-            placeholder="Ask anything about EMAP or your EM program…"
+            placeholder="Ask anything about EMAP or your EM program..."
             style={{ fontSize: 13 }}
           />
           <button
@@ -8685,7 +9249,7 @@ function AiAssistantView({ data, orgName }) {
               fontWeight: 700,
             }}
           >
-            ↑
+            -
           </button>
         </div>
       </Card>
@@ -8693,9 +9257,9 @@ function AiAssistantView({ data, orgName }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    GRANT TRACKER
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 const GRANT_TYPES = [
   'EMPG',
   'BSIR',
@@ -8719,6 +9283,201 @@ const GRANT_STATUS = {
   closed: { label: 'Closed', color: B.faint, bg: '#f8fafc' },
   suspended: { label: 'Suspended', color: B.red, bg: B.redLight },
 };
+
+/* --- GRANT WORK LOG ---------------------------------- */
+function GrantWorkLog({ grant, onUpdate }) {
+  const [form, setForm] = useState({
+    date: today(),
+    description: '',
+    hours: '',
+    person: '',
+    type: 'Meeting',
+  });
+  const entries = grant.workLog || [];
+  const addEntry = () => {
+    if (!form.description) return;
+    onUpdate('workLog', [
+      ...entries,
+      { ...form, id: uid(), addedAt: Date.now() },
+    ]);
+    setForm({
+      date: today(),
+      description: '',
+      hours: '',
+      person: '',
+      type: 'Meeting',
+    });
+  };
+  const removeEntry = (id) =>
+    onUpdate(
+      'workLog',
+      entries.filter((e) => e.id !== id)
+    );
+  const totalHours = entries.reduce((a, e) => a + parseFloat(e.hours || 0), 0);
+  return (
+    <div>
+      <div
+        style={{
+          background: B.card,
+          border: `1px solid ${B.border}`,
+          borderRadius: 9,
+          padding: '14px 16px',
+          marginBottom: 14,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: B.muted,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            marginBottom: 10,
+          }}
+        >
+          Log Entry
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr 1fr',
+            gap: 8,
+            marginBottom: 8,
+          }}
+        >
+          <div>
+            <Label>Date</Label>
+            <FInput
+              type="date"
+              value={form.date}
+              onChange={(v) => setForm((p) => ({ ...p, date: v }))}
+            />
+          </div>
+          <div>
+            <Label>Type</Label>
+            <FSel
+              value={form.type}
+              onChange={(v) => setForm((p) => ({ ...p, type: v }))}
+            >
+              <option>Meeting</option>
+              <option>Site Visit</option>
+              <option>Planning</option>
+              <option>Admin</option>
+              <option>Training</option>
+              <option>Exercise</option>
+              <option>Reporting</option>
+              <option>Other</option>
+            </FSel>
+          </div>
+          <div>
+            <Label>Person</Label>
+            <FInput
+              value={form.person}
+              onChange={(v) => setForm((p) => ({ ...p, person: v }))}
+              placeholder="Staff name"
+            />
+          </div>
+          <div>
+            <Label>Hours</Label>
+            <FInput
+              value={form.hours}
+              onChange={(v) => setForm((p) => ({ ...p, hours: v }))}
+              placeholder="1.5"
+            />
+          </div>
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <Label>Description</Label>
+          <FInput
+            value={form.description}
+            onChange={(v) => setForm((p) => ({ ...p, description: v }))}
+            placeholder="Meeting with state agency re: quarterly report..."
+          />
+        </div>
+        <Btn label="Log Entry" onClick={addEntry} primary small />
+      </div>
+      {totalHours > 0 && (
+        <div
+          style={{
+            background: `${B.green}10`,
+            border: `1px solid ${B.greenBorder}`,
+            borderRadius: 7,
+            padding: '8px 14px',
+            marginBottom: 12,
+            fontSize: 12,
+            color: '#166534',
+            fontWeight: 600,
+          }}
+        >
+          Total logged: {totalHours.toFixed(1)} hours across {entries.length}{' '}
+          entries
+        </div>
+      )}
+      {entries.length === 0 ? (
+        <div
+          style={{
+            background: '#f8fafc',
+            borderRadius: 8,
+            padding: '20px',
+            textAlign: 'center',
+            color: B.faint,
+            fontSize: 13,
+          }}
+        >
+          No work log entries yet
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[...entries].reverse().map((e) => (
+            <div
+              key={e.id}
+              style={{
+                background: B.card,
+                border: `1px solid ${B.border}`,
+                borderRadius: 8,
+                padding: '10px 13px',
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-start',
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: B.text,
+                    marginBottom: 2,
+                  }}
+                >
+                  {e.description}
+                </div>
+                <div style={{ fontSize: 11, color: B.faint }}>
+                  {fmtDate(e.date)} - {e.type}
+                  {e.person ? '  -  ' + e.person : ''}
+                  {e.hours ? '  -  ' + e.hours + 'h' : ''}
+                </div>
+              </div>
+              <button
+                onClick={() => removeEntry(e.id)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#d1d5db',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  padding: '2px 6px',
+                }}
+              >
+                x
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function GrantDetail({ grant, onUpdate, onClose }) {
   const [tab, setTab] = useState('overview');
@@ -8783,6 +9542,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'deliverables', label: `Deliverables (${totalDel})` },
+    { id: 'worklog', label: 'Work Log' },
     { id: 'budget', label: 'Budget & Match' },
     { id: 'ai', label: 'AI Guidance' },
   ];
@@ -8880,7 +9640,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                 lineHeight: 1,
               }}
             >
-              ✕
+              x
             </button>
           </div>
           <div style={{ display: 'flex', gap: 2 }}>
@@ -8891,11 +9651,9 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                 style={{
                   padding: '6px 12px',
                   borderRadius: '6px 6px 0 0',
-                  border: `1px solid ${
-                    tab === t.id ? B.border : 'transparent'
-                  }`,
+                  border: `1px solid ${tab === t.id ? B.border : 'tranSPRent'}`,
                   borderBottom: `1px solid ${tab === t.id ? B.card : B.border}`,
-                  background: tab === t.id ? B.card : 'transparent',
+                  background: tab === t.id ? B.card : 'tranSPRent',
                   color: tab === t.id ? B.green : B.muted,
                   fontSize: 12,
                   fontWeight: tab === t.id ? 700 : 500,
@@ -8931,7 +9689,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                 <div>
                   <Label>Grant Type</Label>
                   <FSel value={grant.type || ''} onChange={(v) => u('type', v)}>
-                    <option value="">Select type…</option>
+                    <option value="">Select type...</option>
                     {GRANT_TYPES.map((t) => (
                       <option key={t}>{t}</option>
                     ))}
@@ -8997,7 +9755,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                   value={grant.description || ''}
                   onChange={(v) => u('description', v)}
                   rows={3}
-                  placeholder="What this grant funds…"
+                  placeholder="What this grant funds..."
                 />
               </div>
               <div style={{ marginBottom: 12 }}>
@@ -9040,7 +9798,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                 <FInput
                   value={dlText}
                   onChange={setDlText}
-                  placeholder="Add deliverable or reporting requirement…"
+                  placeholder="Add deliverable or reporting requirement..."
                   style={{ fontSize: 12 }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') addDel();
@@ -9059,10 +9817,10 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                   }}
                 >
                   <span style={{ color: B.green, fontWeight: 600 }}>
-                    ✓ {completedDel} done
+                    ok {completedDel} done
                   </span>
                   <span style={{ color: B.amber, fontWeight: 600 }}>
-                    ○ {totalDel - completedDel} remaining
+                    o {totalDel - completedDel} remaining
                   </span>
                   <div
                     style={{
@@ -9101,7 +9859,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                     fontSize: 13,
                   }}
                 >
-                  No deliverables yet — add reporting requirements and
+                  No deliverables yet - add reporting requirements and
                   milestones
                 </div>
               )}
@@ -9172,16 +9930,17 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                           fontSize: 13,
                         }}
                       >
-                        ×
+                        -
                       </button>
                     </div>
                     {!d.done && (
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: '1fr 2fr',
+                          gridTemplateColumns: '1fr 1fr 2fr',
                           gap: 8,
                           marginLeft: 24,
+                          marginBottom: 8,
                         }}
                       >
                         <div>
@@ -9198,7 +9957,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                           <FInput
                             value={d.notes || ''}
                             onChange={(v) => updateDel(d.id, 'notes', v)}
-                            placeholder="Notes…"
+                            placeholder="Notes..."
                             style={{ fontSize: 11, padding: '5px 8px' }}
                           />
                         </div>
@@ -9207,6 +9966,25 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                   </div>
                 );
               })}
+            </div>
+          )}
+          {tab === 'worklog' && (
+            <div>
+              <div
+                style={{
+                  background: B.greenLight,
+                  border: `1px solid ${B.greenBorder}`,
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  marginBottom: 12,
+                  fontSize: 12,
+                  color: '#166534',
+                }}
+              >
+                Log meetings, site visits, and hours billed to this grant. EMPG
+                requires personnel time documentation.
+              </div>
+              <GrantWorkLog grant={grant} onUpdate={u} />
             </div>
           )}
           {tab === 'budget' && (
@@ -9290,7 +10068,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                   value={grant.matchNotes || ''}
                   onChange={(v) => u('matchNotes', v)}
                   rows={3}
-                  placeholder="Describe how the non-federal match will be met (in-kind, cash, etc.)…"
+                  placeholder="Describe how the non-federal match will be met (in-kind, cash, etc.)..."
                 />
               </div>
               <div style={{ marginBottom: 12 }}>
@@ -9299,7 +10077,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                   value={grant.budgetNotes || ''}
                   onChange={(v) => u('budgetNotes', v)}
                   rows={4}
-                  placeholder="Budget breakdown, expenditure tracking notes…"
+                  placeholder="Budget breakdown, expenditure tracking notes..."
                 />
               </div>
               <div
@@ -9396,7 +10174,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                   type.
                 </div>
                 <Btn
-                  label={aiLoad ? '⟳ Analyzing…' : 'Analyze This Grant'}
+                  label={aiLoad ? '- Analyzing...' : 'Analyze This Grant'}
                   onClick={runAi}
                   loading={aiLoad}
                   primary
@@ -9506,8 +10284,8 @@ function GrantTracker({ data, setData }) {
             Grant Tracker
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            {grants.length} grants · ${totalActive.toLocaleString()} active
-            federal funding · EMAP 3.4, 4.7
+            {grants.length} grants - ${totalActive.toLocaleString()} active
+            federal funding - EMAP 3.4, 4.7
           </p>
         </div>
         <Btn label="+ Add Grant" onClick={() => setShowForm(true)} primary />
@@ -9584,7 +10362,7 @@ function GrantTracker({ data, setData }) {
           color: '#065f46',
         }}
       >
-        ↑ Grant records support <strong>EMAP 3.4 (Admin & Finance)</strong> —
+        - Grant records support <strong>EMAP 3.4 (Admin & Finance)</strong> -
         tracking funding sources demonstrates programmatic financial management
         capability.
       </div>
@@ -9673,7 +10451,7 @@ function GrantTracker({ data, setData }) {
       )}
       {grants.length === 0 ? (
         <Card style={{ textAlign: 'center', padding: '36px', color: B.faint }}>
-          No grants tracked yet — add EMPG, UASI, HMGP, and other funding
+          No grants tracked yet - add EMPG, UASI, HMGP, and other funding
           sources to demonstrate EMAP 3.4 compliance
         </Card>
       ) : (
@@ -9815,7 +10593,7 @@ function GrantTracker({ data, setData }) {
                             fontWeight: 600,
                           }}
                         >
-                          {expiredDels > 0 ? '⚠ ' : ''}
+                          {expiredDels > 0 ? '- ' : ''}
                           {openDels} deliverable{openDels > 1 ? 's' : ''} open
                         </span>
                       )}
@@ -9835,9 +10613,9 @@ function GrantTracker({ data, setData }) {
                       padding: 4,
                     }}
                   >
-                    ×
+                    -
                   </button>
-                  <span style={{ color: B.border, fontSize: 14 }}>›</span>
+                  <span style={{ color: B.border, fontSize: 14 }}>-</span>
                 </div>
               </div>
             );
@@ -9855,30 +10633,30 @@ function GrantTracker({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    THIRA/SPR
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 const HAZARD_TYPES = [
-  'Natural — Earthquake',
-  'Natural — Flood',
-  'Natural — Wildfire',
-  'Natural — Extreme Heat',
-  'Natural — Severe Storm / Tornado',
-  'Natural — Hurricane / Tropical Storm',
-  'Natural — Landslide / Debris Flow',
-  'Natural — Drought',
-  'Natural — Tsunami',
-  'Natural — Winter Storm / Ice',
-  'Technological — Dam / Levee Failure',
-  'Technological — HAZMAT Fixed Facility',
-  'Technological — HAZMAT Transportation',
-  'Technological — Power Outage / Utility Failure',
-  'Technological — Cyber Attack',
-  'Technological — Nuclear / Radiological',
-  'Human-Caused — Terrorism / IED',
-  'Human-Caused — Active Shooter / Mass Casualty',
-  'Human-Caused — Civil Unrest',
-  'Human-Caused — Public Health Emergency',
+  'Natural - Earthquake',
+  'Natural - Flood',
+  'Natural - Wildfire',
+  'Natural - Extreme Heat',
+  'Natural - Severe Storm / Tornado',
+  'Natural - Hurricane / Tropical Storm',
+  'Natural - Landslide / Debris Flow',
+  'Natural - Drought',
+  'Natural - Tsunami',
+  'Natural - Winter Storm / Ice',
+  'Technological - Dam / Levee Failure',
+  'Technological - HAZMAT Fixed Facility',
+  'Technological - HAZMAT Transportation',
+  'Technological - Power Outage / Utility Failure',
+  'Technological - Cyber Attack',
+  'Technological - Nuclear / Radiological',
+  'Human-Caused - Terrorism / IED',
+  'Human-Caused - Active Shooter / Mass Casualty',
+  'Human-Caused - Civil Unrest',
+  'Human-Caused - Public Health Emergency',
   'Other',
 ];
 const CORE_CAPS = [
@@ -9919,7 +10697,7 @@ function ThiraView({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     name: '',
-    type: 'Natural — Flood',
+    type: 'Natural - Flood',
     probability: 3,
     magnitude: 3,
     caps: [],
@@ -9954,7 +10732,7 @@ function ThiraView({ data, setData }) {
     update({ hazards: [...(thira.hazards || []), h], lastUpdated: today() });
     setForm({
       name: '',
-      type: 'Natural — Flood',
+      type: 'Natural - Flood',
       probability: 3,
       magnitude: 3,
       caps: [],
@@ -10044,7 +10822,7 @@ function ThiraView({ data, setData }) {
       const content = [];
       const prompt = `You are reading a THIRA or SPR document for "${
         data.orgName || 'this jurisdiction'
-      }".\n\nExtract ALL hazards/threats identified in this document.\nReturn ONLY valid JSON, no other text:\n{\n  "jurisdiction":"name from doc",\n  "docDate":"date if found",\n  "hazards":[\n    {\n      "name":"specific hazard name as written",\n      "type":"Natural — Flood|Natural — Wildfire|Natural — Earthquake|Natural — Severe Storm / Tornado|Natural — Extreme Heat|Natural — Hurricane / Tropical Storm|Natural — Landslide / Debris Flow|Natural — Drought|Natural — Winter Storm / Ice|Technological — Dam / Levee Failure|Technological — HAZMAT Fixed Facility|Technological — HAZMAT Transportation|Technological — Power Outage / Utility Failure|Technological — Cyber Attack|Human-Caused — Terrorism / IED|Human-Caused — Active Shooter / Mass Casualty|Human-Caused — Civil Unrest|Human-Caused — Public Health Emergency|Other",\n      "probability":3,\n      "magnitude":3,\n      "notes":"any context, data, or description from the document"\n    }\n  ]\n}\n\nFor probability and magnitude use 1-5 scale. Extract from the document if provided, otherwise make a reasonable estimate based on the hazard type and any context. Extract as many hazards as possible — be thorough.`;
+      }".\n\nExtract ALL hazards/threats identified in this document.\nReturn ONLY valid JSON, no other text:\n{\n  "jurisdiction":"name from doc",\n  "docDate":"date if found",\n  "hazards":[\n    {\n      "name":"specific hazard name as written",\n      "type":"Natural - Flood|Natural - Wildfire|Natural - Earthquake|Natural - Severe Storm / Tornado|Natural - Extreme Heat|Natural - Hurricane / Tropical Storm|Natural - Landslide / Debris Flow|Natural - Drought|Natural - Winter Storm / Ice|Technological - Dam / Levee Failure|Technological - HAZMAT Fixed Facility|Technological - HAZMAT Transportation|Technological - Power Outage / Utility Failure|Technological - Cyber Attack|Human-Caused - Terrorism / IED|Human-Caused - Active Shooter / Mass Casualty|Human-Caused - Civil Unrest|Human-Caused - Public Health Emergency|Other",\n      "probability":3,\n      "magnitude":3,\n      "notes":"any context, data, or description from the document"\n    }\n  ]\n}\n\nFor probability and magnitude use 1-5 scale. Extract from the document if provided, otherwise make a reasonable estimate based on the hazard type and any context. Extract as many hazards as possible - be thorough.`;
 
       if (fd.type === 'pdf') {
         content.push({
@@ -10070,7 +10848,7 @@ function ThiraView({ data, setData }) {
       }
 
       const res = await fetch(
-        'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/ai-proxy',
+        'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/super-endpoint',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -10111,7 +10889,7 @@ function ThiraView({ data, setData }) {
       const updated = [...existing, ...newHazards];
       update({ hazards: updated, lastUpdated: today() });
       setImportResult(
-        `✓ Extracted ${newHazards.length} hazard${
+        `ok Extracted ${newHazards.length} hazard${
           newHazards.length !== 1 ? 's' : ''
         } from "${file.name}"${
           extracted.length - newHazards.length > 0
@@ -10133,7 +10911,7 @@ function ThiraView({ data, setData }) {
   };
 
   // Generate a full THIRA/SPR document
-  const generateSpar = async () => {
+  const generateSPR = async () => {
     setGenLoad(true);
     setGenDoc('');
     const hazList = (thira.hazards || [])
@@ -10156,7 +10934,7 @@ function ThiraView({ data, setData }) {
           data.orgName || 'this jurisdiction'
         } in ${data.state || 'the state'}.\n\nJurisdiction type: ${
           data.jurisdiction || 'Unknown'
-        }\nPrimary EM: ${data.emName || 'Unknown'} · ${
+        }\nPrimary EM: ${data.emName || 'Unknown'}  -  ${
           data.emTitle || ''
         }\nDate: ${new Date().toLocaleDateString('en-US', {
           year: 'numeric',
@@ -10166,8 +10944,8 @@ function ThiraView({ data, setData }) {
           fmtDate(thira.lastUpdated) || 'N/A'
         }\n\nHAZARDS PROFILED:\n${
           hazList ||
-          'No hazards entered yet — add hazards first for a complete document.'
-        }\n\nGenerate a formal government document with these sections:\n\n1. EXECUTIVE SUMMARY\n   - Jurisdiction overview, purpose, summary of highest-risk hazards\n\n2. METHODOLOGY\n   - FEMA CPG 201 Third Edition compliance statement\n   - Process used to identify and assess threats and hazards\n   - Stakeholder engagement summary\n\n3. THREAT AND HAZARD IDENTIFICATION\n   - Table format: Hazard | Category | Probability | Magnitude | Risk Score\n   - Brief description of each identified hazard for this jurisdiction\n\n4. RISK ASSESSMENT\n   - Analysis of each high-risk hazard (Risk Score ≥ 12)\n   - Consequence analysis: impacts on public, responders, infrastructure, economy\n   - Vulnerability assessment\n\n5. CAPABILITY TARGETS\n   - Core capabilities stressed by identified hazards\n   - Current capability gaps\n   - Recommended capability targets aligned with CPG 201\n\n6. SPR — STAKEHOLDER PREPAREDNESS REVIEW\n   - Program strengths\n   - Areas for improvement\n   - Corrective actions and milestones\n   - Resources and investment priorities\n\n7. MAINTENANCE AND UPDATE SCHEDULE\n   - Annual review process\n   - Triggers for off-cycle updates\n\nUse formal government document tone. Be specific to the jurisdiction and hazards provided. Include EMAP 4.1 compliance notes where relevant.`,
+          'No hazards entered yet - add hazards first for a complete document.'
+        }\n\nGenerate a formal government document with these sections:\n\n1. EXECUTIVE SUMMARY\n   - Jurisdiction overview, purpose, summary of highest-risk hazards\n\n2. METHODOLOGY\n   - FEMA CPG 201 Third Edition compliance statement\n   - Process used to identify and assess threats and hazards\n   - Stakeholder engagement summary\n\n3. THREAT AND HAZARD IDENTIFICATION\n   - Table format: Hazard | Category | Probability | Magnitude | Risk Score\n   - Brief description of each identified hazard for this jurisdiction\n\n4. RISK ASSESSMENT\n   - Analysis of each high-risk hazard (Risk Score - 12)\n   - Consequence analysis: impacts on public, responders, infrastructure, economy\n   - Vulnerability assessment\n\n5. CAPABILITY TARGETS\n   - Core capabilities stressed by identified hazards\n   - Current capability gaps\n   - Recommended capability targets aligned with CPG 201\n\n6. SPR - STAKEHOLDER PREPAREDNESS REVIEW\n   - Program strengths\n   - Areas for improvement\n   - Corrective actions and milestones\n   - Resources and investment priorities\n\n7. MAINTENANCE AND UPDATE SCHEDULE\n   - Annual review process\n   - Triggers for off-cycle updates\n\nUse formal government document tone. Be specific to the jurisdiction and hazards provided. Include EMAP 4.1 compliance notes where relevant.`,
         (chunk) => setGenDoc((p) => p + chunk)
       );
     } catch {
@@ -10176,7 +10954,7 @@ function ThiraView({ data, setData }) {
     setGenLoad(false);
   };
 
-  const downloadSpar = () => {
+  const downloadSPR = () => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([genDoc], { type: 'text/plain' }));
     a.download = `${data.orgName || 'planrr'}-SPR-THIRA-${today()}.txt`;
@@ -10214,16 +10992,16 @@ function ThiraView({ data, setData }) {
             THIRA/SPR
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            Threat & Hazard Identification · Stakeholder Preparedness Review ·
-            EMAP 4.1 · {(thira.hazards || []).length} hazards
+            Threat & Hazard Identification - Stakeholder Preparedness Review -
+            EMAP 4.1 - {(thira.hazards || []).length} hazards
             {thira.lastUpdated
-              ? ` · Updated ${fmtDate(thira.lastUpdated)}`
+              ? `  -  Updated ${fmtDate(thira.lastUpdated)}`
               : ''}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Btn
-            label="✦ AI Analysis"
+            label="- AI Analysis"
             onClick={() => {
               setTab('hazards');
               runAi();
@@ -10250,9 +11028,9 @@ function ThiraView({ data, setData }) {
             style={{
               padding: '7px 16px',
               borderRadius: '7px 7px 0 0',
-              border: `1px solid ${tab === t.id ? B.border : 'transparent'}`,
+              border: `1px solid ${tab === t.id ? B.border : 'tranSPRent'}`,
               borderBottom: `1px solid ${tab === t.id ? B.card : B.border}`,
-              background: tab === t.id ? B.card : 'transparent',
+              background: tab === t.id ? B.card : 'tranSPRent',
               color: tab === t.id ? B.blue : B.muted,
               fontSize: 12,
               fontWeight: tab === t.id ? 700 : 500,
@@ -10266,7 +11044,7 @@ function ThiraView({ data, setData }) {
         ))}
       </div>
 
-      {/* ── HAZARD PROFILE TAB ── */}
+      {/* -- HAZARD PROFILE TAB -- */}
       {tab === 'hazards' && (
         <div>
           <div
@@ -10281,7 +11059,7 @@ function ThiraView({ data, setData }) {
               color: '#1e40af',
             }}
           >
-            ↑ THIRA/SPR directly satisfies <strong>EMAP 4.1</strong>. FEMA
+            - THIRA/SPR directly satisfies <strong>EMAP 4.1</strong>. FEMA
             requires annual submission via the THIRA/SPR tool. Use the{' '}
             <strong>Import Document</strong> tab to pull hazards from an
             existing document, or <strong>Generate SPR Document</strong> to
@@ -10351,7 +11129,7 @@ function ThiraView({ data, setData }) {
                   <FInput
                     value={form.name}
                     onChange={(v) => setForm((p) => ({ ...p, name: v }))}
-                    placeholder="100-year Flood — Sacramento River"
+                    placeholder="100-year Flood - Sacramento River"
                   />
                 </div>
                 <div>
@@ -10366,7 +11144,7 @@ function ThiraView({ data, setData }) {
                   </FSel>
                 </div>
                 <div>
-                  <Label>Probability (1–5)</Label>
+                  <Label>Probability (1-5)</Label>
                   <FSel
                     value={form.probability}
                     onChange={(v) => setForm((p) => ({ ...p, probability: v }))}
@@ -10379,7 +11157,7 @@ function ThiraView({ data, setData }) {
                   </FSel>
                 </div>
                 <div>
-                  <Label>Magnitude (1–5)</Label>
+                  <Label>Magnitude (1-5)</Label>
                   <FSel
                     value={form.magnitude}
                     onChange={(v) => setForm((p) => ({ ...p, magnitude: v }))}
@@ -10397,7 +11175,7 @@ function ThiraView({ data, setData }) {
                 <FInput
                   value={form.notes}
                   onChange={(v) => setForm((p) => ({ ...p, notes: v }))}
-                  placeholder="Historical context, data sources, frequency…"
+                  placeholder="Historical context, data sources, frequency..."
                 />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -10483,7 +11261,7 @@ function ThiraView({ data, setData }) {
                           wordBreak: 'break-word',
                         }}
                       >
-                        {h.name.split('—').pop().trim()}
+                        {h.name.split('-').pop().trim()}
                       </div>
                     </div>
                   );
@@ -10593,7 +11371,7 @@ function ThiraView({ data, setData }) {
                                   fontWeight: 600,
                                 }}
                               >
-                                {h.type.split('—')[0].trim()}
+                                {h.type.split('-')[0].trim()}
                               </span>
                               {(h.caps || []).length > 0 && (
                                 <span>
@@ -10602,7 +11380,7 @@ function ThiraView({ data, setData }) {
                               )}
                               {h.notes && (
                                 <span style={{ color: B.teal }}>
-                                  ✎ has notes
+                                  - has notes
                                 </span>
                               )}
                             </div>
@@ -10620,7 +11398,7 @@ function ThiraView({ data, setData }) {
                               fontSize: 13,
                             }}
                           >
-                            ×
+                            -
                           </button>
                           <span
                             style={{
@@ -10632,7 +11410,7 @@ function ThiraView({ data, setData }) {
                               transition: 'transform 0.2s',
                             }}
                           >
-                            ▼
+                            -
                           </span>
                         </div>
                         {expanded && (
@@ -10766,7 +11544,7 @@ function ThiraView({ data, setData }) {
                               <FTextarea
                                 value={h.notes || ''}
                                 onChange={(v) => updateHazard(h.id, 'notes', v)}
-                                placeholder="Historical events, frequency data, source documentation, vulnerability notes…"
+                                placeholder="Historical events, frequency data, source documentation, vulnerability notes..."
                                 rows={2}
                               />
                             </div>
@@ -10781,7 +11559,7 @@ function ThiraView({ data, setData }) {
         </div>
       )}
 
-      {/* ── IMPORT DOCUMENT TAB ── */}
+      {/* -- IMPORT DOCUMENT TAB -- */}
       {tab === 'import' && (
         <div>
           <div
@@ -10797,7 +11575,7 @@ function ThiraView({ data, setData }) {
             }}
           >
             <strong>Have an existing THIRA or SPR document?</strong> Drop it
-            here — AI will read through it, extract every hazard, and
+            here - AI will read through it, extract every hazard, and
             automatically populate your hazard profile. Supports PDF, Word,
             images, or plain text. Duplicate hazards are skipped.
           </div>
@@ -10841,21 +11619,21 @@ function ThiraView({ data, setData }) {
                     display: 'inline-block',
                   }}
                 >
-                  ⟳
+                  -
                 </div>
                 <div
                   style={{ fontSize: 14, fontWeight: 700, color: B.tealDark }}
                 >
-                  Reading document and extracting hazards…
+                  Reading document and extracting hazards...
                 </div>
                 <div style={{ fontSize: 12, color: B.faint }}>
-                  This may take 15–30 seconds
+                  This may take 15-30 seconds
                 </div>
               </div>
             ) : (
               <>
                 <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.35 }}>
-                  📄
+                  -
                 </div>
                 <div
                   style={{
@@ -10872,7 +11650,7 @@ function ThiraView({ data, setData }) {
                   listing your jurisdiction's hazards
                 </div>
                 <div style={{ fontSize: 11, color: '#d1d8db' }}>
-                  PDF · Word · Images · Text files
+                  PDF - Word - Images - Text files
                 </div>
               </>
             )}
@@ -10890,28 +11668,28 @@ function ThiraView({ data, setData }) {
             <div
               style={{
                 padding: '12px 16px',
-                background: importResult.startsWith('✓')
+                background: importResult.startsWith('ok')
                   ? B.greenLight
                   : B.redLight,
                 border: `1px solid ${
-                  importResult.startsWith('✓') ? B.greenBorder : B.redBorder
+                  importResult.startsWith('ok') ? B.greenBorder : B.redBorder
                 }`,
                 borderRadius: 9,
                 fontSize: 13,
-                color: importResult.startsWith('✓') ? '#065f46' : B.red,
+                color: importResult.startsWith('ok') ? '#065f46' : B.red,
                 display: 'flex',
                 gap: 10,
                 alignItems: 'center',
               }}
             >
               <span style={{ fontSize: 18, flexShrink: 0 }}>
-                {importResult.startsWith('✓') ? '✓' : '⚠'}
+                {importResult.startsWith('ok') ? 'ok' : '-'}
               </span>
               <div>
                 <div style={{ fontWeight: 700, marginBottom: 2 }}>
                   {importResult}
                 </div>
-                {importResult.startsWith('✓') && (
+                {importResult.startsWith('ok') && (
                   <div style={{ fontSize: 11, opacity: 0.8 }}>
                     Review the imported hazards in the{' '}
                     <button
@@ -10927,7 +11705,7 @@ function ThiraView({ data, setData }) {
                     >
                       Hazard Profile tab
                     </button>{' '}
-                    — adjust probability and magnitude scores and tag the
+                    - adjust probability and magnitude scores and tag the
                     affected core capabilities.
                   </div>
                 )}
@@ -10980,7 +11758,7 @@ function ThiraView({ data, setData }) {
         </div>
       )}
 
-      {/* ── GENERATE SPR DOCUMENT TAB ── */}
+      {/* -- GENERATE SPR DOCUMENT TAB -- */}
       {tab === 'generate' && (
         <div>
           <div
@@ -10996,7 +11774,7 @@ function ThiraView({ data, setData }) {
             }}
           >
             AI generates a complete, formal THIRA/SPR document using your hazard
-            profile data — including executive summary, risk assessment,
+            profile data - including executive summary, risk assessment,
             capability targets, and SPR narrative. The document follows FEMA CPG
             201 Third Edition structure and satisfies <strong>EMAP 4.1</strong>.
           </div>
@@ -11012,7 +11790,7 @@ function ThiraView({ data, setData }) {
                 color: '#92400e',
               }}
             >
-              ⚠ Add hazards to your profile first for a complete document. The
+              - Add hazards to your profile first for a complete document. The
               generator will produce a template but it will be generic without
               hazard data.
             </div>
@@ -11026,7 +11804,7 @@ function ThiraView({ data, setData }) {
             }}
           >
             <button
-              onClick={generateSpar}
+              onClick={generateSPR}
               disabled={genLoad}
               style={{
                 background: B.purple,
@@ -11046,14 +11824,14 @@ function ThiraView({ data, setData }) {
             >
               <BrainIcon size={15} color="#fff" strokeWidth={1.4} />
               {genLoad
-                ? '⟳ Generating SPR Document…'
+                ? '- Generating SPR Document...'
                 : 'Generate THIRA/SPR Document'}
             </button>
             {genDoc && !genLoad && (
-              <Btn label="↓ Download .txt" onClick={downloadSpar} />
+              <Btn label="- Download .txt" onClick={downloadSPR} />
             )}
             {genDoc && !genLoad && (
-              <Btn label="Regenerate" onClick={generateSpar} />
+              <Btn label="Regenerate" onClick={generateSPR} />
             )}
           </div>
           {genLoad && (
@@ -11077,11 +11855,11 @@ function ThiraView({ data, setData }) {
                   color: B.purple,
                 }}
               >
-                ⟳
+                -
               </span>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: B.purple }}>
-                  Writing your THIRA/SPR document…
+                  Writing your THIRA/SPR document...
                 </div>
                 <div style={{ fontSize: 11, color: B.faint }}>
                   Generating all sections including risk assessment, capability
@@ -11120,10 +11898,10 @@ function ThiraView({ data, setData }) {
                   }}
                 >
                   <BrainIcon size={13} color={B.purple} strokeWidth={1.4} />
-                  {data.orgName || 'Your Organization'} — THIRA/SPR Document
+                  {data.orgName || 'Your Organization'} - THIRA/SPR Document
                 </div>
                 <div style={{ display: 'flex', gap: 7 }}>
-                  <Btn label="↓ Download .txt" onClick={downloadSpar} small />
+                  <Btn label="- Download .txt" onClick={downloadSPR} small />
                   <button
                     onClick={() => {
                       navigator.clipboard?.writeText(genDoc);
@@ -11195,7 +11973,7 @@ function ThiraView({ data, setData }) {
                 {(thira.hazards || []).length > 0
                   ? `${(thira.hazards || []).length} hazard${
                       (thira.hazards || []).length > 1 ? 's' : ''
-                    } profiled · AI will build the complete document around your data`
+                    } profiled  -  AI will build the complete document around your data`
                   : 'Add hazards to your profile first for the most complete and specific document'}
               </div>
             </div>
@@ -11206,9 +11984,9 @@ function ThiraView({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    CAP DASHBOARD (Corrective Action Program)
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function CapDashboard({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState('open');
@@ -11321,10 +12099,10 @@ function CapDashboard({ data, setData }) {
             Corrective Action Program
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.11.3 · {open} open ·{' '}
+            EMAP 4.11.3 - {open} open -{' '}
             {overdue > 0 ? (
               <span style={{ color: B.red, fontWeight: 700 }}>
-                {overdue} overdue ·{' '}
+                {overdue} overdue -{' '}
               </span>
             ) : (
               ''
@@ -11336,7 +12114,7 @@ function CapDashboard({ data, setData }) {
             ) : (
               ''
             )}{' '}
-            · Pulls from exercises + standalone items
+            - Pulls from exercises + standalone items
           </p>
         </div>
         <Btn label="+ Add CAP Item" onClick={() => setShowForm(true)} primary />
@@ -11414,7 +12192,7 @@ function CapDashboard({ data, setData }) {
             <FInput
               value={form.item}
               onChange={(v) => setForm((p) => ({ ...p, item: v }))}
-              placeholder="Describe the deficiency and corrective action required…"
+              placeholder="Describe the deficiency and corrective action required..."
             />
           </div>
           <div
@@ -11443,7 +12221,7 @@ function CapDashboard({ data, setData }) {
               <FInput
                 value={form.sourceRef}
                 onChange={(v) => setForm((p) => ({ ...p, sourceRef: v }))}
-                placeholder="Incident name, report #…"
+                placeholder="Incident name, report #..."
               />
             </div>
             <div>
@@ -11498,7 +12276,7 @@ function CapDashboard({ data, setData }) {
             <FInput
               value={form.notes}
               onChange={(v) => setForm((p) => ({ ...p, notes: v }))}
-              placeholder="Additional context…"
+              placeholder="Additional context..."
             />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -11635,7 +12413,7 @@ function CapDashboard({ data, setData }) {
                       {pc.label}
                     </span>
                     {ca.sourceRef && <span>From: {ca.sourceRef}</span>}
-                    {ca.responsible && <span>👤 {ca.responsible}</span>}
+                    {ca.responsible && <span>- {ca.responsible}</span>}
                     {ca.due && (
                       <span
                         style={{
@@ -11643,7 +12421,7 @@ function CapDashboard({ data, setData }) {
                           fontWeight: isOverdue ? 700 : 400,
                         }}
                       >
-                        {isOverdue ? '⚠ Overdue: ' : 'Due: '}
+                        {isOverdue ? '- Overdue: ' : 'Due: '}
                         {fmtDate(ca.due)}
                       </span>
                     )}
@@ -11685,7 +12463,7 @@ function CapDashboard({ data, setData }) {
                       fontSize: 13,
                     }}
                   >
-                    ×
+                    -
                   </button>
                 )}
                 {ca.closed && (
@@ -11712,7 +12490,7 @@ function CapDashboard({ data, setData }) {
           color: B.muted,
         }}
       >
-        ✓ Corrective actions from all exercises are automatically pulled here.
+        ok Corrective actions from all exercises are automatically pulled here.
         Standalone items can be added from real incidents, program assessments,
         or standards gaps. EMAP 4.11.3 requires a process that prioritizes and
         tracks resolution of all deficiencies.
@@ -11721,9 +12499,9 @@ function CapDashboard({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    ACTIVITY LOG
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function ActivityLogView({ data, setData }) {
   const [note, setNote] = useState('');
   const log = data.activityLog || [];
@@ -11771,11 +12549,11 @@ function ActivityLogView({ data, setData }) {
     setNote('');
   };
   const typeIcon = {
-    created: '✦',
-    updated: '◈',
-    note: '📝',
-    deleted: '×',
-    completed: '✓',
+    created: '-',
+    updated: '-',
+    note: '-',
+    deleted: '-',
+    completed: 'ok',
   };
   return (
     <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 760 }}>
@@ -11791,14 +12569,14 @@ function ActivityLogView({ data, setData }) {
           Activity Log
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          Audit trail of program activity — supports EMAP accreditation evidence
+          Audit trail of program activity - supports EMAP accreditation evidence
         </p>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <FInput
           value={note}
           onChange={setNote}
-          placeholder="Add a manual program note, observation, or decision record…"
+          placeholder="Add a manual program note, observation, or decision record..."
           onKeyDown={(e) => {
             if (e.key === 'Enter') addNote();
           }}
@@ -11807,7 +12585,7 @@ function ActivityLogView({ data, setData }) {
       </div>
       {log.length === 0 ? (
         <Card style={{ textAlign: 'center', padding: '36px', color: B.faint }}>
-          No activity recorded yet — activity is logged automatically as you use
+          No activity recorded yet - activity is logged automatically as you use
           PLANRR, or add manual notes above
         </Card>
       ) : (
@@ -11853,7 +12631,7 @@ function ActivityLogView({ data, setData }) {
                     fontWeight: 700,
                   }}
                 >
-                  {typeIcon[entry.type] || '·'}
+                  {typeIcon[entry.type] || ' - '}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, color: B.text, lineHeight: 1.5 }}>
@@ -11880,7 +12658,7 @@ function ActivityLogView({ data, setData }) {
                       {modLabel}
                     </span>
                     <span>
-                      {dateStr} · {timeStr}
+                      {dateStr} - {timeStr}
                     </span>
                   </div>
                 </div>
@@ -11893,9 +12671,9 @@ function ActivityLogView({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    SETTINGS
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function SettingsView({ data, updateData }) {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('org');
@@ -11921,7 +12699,7 @@ function SettingsView({ data, updateData }) {
     poweredByText: data.brand?.poweredByText || 'Powered by PLANRR.ai',
     reportSubtitle:
       data.brand?.reportSubtitle ||
-      'Emergency Management Program — EMAP Compliance Report',
+      'Emergency Management Program - EMAP Compliance Report',
     preparedBy: data.brand?.preparedBy || '',
   });
 
@@ -12014,12 +12792,12 @@ function SettingsView({ data, updateData }) {
               padding: '8px 16px',
               borderRadius: '8px 8px 0 0',
               border: `1px solid ${
-                activeTab === t.id ? B.border : 'transparent'
+                activeTab === t.id ? B.border : 'tranSPRent'
               }`,
               borderBottom: `1px solid ${
                 activeTab === t.id ? B.card : B.border
               }`,
-              background: activeTab === t.id ? B.card : 'transparent',
+              background: activeTab === t.id ? B.card : 'tranSPRent',
               color: activeTab === t.id ? B.teal : B.muted,
               fontSize: 13,
               fontWeight: activeTab === t.id ? 700 : 500,
@@ -12033,7 +12811,7 @@ function SettingsView({ data, updateData }) {
         ))}
       </div>
 
-      {/* ── Organization ── */}
+      {/* -- Organization -- */}
       {activeTab === 'org' && (
         <div>
           <Card style={{ marginBottom: 14 }}>
@@ -12069,7 +12847,7 @@ function SettingsView({ data, updateData }) {
                   value={form.jurisdiction}
                   onChange={(v) => setForm((p) => ({ ...p, jurisdiction: v }))}
                 >
-                  <option value="">Select…</option>
+                  <option value="">Select...</option>
                   {[
                     'State EM Agency',
                     'County / Parish EM',
@@ -12091,7 +12869,7 @@ function SettingsView({ data, updateData }) {
                   value={form.state}
                   onChange={(v) => setForm((p) => ({ ...p, state: v }))}
                 >
-                  <option value="">Select…</option>
+                  <option value="">Select...</option>
                   {US_STATES.map((s) => (
                     <option key={s}>{s}</option>
                   ))}
@@ -12171,7 +12949,7 @@ function SettingsView({ data, updateData }) {
         </div>
       )}
 
-      {/* ── Branding ── */}
+      {/* -- Branding -- */}
       {activeTab === 'branding' && (
         <div>
           <Card style={{ marginBottom: 14 }}>
@@ -12187,7 +12965,7 @@ function SettingsView({ data, updateData }) {
             </div>
             <div style={{ fontSize: 12, color: B.faint, marginBottom: 14 }}>
               Appears top-left on all PDF exports and printed reports.
-              Recommended: PNG or SVG, transparent background, at least 200px
+              Recommended: PNG or SVG, tranSPRent background, at least 200px
               wide.
             </div>
             <div
@@ -12246,7 +13024,7 @@ function SettingsView({ data, updateData }) {
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 22, opacity: 0.3 }}>🏛</div>
+                      <div style={{ fontSize: 22, opacity: 0.3 }}>-</div>
                       <div style={{ fontSize: 12, color: B.faint }}>
                         Click to upload logo
                       </div>
@@ -12318,7 +13096,7 @@ function SettingsView({ data, updateData }) {
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 22, opacity: 0.3 }}>⚜</div>
+                      <div style={{ fontSize: 22, opacity: 0.3 }}>-</div>
                       <div style={{ fontSize: 12, color: B.faint }}>
                         County seal / agency badge
                       </div>
@@ -12377,7 +13155,7 @@ function SettingsView({ data, updateData }) {
                     borderRadius: 8,
                     background: c,
                     border: `2px solid ${
-                      brand.accentColor === c ? '#111' : 'transparent'
+                      brand.accentColor === c ? '#111' : 'tranSPRent'
                     }`,
                     cursor: 'pointer',
                     boxShadow:
@@ -12484,7 +13262,7 @@ function SettingsView({ data, updateData }) {
                   onChange={(v) =>
                     setBrand((p) => ({ ...p, reportSubtitle: v }))
                   }
-                  placeholder="Emergency Management Program — EMAP Compliance Report"
+                  placeholder="Emergency Management Program - EMAP Compliance Report"
                 />
               </div>
               <div>
@@ -12572,7 +13350,7 @@ function SettingsView({ data, updateData }) {
               </div>
               <div style={{ fontSize: 11, color: B.faint, marginTop: 7 }}>
                 Appears in small gray text in the bottom-right footer of every
-                exported page — like a "Prepared using…" credit. Professional
+                exported page - like a "Prepared using..." credit. Professional
                 and unobtrusive.
               </div>
             </div>
@@ -12580,7 +13358,7 @@ function SettingsView({ data, updateData }) {
         </div>
       )}
 
-      {/* ── Export Preview ── */}
+      {/* -- Export Preview -- */}
       {activeTab === 'export' && (
         <div>
           <div style={{ fontSize: 13, color: B.muted, marginBottom: 14 }}>
@@ -12633,7 +13411,7 @@ function SettingsView({ data, updateData }) {
                       fontSize: 22,
                     }}
                   >
-                    🏛
+                    -
                   </div>
                 )}
                 <div>
@@ -12697,7 +13475,7 @@ function SettingsView({ data, updateData }) {
                   }}
                 >
                   {brand.reportSubtitle ||
-                    'Emergency Management Program — EMAP Compliance Report'}
+                    'Emergency Management Program - EMAP Compliance Report'}
                 </div>
                 <div style={{ fontSize: 13, color: B.faint }}>
                   {new Date().toLocaleDateString('en-US', {
@@ -12723,7 +13501,7 @@ function SettingsView({ data, updateData }) {
                   },
                   {
                     l: 'Prepared By',
-                    v: brand.preparedBy || form.emName || form.emTitle || '—',
+                    v: brand.preparedBy || form.emName || form.emTitle || '-',
                   },
                 ].map((s) => (
                   <div
@@ -12778,7 +13556,7 @@ function SettingsView({ data, updateData }) {
                 }}
               >
                 <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
-                  EMAP Section 4.1 — Hazard Identification & Risk Assessment
+                  EMAP Section 4.1 - Hazard Identification & Risk Assessment
                 </span>
                 <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.75)' }}>
                   2 / 3 compliant
@@ -12795,7 +13573,7 @@ function SettingsView({ data, updateData }) {
                   color: B.muted,
                 }}
               >
-                Standard rows and evidence documentation appear here…
+                Standard rows and evidence documentation appear here...
               </div>
             </div>
 
@@ -12811,7 +13589,7 @@ function SettingsView({ data, updateData }) {
               }}
             >
               <div style={{ fontSize: 10, color: '#9ca3af' }}>
-                {brand.footerDisclaimer || `${previewOrg} · EMAP EMS 5-2022`}
+                {brand.footerDisclaimer || `${previewOrg}  -  EMAP EMS 5-2022`}
               </div>
               <div
                 style={{
@@ -12842,7 +13620,7 @@ function SettingsView({ data, updateData }) {
               color: B.tealDark,
             }}
           >
-            ✓ This preview reflects your current branding settings. Go to the{' '}
+            ok This preview reflects your current branding settings. Go to the{' '}
             <strong>Branding</strong> tab to change logos, colors, or text. Use
             the <strong>Print Report</strong> button in Reports to export with
             this branding applied.
@@ -12850,7 +13628,7 @@ function SettingsView({ data, updateData }) {
         </div>
       )}
 
-      {/* ── System ── */}
+      {/* -- System -- */}
       {activeTab === 'system' && (
         <div>
           <Card style={{ marginBottom: 14 }}>
@@ -12907,7 +13685,7 @@ function SettingsView({ data, updateData }) {
               }}
             >
               Data is saved locally in your browser. For multi-user access, team
-              collaboration, and cloud backup connect to a Supabase backend —
+              collaboration, and cloud backup connect to a Supabase backend -
               ask your developer to wire up the API.
             </div>
           </Card>
@@ -12986,7 +13764,7 @@ function SettingsView({ data, updateData }) {
         style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}
       >
         <Btn
-          label={saved ? '✓ Saved!' : 'Save All Settings'}
+          label={saved ? 'ok Saved!' : 'Save All Settings'}
           onClick={save}
           primary
         />
@@ -13036,6 +13814,225 @@ function Dashboard({ data, setView, orgName }) {
       0
     );
   const hazardCount = (data.thira?.hazards || []).length;
+
+  // ===== NEXT UP SMART QUEUE =====
+  const smartQueue = useMemo(() => {
+    const items = [];
+    // Expiring MOUs
+    (data.partners || []).forEach((p) => {
+      const d = daysUntil(p.expires);
+      if (d !== null && d >= 0 && d < 90)
+        items.push({
+          label: `Renew MOU: ${p.name}`,
+          detail: `Expires ${fmtDate(p.expires)} (${d} days)`,
+          urgency: d < 30 ? 3 : 2,
+          emap: '4.7.4',
+          module: 'partners',
+          color: d < 30 ? B.red : B.amber,
+        });
+    });
+    // Expired MOUs
+    (data.partners || []).forEach((p) => {
+      const d = daysUntil(p.expires);
+      if (d !== null && d < 0)
+        items.push({
+          label: `EXPIRED: ${p.name} MOU`,
+          detail: `Expired ${fmtDate(p.expires)}`,
+          urgency: 4,
+          emap: '4.7.4',
+          module: 'partners',
+          color: B.red,
+        });
+    });
+    // Overdue plan reviews
+    (data.plans || []).forEach((p) => {
+      const d = daysUntil(p.nextReview);
+      if (d !== null && d < 0)
+        items.push({
+          label: `Overdue Review: ${p.name}`,
+          detail: `Was due ${fmtDate(p.nextReview)}`,
+          urgency: 3,
+          emap: p.emapRef || '4.5',
+          module: 'plans',
+          color: B.red,
+        });
+      else if (d !== null && d < 60)
+        items.push({
+          label: `Review Due: ${p.name}`,
+          detail: `Due ${fmtDate(p.nextReview)} (${d} days)`,
+          urgency: 2,
+          emap: p.emapRef || '4.5',
+          module: 'plans',
+          color: B.amber,
+        });
+    });
+    // Open corrective actions
+    (data.capItems || [])
+      .filter((c) => !c.closed)
+      .forEach((c) =>
+        items.push({
+          label: `Open CA: ${c.finding || 'Corrective Action'}`,
+          detail: c.source || 'Needs resolution',
+          urgency: 2,
+          emap: '4.11.3',
+          module: 'cap',
+          color: B.amber,
+        })
+      );
+    // Credential expirations
+    (data.employees || []).forEach((emp) =>
+      (emp.credentials || []).forEach((c) => {
+        const d = daysUntil(c.expires);
+        if (d !== null && d >= 0 && d < 60)
+          items.push({
+            label: `${emp.name}: ${c.name || c.type} expiring`,
+            detail: `Expires ${fmtDate(c.expires)} (${d} days)`,
+            urgency: d < 14 ? 3 : 2,
+            emap: '4.10.4',
+            module: 'employees',
+            color: d < 14 ? B.red : B.amber,
+          });
+      })
+    );
+    // Exercise needed (no exercise in past year)
+    const hasRecentEx = exercises.some(
+      (e) => e.date && daysUntil(e.date) > -365 && e.status !== 'planned'
+    );
+    if (!hasRecentEx)
+      items.push({
+        label: 'Schedule Annual Exercise',
+        detail: 'No completed exercise in the past 12 months',
+        urgency: 2,
+        emap: '4.11.1',
+        module: 'exercises',
+        color: B.amber,
+      });
+    // AAR needed
+    const needsAAR = exercises.filter(
+      (e) => e.status === 'completed' && !e.aarFinal
+    );
+    needsAAR.forEach((e) =>
+      items.push({
+        label: `Complete AAR: ${e.name}`,
+        detail: 'Exercise completed but no final AAR',
+        urgency: 2,
+        emap: '4.11.2',
+        module: 'exercises',
+        color: B.amber,
+      })
+    );
+    // Grant deadlines
+    activeGrants.forEach((g) => {
+      const d = daysUntil(g.endDate);
+      if (d !== null && d >= 0 && d < 90)
+        items.push({
+          label: `Grant Closeout: ${g.name}`,
+          detail: `Period ends ${fmtDate(g.endDate)} (${d} days)`,
+          urgency: d < 30 ? 3 : 2,
+          emap: '3.4',
+          module: 'grants',
+          color: d < 30 ? B.red : B.amber,
+        });
+    });
+    // Missing critical plans
+    if (!plans.some((p) => p.type === 'EOP'))
+      items.push({
+        label: 'Create Emergency Operations Plan',
+        detail: 'EOP required for EMAP 4.5 compliance',
+        urgency: 1,
+        emap: '4.5.1',
+        module: 'plans',
+        color: B.blue,
+      });
+    if (!plans.some((p) => p.type === 'COOP'))
+      items.push({
+        label: 'Create COOP Plan',
+        detail: 'Continuity plan required for EMAP 4.4',
+        urgency: 1,
+        emap: '4.4.2',
+        module: 'plans',
+        color: B.blue,
+      });
+    // THIRA needed
+    if (hazardCount < 3)
+      items.push({
+        label: 'Build THIRA Hazard Profile',
+        detail: `Only ${hazardCount} hazard(s) profiled - need 3+ for robust assessment`,
+        urgency: 1,
+        emap: '4.1.1',
+        module: 'thira',
+        color: B.blue,
+      });
+    return items.sort((a, b) => b.urgency - a.urgency);
+  }, [data]);
+
+  // ===== TIME TO ACCREDITATION ESTIMATOR =====
+  const accredEstimate = useMemo(() => {
+    const stds = data.standards || {};
+    const entries = Object.values(stds).filter((s) => s.updatedAt);
+    if (entries.length < 3)
+      return { months: null, msg: 'Need more progress data to estimate' };
+    const sorted = entries.sort((a, b) => a.updatedAt - b.updatedAt);
+    const first = sorted[0].updatedAt;
+    const last = sorted[sorted.length - 1].updatedAt;
+    const daySpan = Math.max(1, (last - first) / 86400000);
+    const compliant = Object.values(stds).filter(
+      (s) => s.status === 'compliant'
+    ).length;
+    const remaining = 73 - compliant;
+    if (remaining <= 0)
+      return {
+        months: 0,
+        msg: 'All standards compliant - ready for assessment',
+      };
+    const rate = compliant / daySpan; // standards per day
+    if (rate <= 0)
+      return {
+        months: null,
+        msg: 'Mark standards compliant to build projection',
+      };
+    const daysNeeded = remaining / rate;
+    const months = Math.ceil(daysNeeded / 30);
+    return {
+      months,
+      msg: `~${months} month${months !== 1 ? 's' : ''} at current pace`,
+      rate: Math.round(rate * 30 * 10) / 10,
+    };
+  }, [data.standards]);
+
+  // ===== FEMA/NIMS ALIGNMENT =====
+  const nimsStats = useMemo(() => {
+    const stds = data.standards || {};
+    const total = NIMS_STANDARDS.length;
+    const compliant = NIMS_STANDARDS.filter(
+      (id) => (stds[id] || {}).status === 'compliant'
+    ).length;
+    const inProgress = NIMS_STANDARDS.filter(
+      (id) => (stds[id] || {}).status === 'in_progress'
+    ).length;
+    return {
+      total,
+      compliant,
+      inProgress,
+      pct: Math.round((compliant / total) * 100),
+    };
+  }, [data.standards]);
+
+  // ===== GRANT-EMAP ALIGNMENT =====
+  const grantAlignments = useMemo(() => {
+    return activeGrants.map((g) => {
+      const refs = GRANT_EMAP_MAP[g.type] || [];
+      const stds = data.standards || {};
+      const gaps = refs.filter((id) => (stds[id] || {}).status !== 'compliant');
+      return {
+        ...g,
+        emapRefs: refs,
+        gaps,
+        gapCount: gaps.length,
+        atRisk: gaps.length > refs.length * 0.5,
+      };
+    });
+  }, [data.grants, data.standards]);
 
   // Program readiness checklist
   const checklist = [
@@ -13126,7 +14123,7 @@ function Dashboard({ data, setView, orgName }) {
       sub: `${compliantSections}/17 sections`,
       color: B.teal,
       bg: B.tealLight,
-      icon: '★',
+      icon: '-',
     },
     {
       id: 'exercises',
@@ -13135,7 +14132,7 @@ function Dashboard({ data, setView, orgName }) {
       sub: `${exercises.filter((e) => e.aarFinal).length} with final AAR`,
       color: B.purple,
       bg: B.purpleLight,
-      icon: '◎',
+      icon: '-',
     },
     {
       id: 'grants',
@@ -13155,7 +14152,7 @@ function Dashboard({ data, setView, orgName }) {
       } active`,
       color: B.blue,
       bg: B.blueLight,
-      icon: '⊕',
+      icon: '-',
     },
     {
       id: 'employees',
@@ -13163,11 +14160,11 @@ function Dashboard({ data, setView, orgName }) {
       count: empCount,
       sub:
         credExpiring > 0
-          ? `⚠ ${credExpiring} creds expiring`
+          ? `- ${credExpiring} creds expiring`
           : 'credentials current',
       color: B.indigo,
       bg: B.indigoLight,
-      icon: '👥',
+      icon: '-',
     },
     {
       id: 'cap',
@@ -13176,7 +14173,7 @@ function Dashboard({ data, setView, orgName }) {
       sub: openCAs === 0 ? 'all corrective actions closed' : 'need resolution',
       color: openCAs > 0 ? B.red : B.green,
       bg: openCAs > 0 ? B.redLight : B.greenLight,
-      icon: '⚠',
+      icon: '-',
     },
   ];
 
@@ -13191,10 +14188,11 @@ function Dashboard({ data, setView, orgName }) {
             letterSpacing: '-0.4px',
           }}
         >
-          Program Health
+          {orgName || 'Your Program'}
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          {orgName || 'Your organization'} · EMAP EMS 5-2022 ·{' '}
+          EMAP EMS 5-2022 - {data.jurisdiction || ''}
+          {data.jurisdiction && data.state ? '  -  ' : ''}
           {data.state || ''}
         </p>
       </div>
@@ -13305,7 +14303,7 @@ function Dashboard({ data, setView, orgName }) {
                   fontSize: 18,
                 }}
               >
-                ✓
+                ok
               </div>
               <div style={{ color: B.faint, fontSize: 13 }}>
                 No items require attention
@@ -13323,7 +14321,7 @@ function Dashboard({ data, setView, orgName }) {
                   marginBottom: 8,
                 }}
               >
-                ⚠ {notifications.length} item
+                - {notifications.length} item
                 {notifications.length > 1 ? 's' : ''} require attention
               </div>
               <div
@@ -13480,7 +14478,7 @@ function Dashboard({ data, setView, orgName }) {
                   (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')
                 }
                 onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = 'transparent')
+                  (e.currentTarget.style.background = 'tranSPRent')
                 }
               >
                 <span
@@ -13499,7 +14497,7 @@ function Dashboard({ data, setView, orgName }) {
                     fontWeight: 800,
                   }}
                 >
-                  {c.done ? '✓' : ''}
+                  {c.done ? 'ok' : ''}
                 </span>
                 <span
                   style={{
@@ -13532,11 +14530,445 @@ function Dashboard({ data, setView, orgName }) {
               textAlign: 'center',
             }}
           >
-            {checkDone}/{checklist.length} items complete — click any to jump
+            {checkDone}/{checklist.length} items complete - click any to jump
             there
           </div>
         </Card>
       </div>
+
+      {/* NEW: Next Up Smart Queue + Time-to-Accreditation + FEMA/NIMS Badge */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 280px 220px',
+          gap: 14,
+          marginBottom: 16,
+        }}
+      >
+        {/* NEXT UP SMART QUEUE */}
+        <Card style={{ padding: '16px 18px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 12,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: B.muted,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+              }}
+            >
+              Next Up - Your Priority Queue
+            </div>
+            <Tag
+              label={`${smartQueue.length} items`}
+              color={
+                smartQueue.length > 5
+                  ? B.red
+                  : smartQueue.length > 0
+                  ? B.amber
+                  : B.green
+              }
+              bg={
+                smartQueue.length > 5
+                  ? B.redLight
+                  : smartQueue.length > 0
+                  ? B.amberLight
+                  : B.greenLight
+              }
+              border={
+                smartQueue.length > 5
+                  ? B.redBorder
+                  : smartQueue.length > 0
+                  ? B.amberBorder
+                  : B.greenBorder
+              }
+            />
+          </div>
+          {smartQueue.length === 0 ? (
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '16px 0',
+                color: B.faint,
+                fontSize: 13,
+              }}
+            >
+              All clear - no urgent items. Keep up the great work.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 5,
+                maxHeight: 220,
+                overflowY: 'auto',
+              }}
+            >
+              {smartQueue.slice(0, 8).map((item, i) => (
+                <div
+                  key={i}
+                  onClick={() => setView(item.module)}
+                  style={{
+                    display: 'flex',
+                    gap: 10,
+                    alignItems: 'center',
+                    padding: '8px 10px',
+                    background: i === 0 ? 'rgba(239,68,68,0.04)' : 'tranSPRent',
+                    border: `1px solid ${i === 0 ? B.redBorder : 'tranSPRent'}`,
+                    borderRadius: 7,
+                    cursor: 'pointer',
+                    transition: 'all 0.12s',
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = B.tealLight)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background =
+                      i === 0 ? 'rgba(239,68,68,0.04)' : 'tranSPRent')
+                  }
+                >
+                  <div
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: item.color,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: B.text,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {item.label}
+                    </div>
+                    <div style={{ fontSize: 10, color: B.faint }}>
+                      {item.detail}
+                    </div>
+                  </div>
+                  {item.emap && (
+                    <Tag
+                      label={`EMAP ${item.emap}`}
+                      color={B.tealDark}
+                      bg={B.tealLight}
+                      border={B.tealBorder}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* TIME-TO-ACCREDITATION ESTIMATOR */}
+        <Card
+          style={{
+            background: `linear-gradient(135deg,${B.sidebar}f8,${B.sidebar})`,
+            borderColor: B.sidebarBorder,
+            padding: '16px 18px',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#94a3b8',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              marginBottom: 12,
+            }}
+          >
+            Time to Accreditation
+          </div>
+          {accredEstimate.months !== null ? (
+            <div style={{ textAlign: 'center' }}>
+              <div
+                style={{
+                  fontSize: 40,
+                  fontWeight: 800,
+                  color:
+                    accredEstimate.months === 0
+                      ? B.green
+                      : accredEstimate.months < 12
+                      ? B.teal
+                      : B.amber,
+                  lineHeight: 1,
+                  marginBottom: 4,
+                  fontFamily: "'Syne','DM Sans',sans-serif",
+                }}
+              >
+                {accredEstimate.months === 0 ? 'Ready' : accredEstimate.months}
+              </div>
+              {accredEstimate.months > 0 && (
+                <div
+                  style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}
+                >
+                  month{accredEstimate.months !== 1 ? 's' : ''} estimated
+                </div>
+              )}
+              {accredEstimate.months === 0 && (
+                <div style={{ fontSize: 11, color: B.green, marginBottom: 8 }}>
+                  for assessment
+                </div>
+              )}
+              <div style={{ fontSize: 10, color: '#64748b', lineHeight: 1.5 }}>
+                {accredEstimate.rate && (
+                  <div>{accredEstimate.rate} standards/mo pace</div>
+                )}
+                <div>{overall.compliant} of 73 compliant</div>
+                <div>{73 - overall.compliant} remaining</div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '12px 0' }}>
+              <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.6 }}>
+                {accredEstimate.msg}
+              </div>
+              <div style={{ fontSize: 10, color: '#475569', marginTop: 8 }}>
+                Start marking standards compliant to build your projection
+              </div>
+            </div>
+          )}
+          <div
+            style={{
+              marginTop: 12,
+              padding: '8px 10px',
+              background: 'rgba(27,201,196,0.08)',
+              borderRadius: 6,
+              border: '1px solid rgba(27,201,196,0.15)',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 9,
+                color: B.teal,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                marginBottom: 3,
+              }}
+            >
+              For Your Budget Presentation
+            </div>
+            <div style={{ fontSize: 10, color: '#94a3b8', lineHeight: 1.5 }}>
+              EMAP assessment fees: ~$5,000-$15,000. Subscription + assessment
+              investment pays for itself through grant eligibility and program
+              credibility.
+            </div>
+          </div>
+        </Card>
+
+        {/* FEMA/NIMS ALIGNMENT BADGE */}
+        <Card
+          style={{
+            padding: '16px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: B.muted,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              marginBottom: 12,
+            }}
+          >
+            FEMA / NIMS Alignment
+          </div>
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <div style={{ position: 'relative', marginBottom: 10 }}>
+              <svg width={80} height={80} viewBox="0 0 80 80">
+                <circle
+                  cx={40}
+                  cy={40}
+                  r={32}
+                  fill="none"
+                  stroke="#edf2f4"
+                  strokeWidth={6}
+                />
+                <circle
+                  cx={40}
+                  cy={40}
+                  r={32}
+                  fill="none"
+                  stroke={
+                    nimsStats.pct > 79
+                      ? B.green
+                      : nimsStats.pct > 49
+                      ? B.blue
+                      : B.amber
+                  }
+                  strokeWidth={6}
+                  strokeLinecap="round"
+                  strokeDasharray={`${
+                    (nimsStats.pct / 100) * 2 * Math.PI * 32
+                  } ${(1 - nimsStats.pct / 100) * 2 * Math.PI * 32}`}
+                  transform="rotate(-90 40 40)"
+                  style={{ transition: 'stroke-dasharray 1s ease' }}
+                />
+                <text
+                  x={40}
+                  y={43}
+                  textAnchor="middle"
+                  fill={B.text}
+                  fontSize={16}
+                  fontWeight="800"
+                  fontFamily="'DM Sans',sans-serif"
+                >
+                  {nimsStats.pct}%
+                </text>
+              </svg>
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: B.faint,
+                textAlign: 'center',
+                marginBottom: 6,
+              }}
+            >
+              {nimsStats.compliant}/{nimsStats.total} NIMS standards
+            </div>
+            <div style={{ display: 'flex', gap: 8, fontSize: 10 }}>
+              <span style={{ color: B.green }}>{nimsStats.compliant} ok</span>
+              <span style={{ color: B.amber }}>{nimsStats.inProgress} wip</span>
+              <span style={{ color: B.faint }}>
+                {nimsStats.total - nimsStats.compliant - nimsStats.inProgress}{' '}
+                todo
+              </span>
+            </div>
+          </div>
+          <div
+            style={{
+              fontSize: 9,
+              color: B.faint,
+              textAlign: 'center',
+              marginTop: 8,
+              lineHeight: 1.4,
+            }}
+          >
+            ICS/NIMS (4.6) + Training (4.10) + Comms (4.8)
+          </div>
+        </Card>
+      </div>
+
+      {/* NEW: Grant-EMAP Alignment (only show if grants exist) */}
+      {grantAlignments.length > 0 && (
+        <Card style={{ marginBottom: 16, padding: '16px 18px' }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: B.muted,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              marginBottom: 12,
+            }}
+          >
+            Grant - EMAP Alignment Tracker
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(${Math.min(
+                grantAlignments.length,
+                4
+              )},1fr)`,
+              gap: 10,
+            }}
+          >
+            {grantAlignments.map((g) => (
+              <div
+                key={g.id}
+                onClick={() => setView('grants')}
+                style={{
+                  padding: '12px',
+                  background: g.atRisk ? B.redLight : B.greenLight,
+                  border: `1px solid ${g.atRisk ? B.redBorder : B.greenBorder}`,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 6,
+                  }}
+                >
+                  <span
+                    style={{ fontSize: 12, fontWeight: 700, color: B.text }}
+                  >
+                    {g.name || g.type}
+                  </span>
+                  {g.atRisk && (
+                    <Tag
+                      label="At Risk"
+                      color={B.red}
+                      bg={B.redLight}
+                      border={B.redBorder}
+                    />
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: B.faint, marginBottom: 4 }}>
+                  {g.type} - ${parseFloat(g.amount || 0).toLocaleString()}
+                </div>
+                {g.emapRefs.length > 0 ? (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: g.gapCount > 0 ? B.amber : B.green,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {g.emapRefs.length - g.gapCount}/{g.emapRefs.length}{' '}
+                      aligned EMAP standards compliant
+                    </div>
+                    {g.gapCount > 0 && (
+                      <div style={{ fontSize: 10, color: B.red, marginTop: 2 }}>
+                        Gaps: {g.gaps.slice(0, 4).join(', ')}
+                        {g.gaps.length > 4 ? '...' : ''}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 10, color: B.faint }}>
+                    No direct EMAP mapping for this grant type
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Module cards */}
       <div
@@ -13779,7 +15211,7 @@ function Dashboard({ data, setView, orgName }) {
                 padding: '12px 0',
               }}
             >
-              No activity yet — start using PLANRR to see your activity here
+              No activity yet - start using PLANRR to see your activity here
             </div>
           )}
         </Card>
@@ -13787,9 +15219,9 @@ function Dashboard({ data, setView, orgName }) {
     </div>
   );
 }
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    BULK DOCUMENT INTAKE
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function BulkIntake({ data, updateData }) {
   const [files, setFiles] = useState([]);
   const [dragging, setDragging] = useState(false);
@@ -13893,7 +15325,7 @@ function BulkIntake({ data, updateData }) {
           });
         }
         const res = await fetch(
-          'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/ai-proxy',
+          'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/super-endpoint',
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -13998,7 +15430,7 @@ function BulkIntake({ data, updateData }) {
           Bulk Document Intake
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          Drop your existing EM documents — AI reads each one and automatically
+          Drop your existing EM documents - AI reads each one and automatically
           maps it to EMAP standards, updating compliance status across your
           program.
         </p>
@@ -14082,7 +15514,7 @@ function BulkIntake({ data, updateData }) {
             }}
           >
             <div style={{ fontSize: 32, marginBottom: 10, opacity: 0.4 }}>
-              📂
+              -
             </div>
             <div
               style={{
@@ -14099,7 +15531,7 @@ function BulkIntake({ data, updateData }) {
               policies, procedures
             </div>
             <div style={{ fontSize: 11, color: '#d1d8db' }}>
-              PDF · Word · Text · Images · Max 20MB per file
+              PDF - Word - Text - Images - Max 20MB per file
             </div>
             <input
               ref={inputRef}
@@ -14150,10 +15582,10 @@ function BulkIntake({ data, updateData }) {
                   >
                     <span style={{ fontSize: 14 }}>
                       {f.name.endsWith('.pdf')
-                        ? '📕'
+                        ? '-'
                         : f.name.match(/\.(jpg|jpeg|png)$/)
-                        ? '🖼️'
-                        : '📄'}
+                        ? '--'
+                        : '-'}
                     </span>
                     <div style={{ flex: 1 }}>
                       <div
@@ -14177,7 +15609,7 @@ function BulkIntake({ data, updateData }) {
                         fontSize: 15,
                       }}
                     >
-                      ×
+                      -
                     </button>
                   </div>
                 ))}
@@ -14236,7 +15668,7 @@ function BulkIntake({ data, updateData }) {
                   fontSize: 15,
                 }}
               >
-                ⟳
+                -
               </span>
               <span
                 style={{ fontSize: 13, fontWeight: 700, color: B.tealDark }}
@@ -14244,8 +15676,8 @@ function BulkIntake({ data, updateData }) {
                 {currentFile
                   ? `Analyzing "${currentFile.name}" (${
                       currentFile.index + 1
-                    }/${currentFile.total})…`
-                  : 'Processing…'}
+                    }/${currentFile.total})...`
+                  : 'Processing...'}
               </span>
             </div>
             <div
@@ -14285,10 +15717,10 @@ function BulkIntake({ data, updateData }) {
             >
               <span style={{ fontSize: 13 }}>
                 {r.status === 'analyzing'
-                  ? '⟳'
+                  ? '-'
                   : r.status === 'done'
-                  ? '✓'
-                  : '✕'}
+                  ? 'ok'
+                  : 'x'}
               </span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: B.text }}>
@@ -14317,7 +15749,7 @@ function BulkIntake({ data, updateData }) {
                 }}
               >
                 {r.status === 'analyzing'
-                  ? 'Analyzing…'
+                  ? 'Analyzing...'
                   : r.status === 'done'
                   ? 'Done'
                   : 'Error'}
@@ -14354,7 +15786,7 @@ function BulkIntake({ data, updateData }) {
                 flexShrink: 0,
               }}
             >
-              ✓
+              ok
             </div>
             <div style={{ flex: 1 }}>
               <div
@@ -14365,12 +15797,12 @@ function BulkIntake({ data, updateData }) {
                   marginBottom: 2,
                 }}
               >
-                Intake complete — {stdsMapped.length} standards updated
+                Intake complete - {stdsMapped.length} standards updated
               </div>
               <div style={{ fontSize: 12, color: '#065f46' }}>
                 {results.filter((r) => r.status === 'done').length}/
-                {results.length} documents analyzed · {totalMappings} total
-                mappings · Evidence attached and compliance status updated
+                {results.length} documents analyzed - {totalMappings} total
+                mappings - Evidence attached and compliance status updated
               </div>
             </div>
             <Btn
@@ -14409,10 +15841,10 @@ function BulkIntake({ data, updateData }) {
               >
                 <span style={{ fontSize: 13 }}>
                   {r.name.endsWith('.pdf')
-                    ? '📕'
+                    ? '-'
                     : r.name.match(/\.(jpg|jpeg|png)$/)
-                    ? '🖼️'
-                    : '📄'}
+                    ? '--'
+                    : '-'}
                 </span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: B.text }}>
@@ -14504,7 +15936,7 @@ function BulkIntake({ data, updateData }) {
         >
           <strong style={{ color: B.text }}>What to drop in:</strong> Your EOP,
           COOP, Hazard Mitigation Plan, training certificates, exercise AARs,
-          MOUs, communications plan, resource inventory, org charts, policies —
+          MOUs, communications plan, resource inventory, org charts, policies -
           any document that demonstrates EMAP compliance. The AI reads each one
           and maps it to the right standards automatically.
         </div>
@@ -14513,9 +15945,9 @@ function BulkIntake({ data, updateData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    GLOBAL SEARCH
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function GlobalSearch({ data, setView, onClose }) {
   const [query, setQuery] = useState('');
   const inputRef = useRef();
@@ -14543,11 +15975,11 @@ function GlobalSearch({ data, setView, onClose }) {
         hits.push({
           type: 'standard',
           id: s.id,
-          label: `${s.id} — ${s.section.title}`,
-          sub: s.text.slice(0, 80) + '…',
+          label: `${s.id} - ${s.section.title}`,
+          sub: s.text.slice(0, 80) + '...',
           status: rec.status,
           module: 'accreditation',
-          icon: '★',
+          icon: '-',
           color: B.teal,
         });
     });
@@ -14560,9 +15992,9 @@ function GlobalSearch({ data, setView, onClose }) {
           type: 'training',
           id: t.id,
           label: t.person,
-          sub: `${t.type} · ${fmtDate(t.date)}`,
+          sub: `${t.type}  -  ${fmtDate(t.date)}`,
           module: 'training',
-          icon: '◉',
+          icon: '-',
           color: '#14b8a6',
         });
     });
@@ -14575,9 +16007,9 @@ function GlobalSearch({ data, setView, onClose }) {
           type: 'exercise',
           id: e.id,
           label: e.name,
-          sub: `${e.type} · ${fmtDate(e.date)}`,
+          sub: `${e.type}  -  ${fmtDate(e.date)}`,
           module: 'exercises',
-          icon: '◎',
+          icon: '-',
           color: B.purple,
         });
     });
@@ -14590,9 +16022,9 @@ function GlobalSearch({ data, setView, onClose }) {
           type: 'partner',
           id: p.id,
           label: p.name,
-          sub: `${p.agreementType} · ${p.type}`,
+          sub: `${p.agreementType}  -  ${p.type}`,
           module: 'partners',
-          icon: '⊕',
+          icon: '-',
           color: B.blue,
         });
     });
@@ -14607,7 +16039,7 @@ function GlobalSearch({ data, setView, onClose }) {
           label: p.name,
           sub: `${p.type} v${p.version}`,
           module: 'plans',
-          icon: '◈',
+          icon: '-',
           color: B.green,
         });
     });
@@ -14621,9 +16053,9 @@ function GlobalSearch({ data, setView, onClose }) {
           type: 'employee',
           id: e.id,
           label: e.name,
-          sub: `${e.title || ''} · ${e.department || ''}`,
+          sub: `${e.title || ''}  -  ${e.department || ''}`,
           module: 'employees',
-          icon: '👤',
+          icon: '-',
           color: B.indigo,
         });
     });
@@ -14638,7 +16070,7 @@ function GlobalSearch({ data, setView, onClose }) {
           id: g.id,
           label: g.name,
           sub: `${g.type}${
-            g.amount ? ` · $${parseFloat(g.amount).toLocaleString()}` : ''
+            g.amount ? `  -  $${parseFloat(g.amount).toLocaleString()}` : ''
           }`,
           module: 'grants',
           icon: '$',
@@ -14654,9 +16086,9 @@ function GlobalSearch({ data, setView, onClose }) {
           type: 'resource',
           id: r.id,
           label: r.name,
-          sub: `${r.category} · ${r.location || ''}`,
+          sub: `${r.category}  -  ${r.location || ''}`,
           module: 'resources',
-          icon: '⊗',
+          icon: '-',
           color: B.amber,
         });
     });
@@ -14669,11 +16101,11 @@ function GlobalSearch({ data, setView, onClose }) {
           type: 'hazard',
           id: h.id,
           label: h.name,
-          sub: `Risk ${h.probability * h.magnitude}/25 · ${h.type
-            .split('—')[0]
+          sub: `Risk ${h.probability * h.magnitude}/25  -  ${h.type
+            .split('-')[0]
             .trim()}`,
           module: 'thira',
-          icon: '⚠',
+          icon: '-',
           color: B.red,
         });
     });
@@ -14759,14 +16191,14 @@ function GlobalSearch({ data, setView, onClose }) {
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search standards, exercises, personnel, grants, plans…"
+              placeholder="Search standards, exercises, personnel, grants, plans..."
               style={{
                 flex: 1,
                 border: 'none',
                 outline: 'none',
                 fontSize: 14,
                 color: B.text,
-                background: 'transparent',
+                background: 'tranSPRent',
                 fontFamily: "'DM Sans',sans-serif",
               }}
             />
@@ -14781,7 +16213,7 @@ function GlobalSearch({ data, setView, onClose }) {
                   fontSize: 16,
                 }}
               >
-                ×
+                -
               </button>
             )}
             <kbd
@@ -14919,7 +16351,7 @@ function GlobalSearch({ data, setView, onClose }) {
                           {item.sub}
                         </div>
                       </div>
-                      <span style={{ fontSize: 11, color: B.border }}>›</span>
+                      <span style={{ fontSize: 11, color: B.border }}>-</span>
                     </button>
                   ))}
                 </div>
@@ -14981,9 +16413,9 @@ function GlobalSearch({ data, setView, onClose }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    ACCREDITATION PACKAGE BUILDER
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function PackageBuilder({ data, setView }) {
   const [step, setStep] = useState(0);
   const [aiExec, setAiExec] = useState('');
@@ -15021,7 +16453,7 @@ function PackageBuilder({ data, setView }) {
       label: 'Current Emergency Operations Plan',
       status: eop ? 'pass' : 'fail',
       detail: eop
-        ? `${eop.name} v${eop.version} — current`
+        ? `${eop.name} v${eop.version} - current`
         : 'No current EOP found',
       fix: 'plans',
     });
@@ -15032,7 +16464,7 @@ function PackageBuilder({ data, setView }) {
       id: 'coop',
       label: 'Continuity of Operations Plan',
       status: coop ? 'pass' : 'warn',
-      detail: coop ? `${coop.name} — current` : 'No COOP on file',
+      detail: coop ? `${coop.name} - current` : 'No COOP on file',
       fix: 'plans',
     });
     const hmp = data.plans?.find((p) => p.type === 'Hazard Mitigation Plan');
@@ -15040,7 +16472,7 @@ function PackageBuilder({ data, setView }) {
       id: 'hmp',
       label: 'Hazard Mitigation Plan',
       status: hmp ? 'pass' : 'warn',
-      detail: hmp ? `${hmp.name} — on file` : 'No Hazard Mitigation Plan',
+      detail: hmp ? `${hmp.name} - on file` : 'No Hazard Mitigation Plan',
       fix: 'plans',
     });
     const hz = data.thira?.hazards || [];
@@ -15054,7 +16486,7 @@ function PackageBuilder({ data, setView }) {
           : hz.length > 0
           ? `Only ${hz.length} hazard${
               hz.length > 1 ? 's' : ''
-            } — 3+ recommended`
+            } - 3+ recommended`
           : 'No hazards profiled',
       fix: 'thira',
     });
@@ -15068,7 +16500,7 @@ function PackageBuilder({ data, setView }) {
         exAAR >= 1
           ? `${exAAR} exercise${exAAR > 1 ? 's' : ''} with final AAR`
           : data.exercises?.length > 0
-          ? 'Exercises on file — finalize AARs'
+          ? 'Exercises on file - finalize AARs'
           : 'No exercises on file',
       fix: 'exercises',
     });
@@ -15081,7 +16513,7 @@ function PackageBuilder({ data, setView }) {
         tc >= 5
           ? `${tc} training records`
           : tc > 0
-          ? `${tc} record${tc > 1 ? 's' : ''} — add more`
+          ? `${tc} record${tc > 1 ? 's' : ''} - add more`
           : 'No training records',
       fix: 'training',
     });
@@ -15093,7 +16525,7 @@ function PackageBuilder({ data, setView }) {
       label: 'Active mutual aid agreements (EMAP 4.7)',
       status: am >= 3 ? 'pass' : am > 0 ? 'warn' : 'fail',
       detail:
-        am >= 3 ? `${am} active agreements` : `${am} active — 3+ recommended`,
+        am >= 3 ? `${am} active agreements` : `${am} active - 3+ recommended`,
       fix: 'partners',
     });
     const gf = (data.grants || []).filter((g) => g.status === 'active').length;
@@ -15120,7 +16552,7 @@ function PackageBuilder({ data, setView }) {
       detail:
         oc === 0
           ? 'All corrective actions closed'
-          : `${oc} open — address before submission`,
+          : `${oc} open - address before submission`,
       fix: 'cap',
     });
     return c;
@@ -15134,18 +16566,18 @@ function PackageBuilder({ data, setView }) {
   const readyToSubmit = failCount === 0 && overall.pct >= 50;
   const SC = {
     pass: {
-      icon: '✓',
+      icon: 'ok',
       color: B.green,
       bg: B.greenLight,
       border: B.greenBorder,
     },
     warn: {
-      icon: '△',
+      icon: '-',
       color: B.amber,
       bg: B.amberLight,
       border: B.amberBorder,
     },
-    fail: { icon: '✕', color: B.red, bg: B.redLight, border: B.redBorder },
+    fail: { icon: 'x', color: B.red, bg: B.redLight, border: B.redBorder },
   };
   const genExec = async () => {
     setAiLoad(true);
@@ -15161,21 +16593,21 @@ function PackageBuilder({ data, setView }) {
           data.orgName || 'this jurisdiction'
         }" for submission to an assessor.\nOrg: ${
           data.orgName || 'Unknown'
-        } · State: ${data.state || 'Unknown'} · Jurisdiction: ${
+        }  -  State: ${data.state || 'Unknown'}  -  Jurisdiction: ${
           data.jurisdiction || 'Unknown'
-        }\nPrimary EM: ${data.emName || 'Unknown'} · ${
+        }\nPrimary EM: ${data.emName || 'Unknown'}  -  ${
           data.emTitle || ''
         }\nEMAP: ${overall.compliant}/${
           overall.total
-        } standards · ${compliantSections}/17 sections\nTraining: ${
+        } standards  -  ${compliantSections}/17 sections\nTraining: ${
           data.training?.length || 0
-        } · Exercises: ${data.exercises?.length || 0} (${
+        }  -  Exercises: ${data.exercises?.length || 0} (${
           data.exercises?.filter((e) => e.aarFinal)?.length || 0
-        } with final AAR)\nPartners: ${data.partners?.length || 0} · Plans: ${
+        } with final AAR)\nPartners: ${data.partners?.length || 0}  -  Plans: ${
           data.plans?.length || 0
-        } · Personnel: ${(data.employees || []).length}\nGrants: ${
+        }  -  Personnel: ${(data.employees || []).length}\nGrants: ${
           (data.grants || []).filter((g) => g.status === 'active').length
-        } active · Hazards: ${
+        } active  -  Hazards: ${
           (data.thira?.hazards || []).length
         } profiled\nItems being addressed: ${
           issues || 'none'
@@ -15208,7 +16640,7 @@ function PackageBuilder({ data, setView }) {
           Accreditation Package Builder
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          Step-by-step assembly of your EMAP submission — readiness check,
+          Step-by-step assembly of your EMAP submission - readiness check,
           compliance summary, executive summary, and final review.
         </p>
       </div>
@@ -15231,7 +16663,7 @@ function PackageBuilder({ data, setView }) {
               flex: 1,
               padding: '10px 6px',
               background:
-                step === i ? accent : step > i ? `${accent}18` : 'transparent',
+                step === i ? accent : step > i ? `${accent}18` : 'tranSPRent',
               border: 'none',
               borderRight:
                 i < steps.length - 1 ? `1px solid ${B.border}` : 'none',
@@ -15267,7 +16699,7 @@ function PackageBuilder({ data, setView }) {
                 flexShrink: 0,
               }}
             >
-              {step > i ? '✓' : i + 1}
+              {step > i ? 'ok' : i + 1}
             </span>
             {s.label}
           </button>
@@ -15375,7 +16807,7 @@ function PackageBuilder({ data, setView }) {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      Fix →
+                      Fix -
                     </button>
                   )}
                 </div>
@@ -15390,14 +16822,14 @@ function PackageBuilder({ data, setView }) {
               alignItems: 'center',
             }}
           >
-            <Btn label="Continue →" onClick={() => setStep(1)} primary />
+            <Btn label="Continue -" onClick={() => setStep(1)} primary />
             {readyToSubmit ? (
               <span style={{ fontSize: 12, color: B.green, fontWeight: 600 }}>
-                ✓ Program meets minimum EMAP submission threshold
+                ok Program meets minimum EMAP submission threshold
               </span>
             ) : (
               <span style={{ fontSize: 12, color: B.amber }}>
-                △ {failCount} critical item{failCount !== 1 ? 's' : ''} should
+                - {failCount} critical item{failCount !== 1 ? 's' : ''} should
                 be resolved before submission
               </span>
             )}
@@ -15430,7 +16862,7 @@ function PackageBuilder({ data, setView }) {
                   {data.orgName || 'Your Organization'}
                 </div>
                 <div style={{ fontSize: 11, opacity: 0.8 }}>
-                  EMAP EMS 5-2022 ·{' '}
+                  EMAP EMS 5-2022 -{' '}
                   {new Date().toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
@@ -15533,8 +16965,8 @@ function PackageBuilder({ data, setView }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn label="← Back" onClick={() => setStep(0)} />
-            <Btn label="Continue →" onClick={() => setStep(2)} primary />
+            <Btn label="- Back" onClick={() => setStep(0)} />
+            <Btn label="Continue -" onClick={() => setStep(2)} primary />
           </div>
         </div>
       )}
@@ -15572,7 +17004,7 @@ function PackageBuilder({ data, setView }) {
                 AI Executive Summary Generator
               </div>
               <Btn
-                label={aiLoad ? '⟳ Writing…' : 'Generate Executive Summary'}
+                label={aiLoad ? '- Writing...' : 'Generate Executive Summary'}
                 onClick={genExec}
                 loading={aiLoad}
                 primary
@@ -15581,7 +17013,7 @@ function PackageBuilder({ data, setView }) {
             </div>
             <div style={{ fontSize: 12, color: B.tealDark }}>
               Writes a professional 3-paragraph narrative using your live
-              program data — ready for submission or board presentation.
+              program data - ready for submission or board presentation.
             </div>
           </div>
           {!aiExec && !aiLoad && (
@@ -15620,7 +17052,7 @@ function PackageBuilder({ data, setView }) {
                   marginBottom: 8,
                 }}
               >
-                Executive Summary — {data.orgName || 'Your Organization'}
+                Executive Summary - {data.orgName || 'Your Organization'}
               </div>
               <div
                 style={{
@@ -15677,15 +17109,15 @@ function PackageBuilder({ data, setView }) {
                     fontWeight: 700,
                   }}
                 >
-                  ↓ Download .txt
+                  - Download .txt
                 </button>
                 <Btn label="Regenerate" onClick={genExec} small />
               </div>
             </div>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn label="← Back" onClick={() => setStep(1)} />
-            <Btn label="Continue →" onClick={() => setStep(3)} primary />
+            <Btn label="- Back" onClick={() => setStep(1)} />
+            <Btn label="Continue -" onClick={() => setStep(3)} primary />
           </div>
         </div>
       )}
@@ -15720,7 +17152,7 @@ function PackageBuilder({ data, setView }) {
                 flexShrink: 0,
               }}
             >
-              {readyToSubmit ? '✓' : '△'}
+              {readyToSubmit ? 'ok' : '-'}
             </div>
             <div>
               <div
@@ -15742,7 +17174,7 @@ function PackageBuilder({ data, setView }) {
                 }}
               >
                 {readyToSubmit
-                  ? `${overall.pct}% compliant · ${passCount}/${checks.length} checks passing · All critical items resolved`
+                  ? `${overall.pct}% compliant  -  ${passCount}/${checks.length} checks passing  -  All critical items resolved`
                   : `${failCount} critical item${
                       failCount !== 1 ? 's' : ''
                     } and ${warnCount} warning${
@@ -15761,14 +17193,14 @@ function PackageBuilder({ data, setView }) {
           >
             {[
               {
-                icon: '★',
+                icon: '-',
                 label: 'EMAP Standards',
                 val: `${overall.compliant}/${overall.total} (${overall.pct}%)`,
                 ok: overall.pct >= 50,
                 mod: 'accreditation',
               },
               {
-                icon: '◎',
+                icon: '-',
                 label: 'Exercise AARs',
                 val: `${
                   data.exercises?.filter((e) => e.aarFinal)?.length || 0
@@ -15778,7 +17210,7 @@ function PackageBuilder({ data, setView }) {
                 mod: 'exercises',
               },
               {
-                icon: '◈',
+                icon: '-',
                 label: 'Current Plans',
                 val: `${
                   data.plans?.filter((p) => p.status === 'current')?.length || 0
@@ -15789,7 +17221,7 @@ function PackageBuilder({ data, setView }) {
                 mod: 'plans',
               },
               {
-                icon: '⊕',
+                icon: '-',
                 label: 'Partner Agreements',
                 val: `${
                   (data.partners || []).filter(
@@ -15803,14 +17235,14 @@ function PackageBuilder({ data, setView }) {
                 mod: 'partners',
               },
               {
-                icon: '◉',
+                icon: '-',
                 label: 'Training Records',
                 val: `${data.training?.length || 0} records`,
                 ok: (data.training?.length || 0) >= 5,
                 mod: 'training',
               },
               {
-                icon: '⚠',
+                icon: '-',
                 label: 'Open Corrective Actions',
                 val: `${
                   (data.capItems || []).filter((c) => !c.closed).length +
@@ -15869,7 +17301,7 @@ function PackageBuilder({ data, setView }) {
                       color: item.ok ? B.green : B.amber,
                     }}
                   >
-                    {item.ok ? '✓' : '△'}
+                    {item.ok ? 'ok' : '-'}
                   </span>
                 </div>
                 <div
@@ -15889,7 +17321,7 @@ function PackageBuilder({ data, setView }) {
             ))}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Btn label="← Back" onClick={() => setStep(2)} />
+            <Btn label="- Back" onClick={() => setStep(2)} />
             <button
               onClick={() => window.print()}
               style={{
@@ -15904,7 +17336,7 @@ function PackageBuilder({ data, setView }) {
                 fontFamily: "'DM Sans',sans-serif",
               }}
             >
-              🖨 Print Full Package
+              - Print Full Package
             </button>
             <Btn label="View Reports" onClick={() => setView('reports')} />
             {!readyToSubmit && (
@@ -15917,9 +17349,9 @@ function PackageBuilder({ data, setView }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
-   ACCREDITATION JOURNEY — 6-step EMAP process tracker
-═══════════════════════════════════════════════════════ */
+/* -------------------------------------------------------
+   ACCREDITATION JOURNEY - 6-step EMAP process tracker
+------------------------------------------------------- */
 function AccreditationJourney({ data, updateData, setView }) {
   const journey = data.journey || {};
   const overall = useMemo(
@@ -15992,7 +17424,7 @@ function AccreditationJourney({ data, updateData, setView }) {
       details: [
         'Annual subscription: $900/yr',
         'Accreditation Manager must attend Standard Training',
-        'Training cost varies — contact EMAP',
+        'Training cost varies - contact EMAP',
         'Access to Assessment Platform (PowerDMS)',
       ],
       checks: [
@@ -16001,7 +17433,7 @@ function AccreditationJourney({ data, updateData, setView }) {
         { label: 'Standard Training completed', key: 'trainingComplete' },
       ],
       color: B.blue,
-      tip: 'Start here. Training should happen as early as possible — ideally within 30 days of subscribing.',
+      tip: 'Start here. Training should happen as early as possible - ideally within 30 days of subscribing.',
     },
     {
       n: 2,
@@ -16016,7 +17448,7 @@ function AccreditationJourney({ data, updateData, setView }) {
       checks: [],
       color: B.teal,
       progress: {
-        label: `${overall.compliant}/73 standards documented · ${docsWithRationale}/${totalDocs} rationales written`,
+        label: `${overall.compliant}/73 standards documented  -  ${docsWithRationale}/${totalDocs} rationales written`,
         pct: overall.pct,
       },
       tip: `PLANRR builds your self-assessment in real time. You currently have ${overall.compliant} compliant standards and ${docsWithRationale} rationales written.`,
@@ -16041,7 +17473,7 @@ function AccreditationJourney({ data, updateData, setView }) {
         { label: 'Target assessment date', key: 'targetAssessmentDate' },
       ],
       color: B.purple,
-      tip: "Don't wait until you're at 100% to apply. Apply when you're at ~80% compliant — you'll complete the rest during the application period with EMAP support.",
+      tip: "Don't wait until you're at 100% to apply. Apply when you're at ~80% compliant - you'll complete the rest during the application period with EMAP support.",
     },
     {
       n: 4,
@@ -16066,7 +17498,7 @@ function AccreditationJourney({ data, updateData, setView }) {
         { label: 'Supplemental period ends', key: 'supplementalEndDate' },
       ],
       color: B.amber,
-      tip: 'The assessors get access to your documents 3 weeks before arrival — their preliminary review happens before they even land.',
+      tip: 'The assessors get access to your documents 3 weeks before arrival - their preliminary review happens before they even land.',
     },
     {
       n: 5,
@@ -16076,8 +17508,8 @@ function AccreditationJourney({ data, updateData, setView }) {
         'Program representative strongly encouraged to attend',
         'Commission outcomes: Accredited / Conditional / Denied',
         'Conditional: up to 9 months to resolve gaps',
-        '≤5 non-compliant: virtual conditional assessment',
-        '≥6 non-compliant: on-site conditional assessment',
+        '-5 non-compliant: virtual conditional assessment',
+        '-6 non-compliant: on-site conditional assessment',
         'Appeal window: 30 business days after decision',
       ],
       checks: [
@@ -16089,7 +17521,7 @@ function AccreditationJourney({ data, updateData, setView }) {
         { label: 'Commission decision date', key: 'commissionDate' },
       ],
       color: B.red,
-      tip: "Attend the PRC meeting — you can respond to questions and clarify findings. After the meeting you're excused while they vote.",
+      tip: "Attend the PRC meeting - you can respond to questions and clarify findings. After the meeting you're excused while they vote.",
     },
     {
       n: 6,
@@ -16114,7 +17546,7 @@ function AccreditationJourney({ data, updateData, setView }) {
         { label: 'Accreditation expires', key: 'expiryDate' },
       ],
       color: B.green,
-      tip: 'Set a calendar reminder 18 months before expiry — consecutive accreditation applications are due 12 months before, and late applications lose technical assistance.',
+      tip: 'Set a calendar reminder 18 months before expiry - consecutive accreditation applications are due 12 months before, and late applications lose technical assistance.',
     },
   ];
 
@@ -16128,20 +17560,20 @@ function AccreditationJourney({ data, updateData, setView }) {
     const j = data.jurisdiction || '';
     if (j.includes('State'))
       return {
-        accred: '$4,500–$7,500',
+        accred: '$4,500-$7,500',
         app: '$9,000',
-        total: '$13,500–$16,500+travel',
+        total: '$13,500-$16,500+travel',
       };
     if (j.includes('Municipal') || j.includes('County') || j.includes('Parish'))
       return {
-        accred: '$2,000–$4,500',
+        accred: '$2,000-$4,500',
         app: '$9,000',
-        total: '$11,000–$13,500+travel',
+        total: '$11,000-$13,500+travel',
       };
     return {
-      accred: '$2,000–$7,500',
+      accred: '$2,000-$7,500',
       app: '$9,000',
-      total: '$11,000–$16,500+travel',
+      total: '$11,000-$16,500+travel',
     };
   }, [data.jurisdiction]);
 
@@ -16189,7 +17621,7 @@ function AccreditationJourney({ data, updateData, setView }) {
           Accreditation Journey
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          EMAP 6-step accreditation process · track your progress · key
+          EMAP 6-step accreditation process - track your progress - key
           deadlines and fees
         </p>
       </div>
@@ -16245,13 +17677,13 @@ function AccreditationJourney({ data, updateData, setView }) {
         </div>
         <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11 }}>
           <span style={{ color: B.green, fontWeight: 600 }}>
-            ✓ {stepStatus.filter((s) => s === 'complete').length} complete
+            ok {stepStatus.filter((s) => s === 'complete').length} complete
           </span>
           <span style={{ color: B.teal, fontWeight: 600 }}>
-            ◑ {stepStatus.filter((s) => s === 'active').length} in progress
+            - {stepStatus.filter((s) => s === 'active').length} in progress
           </span>
           <span style={{ color: B.faint }}>
-            ○ {stepStatus.filter((s) => s === 'pending').length} upcoming
+            o {stepStatus.filter((s) => s === 'pending').length} upcoming
           </span>
           <span style={{ marginLeft: 'auto', color: B.faint }}>
             Estimated total cost:{' '}
@@ -16321,14 +17753,14 @@ function AccreditationJourney({ data, updateData, setView }) {
                     flexShrink: 0,
                   }}
                 >
-                  {sc === 'complete' ? '✓' : step.n}
+                  {sc === 'complete' ? 'ok' : step.n}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: B.text }}>
                     {step.label}
                   </div>
                   <div style={{ fontSize: 11, color: B.faint, marginTop: 1 }}>
-                    {step.desc.slice(0, 80)}…
+                    {step.desc.slice(0, 80)}...
                   </div>
                 </div>
                 {step.progress && (
@@ -16394,7 +17826,7 @@ function AccreditationJourney({ data, updateData, setView }) {
                     flexShrink: 0,
                   }}
                 >
-                  ▼
+                  -
                 </span>
               </div>
 
@@ -16457,7 +17889,8 @@ function AccreditationJourney({ data, updateData, setView }) {
                                 marginTop: 1,
                               }}
                             >
-                              ·
+                              {' '}
+                              -{' '}
                             </span>
                             {d}
                           </div>
@@ -16575,7 +18008,7 @@ function AccreditationJourney({ data, updateData, setView }) {
                             marginBottom: 5,
                           }}
                         >
-                          💡 Tip
+                          - Tip
                         </div>
                         <div
                           style={{
@@ -16616,7 +18049,7 @@ function AccreditationJourney({ data, updateData, setView }) {
                               fontWeight: 700,
                             }}
                           >
-                            Open EMAP Standards →
+                            Open EMAP Standards -
                           </button>
                         </div>
                       )}
@@ -16642,7 +18075,7 @@ function AccreditationJourney({ data, updateData, setView }) {
                           marginBottom: 6,
                         }}
                       >
-                        ◈ Consider Tiered Accreditation first
+                        - Consider Tiered Accreditation first
                       </div>
                       <div
                         style={{
@@ -16654,7 +18087,7 @@ function AccreditationJourney({ data, updateData, setView }) {
                       >
                         Your Tier 1 compliance (Ch.3 + HIRA + Mitigation) is at{' '}
                         <strong>{tier1Pct}%</strong>. Programs under 60% overall
-                        often start with the Tiered Accreditation pathway —
+                        often start with the Tiered Accreditation pathway -
                         certifying in specific standard areas before pursuing
                         full accreditation. Each tier is valid for 4 years, and
                         achieving all four tiers upgrades to full accreditation
@@ -16674,7 +18107,7 @@ function AccreditationJourney({ data, updateData, setView }) {
                           fontWeight: 700,
                         }}
                       >
-                        View Tiered Pathway in Package Builder →
+                        View Tiered Pathway in Package Builder -
                       </button>
                     </div>
                   )}
@@ -16716,7 +18149,7 @@ function AccreditationJourney({ data, updateData, setView }) {
             { l: 'Subscription', v: '$900/yr' },
             { l: 'Application fee', v: feeEstimate.app },
             { l: 'Accreditation fee', v: feeEstimate.accred },
-            { l: 'Travel (estimate)', v: '$3,000–$8,000' },
+            { l: 'Travel (estimate)', v: '$3,000-$8,000' },
           ].map((s) => (
             <div
               key={s.l}
@@ -16747,24 +18180,1595 @@ function AccreditationJourney({ data, updateData, setView }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    ONBOARDING
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 
-/* ═══════════════════════════════════════════════════════
-   LANDING PAGE — home screen at planrr.app
+/* -------------------------------------------------------
+   LANDING PAGE - home screen at planrr.app
    Matches marketing one-pager theme exactly
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
+
+/* -------------------------------------------------------
+   DOCUMENT TEMPLATES LIBRARY (AI Pre-fill)
+------------------------------------------------------- */
+const DOC_TEMPLATES = [
+  {
+    id: 'strategic_plan',
+    name: 'Multi-Year Strategic Plan',
+    emap: '3.1.1',
+    desc: 'Vision, mission, goals, objectives, milestones, and evaluation process. Required for EMAP 3.1.1.',
+    sections: [
+      'Executive Summary',
+      'Vision Statement',
+      'Mission Statement',
+      'Goals & Objectives',
+      'Implementation Timeline',
+      'Stakeholder Input Process',
+      'Evaluation & Revision Schedule',
+    ],
+  },
+  {
+    id: 'coop',
+    name: 'Continuity of Operations Plan (COOP)',
+    emap: '4.4.2',
+    desc: 'Ensures continued operations during disruptions. Addresses essential functions, succession, alternate facilities.',
+    sections: [
+      'Purpose & Scope',
+      'Authority',
+      'Essential Functions',
+      'Orders of Succession',
+      'Delegation of Authority',
+      'Alternate Facilities',
+      'Vital Records',
+      'Communications',
+      'Reconstitution',
+    ],
+  },
+  {
+    id: 'resource_mgmt',
+    name: 'Resource Management Plan',
+    emap: '4.7.1',
+    desc: 'Goals/objectives, gap analysis, resource systems, donations and volunteer management.',
+    sections: [
+      'Purpose & Scope',
+      'Goals & Objectives',
+      'Resource Gap Analysis',
+      'Resource Management Systems',
+      'Mutual Aid Agreements',
+      'Donations Management',
+      'Volunteer Management',
+      'Maintenance Schedule',
+    ],
+  },
+  {
+    id: 'comms_plan',
+    name: 'Communications Plan',
+    emap: '4.8.1',
+    desc: 'Internal/external communications, alert/notification, public warning including vulnerable populations.',
+    sections: [
+      'Purpose & Scope',
+      'Internal Communications',
+      'External Communications',
+      'Alert & Notification Procedures',
+      'Public Warning Systems',
+      'Vulnerable Population Outreach',
+      'Interoperability',
+      'Testing Schedule',
+    ],
+  },
+  {
+    id: 'training_plan',
+    name: 'Training Plan',
+    emap: '4.10.1',
+    desc: 'Training needs assessment, curriculum, evaluations, records retention, and scheduling.',
+    sections: [
+      'Purpose & Scope',
+      'Training Needs Assessment',
+      'Training Goals & Objectives',
+      'Curriculum & Course Catalog',
+      'Scheduling',
+      'Personnel Requirements',
+      'Course Evaluations',
+      'Records & Retention',
+      'Maintenance Process',
+    ],
+  },
+  {
+    id: 'exercise_plan',
+    name: 'Exercise Plan',
+    emap: '4.11.1',
+    desc: 'Multi-year exercise, evaluation, and corrective action plan based on identified hazards.',
+    sections: [
+      'Purpose & Scope',
+      'Exercise Goals & Objectives',
+      'Multi-Year Schedule',
+      'Exercise Types (HSEEP)',
+      'Evaluation Framework',
+      'After-Action Process',
+      'Corrective Action Tracking',
+      'Maintenance Process',
+    ],
+  },
+];
+
+function DocTemplatesView({ data, orgName }) {
+  const [selected, setSelected] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState({});
+  const ctx = `Organization: "${orgName || 'My Agency'}". Jurisdiction: ${
+    data.jurisdiction || 'Unknown'
+  }. State: ${data.state || 'Unknown'}. THIRA Hazards: ${
+    (data.thira?.hazards || []).map((h) => h.type).join(', ') || 'None profiled'
+  }. Plans on file: ${
+    (data.plans || []).map((p) => p.name).join(', ') || 'None'
+  }. Personnel: ${(data.employees || []).length}. Standards compliance: ${
+    Object.values(data.standards || {}).filter((s) => s.status === 'compliant')
+      .length
+  }/73.`;
+  const generate = async (tpl) => {
+    setGenerating(true);
+    const sys =
+      'You are an expert emergency management document writer. Generate a professional, ready-to-customize document template. Use the organization context provided. Output clear section headers and practical content. Be specific to emergency management best practices and EMAP EMS 5-2022 requirements.';
+    const prompt = `Generate a complete ${
+      tpl.name
+    } document for this EM program. Context: ${ctx}. Include these sections: ${tpl.sections.join(
+      ', '
+    )}. For each section, provide substantive starter content that the user can customize. Include placeholder brackets [CUSTOMIZE] where org-specific details are needed. Make it practical and ready to use.`;
+    let result = '';
+    try {
+      await callAI(sys, prompt, (chunk) => {
+        result += chunk;
+        setGenerated((p) => ({ ...p, [tpl.id]: result }));
+      });
+    } catch {
+      setGenerated((p) => ({
+        ...p,
+        [tpl.id]:
+          'Error generating template. Check your AI credits and try again.',
+      }));
+    }
+    setGenerating(false);
+  };
+  return (
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 960 }}>
+      <div style={{ marginBottom: 20 }}>
+        <h1
+          style={{
+            fontSize: 22,
+            fontWeight: 800,
+            color: B.text,
+            letterSpacing: '-0.3px',
+          }}
+        >
+          Document Templates
+        </h1>
+        <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
+          AI-powered templates pre-filled with your program data. Customize and
+          export for EMAP compliance.
+        </p>
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3,1fr)',
+          gap: 10,
+          marginBottom: 20,
+        }}
+      >
+        {DOC_TEMPLATES.map((tpl) => (
+          <Card
+            key={tpl.id}
+            style={{
+              padding: '16px 18px',
+              cursor: 'pointer',
+              border: `1px solid ${
+                selected?.id === tpl.id ? B.teal : B.border
+              }`,
+              transition: 'all 0.15s',
+            }}
+            onClick={() => setSelected(tpl)}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                marginBottom: 8,
+              }}
+            >
+              <Tag
+                label={`EMAP ${tpl.emap}`}
+                color={B.tealDark}
+                bg={B.tealLight}
+                border={B.tealBorder}
+              />
+              {generated[tpl.id] && (
+                <span style={{ fontSize: 9, color: B.green, fontWeight: 700 }}>
+                  Generated
+                </span>
+              )}
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: B.text,
+                marginBottom: 4,
+              }}
+            >
+              {tpl.name}
+            </div>
+            <div style={{ fontSize: 11, color: B.faint, lineHeight: 1.5 }}>
+              {tpl.desc}
+            </div>
+          </Card>
+        ))}
+      </div>
+      {selected && (
+        <Card style={{ padding: '20px 24px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 14,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: B.text }}>
+                {selected.name}
+              </div>
+              <div style={{ fontSize: 12, color: B.faint, marginTop: 2 }}>
+                Sections: {selected.sections.join(' - ')}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Btn
+                label={generating ? 'Generating...' : 'Generate with AI'}
+                onClick={() => generate(selected)}
+                primary
+                loading={generating}
+                disabled={generating}
+              />
+              {generated[selected.id] && (
+                <Btn
+                  label="Copy to Clipboard"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(generated[selected.id]);
+                  }}
+                />
+              )}
+            </div>
+          </div>
+          {generated[selected.id] ? (
+            <div
+              style={{
+                background: '#fafcfc',
+                border: `1px solid ${B.border}`,
+                borderRadius: 8,
+                padding: '16px 20px',
+                maxHeight: 500,
+                overflowY: 'auto',
+                fontSize: 13,
+                color: B.muted,
+                lineHeight: 1.8,
+                whiteSpace: 'pre-wrap',
+                fontFamily: "'DM Sans',sans-serif",
+              }}
+            >
+              {generated[selected.id]}
+            </div>
+          ) : (
+            <div
+              style={{
+                background: '#fafcfc',
+                border: `1px solid ${B.border}`,
+                borderRadius: 8,
+                padding: '28px',
+                textAlign: 'center',
+                color: B.faint,
+              }}
+            >
+              <div style={{ fontSize: 13, marginBottom: 6 }}>
+                Click "Generate with AI" to create a template pre-filled with
+                your program data
+              </div>
+              <div style={{ fontSize: 11 }}>
+                The AI will use your organization name, jurisdiction, hazard
+                profile, and existing plans to customize the output
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------
+   ONE-CLICK EVIDENCE EXPORT PER STANDARD
+------------------------------------------------------- */
+function EvidenceExportView({ data, orgName }) {
+  const standards = data.standards || {};
+  const [selectedSection, setSelectedSection] = useState(null);
+  const [exporting, setExporting] = useState(null);
+
+  const buildEvidencePackage = (stdId) => {
+    const std = ALL_STANDARDS.find((s) => s.id === stdId);
+    const rec = standards[stdId] || initRecord();
+    const evidence = {
+      standard: stdId,
+      title: std?.text || '',
+      status: rec.status,
+      notes: rec.notes,
+      assignee: rec.assignee,
+      docs: (rec.docs || []).map((d) => ({
+        name: d.name,
+        size: d.size,
+        type: d.type,
+        rationale: d.rationale,
+        confidence: d.confidence,
+      })),
+      linkedData: {},
+    };
+    // Pull linked program ops data
+    const section = stdId.split('.').slice(0, 2).join('.');
+    if (section === '4.5' || section === '4.4')
+      (data.plans || []).forEach((p) => {
+        if (
+          p.emapRef &&
+          stdId.startsWith(p.emapRef.split('.').slice(0, 2).join('.'))
+        )
+          evidence.linkedData.plans = [
+            ...(evidence.linkedData.plans || []),
+            {
+              name: p.name,
+              type: p.type,
+              status: p.status,
+              lastReview: p.lastReview,
+            },
+          ];
+      });
+    if (section === '4.10')
+      (data.training || []).forEach((t) => {
+        evidence.linkedData.training = [
+          ...(evidence.linkedData.training || []),
+          { person: t.person, type: t.type, date: t.date },
+        ];
+      });
+    if (section === '4.11') {
+      (data.exercises || []).forEach((e) => {
+        evidence.linkedData.exercises = [
+          ...(evidence.linkedData.exercises || []),
+          {
+            name: e.name,
+            type: e.type,
+            date: e.date,
+            status: e.status,
+            hasAAR: !!e.aarFinal,
+          },
+        ];
+      });
+      evidence.linkedData.correctiveActions = (data.capItems || []).map(
+        (c) => ({ finding: c.finding, status: c.closed ? 'Closed' : 'Open' })
+      );
+    }
+    if (section === '4.7')
+      (data.partners || []).forEach((p) => {
+        evidence.linkedData.partners = [
+          ...(evidence.linkedData.partners || []),
+          { name: p.name, type: p.agreementType, expires: p.expires },
+        ];
+      });
+    if (section === '4.1')
+      (data.thira?.hazards || []).forEach((h) => {
+        evidence.linkedData.hazards = [
+          ...(evidence.linkedData.hazards || []),
+          {
+            type: h.type,
+            likelihood: h.likelihood,
+            consequence: h.consequence,
+          },
+        ];
+      });
+    if (section === '3.4')
+      (data.grants || [])
+        .filter((g) => g.status === 'active')
+        .forEach((g) => {
+          evidence.linkedData.grants = [
+            ...(evidence.linkedData.grants || []),
+            { name: g.name, type: g.type, amount: g.amount },
+          ];
+        });
+    return evidence;
+  };
+
+  const exportStandard = (stdId) => {
+    setExporting(stdId);
+    const pkg = buildEvidencePackage(stdId);
+    const lines = [
+      `EVIDENCE PACKAGE: EMAP Standard ${stdId}`,
+      `Organization: ${orgName || ''}`,
+      `Generated: ${new Date().toLocaleDateString()}`,
+      `${'='.repeat(60)}`,
+      ``,
+      `STANDARD: ${pkg.title}`,
+      `STATUS: ${ST[pkg.status]?.label || pkg.status}`,
+      `ASSIGNEE: ${pkg.assignee || 'Unassigned'}`,
+      ``,
+    ];
+    if (pkg.notes) lines.push(`NOTES:`, pkg.notes, ``);
+    if (pkg.docs.length > 0) {
+      lines.push(`UPLOADED EVIDENCE (${pkg.docs.length} documents):`);
+      pkg.docs.forEach((d, i) => {
+        lines.push(
+          `  ${i + 1}. ${d.name} (${d.type || 'file'})${
+            d.confidence ? ` - AI Confidence: ${d.confidence}%` : ''
+          }${d.rationale ? `\n     Rationale: ${d.rationale}` : ''}`
+        );
+      });
+      lines.push(``);
+    }
+    Object.entries(pkg.linkedData).forEach(([key, items]) => {
+      if (items && items.length > 0) {
+        lines.push(
+          `LINKED ${key.toUpperCase()} DATA (${items.length} records):`
+        );
+        items.forEach((item, i) =>
+          lines.push(`  ${i + 1}. ${JSON.stringify(item)}`)
+        );
+        lines.push(``);
+      }
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `evidence_${stdId}_${
+      new Date().toISOString().split('T')[0]
+    }.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setTimeout(() => setExporting(null), 1000);
+  };
+
+  const exportSection = (sec) => {
+    sec.standards.forEach((std, i) => {
+      setTimeout(() => exportStandard(std.id), i * 200);
+    });
+  };
+
+  return (
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 960 }}>
+      <div style={{ marginBottom: 20 }}>
+        <h1
+          style={{
+            fontSize: 22,
+            fontWeight: 800,
+            color: B.text,
+            letterSpacing: '-0.3px',
+          }}
+        >
+          Evidence Export
+        </h1>
+        <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
+          Generate evidence packages for your EMAP assessors. Each export
+          includes standards data, uploaded documents, notes, and linked program
+          records.
+        </p>
+      </div>
+      <div
+        style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}
+      >
+        <Btn
+          label="Export All Standards"
+          onClick={() => ALL_SECTIONS.forEach((sec) => exportSection(sec))}
+          primary
+          small
+        />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {ALL_SECTIONS.map((sec) => {
+          const stats = sectionStats(sec, data.standards || {});
+          const docCount = sec.standards.reduce(
+            (a, s) => a + ((standards[s.id] || {}).docs || []).length,
+            0
+          );
+          return (
+            <Card key={sec.id} style={{ padding: '14px 18px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  cursor: 'pointer',
+                }}
+                onClick={() =>
+                  setSelectedSection(selectedSection === sec.id ? null : sec.id)
+                }
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: sec.chapter.color,
+                    background: `${sec.chapter.color}15`,
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    flexShrink: 0,
+                  }}
+                >
+                  {sec.id}
+                </span>
+                <span
+                  style={{
+                    flex: 1,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: B.text,
+                  }}
+                >
+                  {sec.title}
+                </span>
+                <span style={{ fontSize: 10, color: B.faint }}>
+                  {docCount} docs
+                </span>
+                <div style={{ width: 50 }}>
+                  <div
+                    style={{
+                      height: 3,
+                      background: '#edf2f4',
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${stats.pct}%`,
+                        background: stats.pct === 100 ? B.green : B.teal,
+                        borderRadius: 2,
+                      }}
+                    />
+                  </div>
+                </div>
+                <Btn
+                  label="Export Section"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    exportSection(sec);
+                  }}
+                  small
+                />
+              </div>
+              {selectedSection === sec.id && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    borderTop: `1px solid ${B.border}`,
+                    paddingTop: 10,
+                  }}
+                >
+                  {sec.standards.map((std) => {
+                    const rec = standards[std.id] || initRecord();
+                    return (
+                      <div
+                        key={std.id}
+                        style={{
+                          display: 'flex',
+                          gap: 8,
+                          alignItems: 'center',
+                          padding: '6px 0',
+                        }}
+                      >
+                        <StatusDot status={rec.status} size={8} />
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: B.muted,
+                          }}
+                        >
+                          {std.id}
+                        </span>
+                        <span
+                          style={{
+                            flex: 1,
+                            fontSize: 11,
+                            color: B.faint,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {std.text.slice(0, 80)}...
+                        </span>
+                        <span style={{ fontSize: 9, color: B.faint }}>
+                          {(rec.docs || []).length} docs
+                        </span>
+                        <button
+                          onClick={() => exportStandard(std.id)}
+                          style={{
+                            background: exporting === std.id ? B.green : 'none',
+                            border: `1px solid ${
+                              exporting === std.id ? B.green : B.border
+                            }`,
+                            borderRadius: 5,
+                            padding: '3px 8px',
+                            fontSize: 10,
+                            color: exporting === std.id ? '#fff' : B.muted,
+                            cursor: 'pointer',
+                            fontFamily: "'DM Sans',sans-serif",
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          {exporting === std.id ? 'Exported' : 'Export'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------
+   MUTUAL AID MAP (Multi-Jurisdiction)
+------------------------------------------------------- */
+function MutualAidView({ data, setData }) {
+  const RESOURCE_TYPES = [
+    'Personnel',
+    'Vehicles',
+    'Heavy Equipment',
+    'Communications',
+    'Shelter/Mass Care',
+    'Medical/EMS',
+    'HAZMAT',
+    'Water Rescue',
+    'Search & Rescue',
+    'Aviation',
+    'IT/Cyber',
+    'Facilities',
+    'Other',
+  ];
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ partnerId: '', resources: [], notes: '' });
+  const partners = data.partners || [];
+  const mutualAid = data.mutualAid || [];
+  const save = () => {
+    if (!form.partnerId || form.resources.length === 0) return;
+    setData((prev) => ({
+      ...prev,
+      mutualAid: [
+        ...(prev.mutualAid || []),
+        { ...form, id: uid(), addedAt: Date.now() },
+      ],
+    }));
+    setForm({ partnerId: '', resources: [], notes: '' });
+    setShowForm(false);
+  };
+  const remove = (id) =>
+    setData((prev) => ({
+      ...prev,
+      mutualAid: (prev.mutualAid || []).filter((m) => m.id !== id),
+    }));
+  const toggleResource = (r) =>
+    setForm((p) => ({
+      ...p,
+      resources: p.resources.includes(r)
+        ? p.resources.filter((x) => x !== r)
+        : [...p.resources, r],
+    }));
+
+  // EMAP 4.7 coverage analysis
+  const stds = data.standards || {};
+  const s47Standards = [
+    '4.7.1',
+    '4.7.2',
+    '4.7.3',
+    '4.7.4',
+    '4.7.5',
+    '4.7.6',
+    '4.7.7',
+    '4.7.8',
+  ];
+  const s47Compliant = s47Standards.filter(
+    (id) => (stds[id] || {}).status === 'compliant'
+  ).length;
+
+  // Resource coverage matrix
+  const resourceMatrix = useMemo(() => {
+    const matrix = {};
+    RESOURCE_TYPES.forEach((r) => {
+      matrix[r] = { providers: [], count: 0 };
+    });
+    mutualAid.forEach((ma) => {
+      const partner = partners.find((p) => p.id === ma.partnerId);
+      if (partner)
+        (ma.resources || []).forEach((r) => {
+          if (matrix[r]) {
+            matrix[r].providers.push(partner.name);
+            matrix[r].count++;
+          }
+        });
+    });
+    return matrix;
+  }, [mutualAid, partners]);
+
+  return (
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 1060 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              fontSize: 22,
+              fontWeight: 800,
+              color: B.text,
+              letterSpacing: '-0.3px',
+            }}
+          >
+            Mutual Aid Resource Map
+          </h1>
+          <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
+            EMAP 4.7 - Map shared resources across jurisdictions -{' '}
+            {mutualAid.length} resource agreements
+          </p>
+        </div>
+        <Btn
+          label="+ Map Resources"
+          onClick={() => setShowForm(true)}
+          primary
+        />
+      </div>
+
+      {/* 4.7 Compliance strip */}
+      <Card
+        style={{
+          marginBottom: 16,
+          padding: '14px 18px',
+          background: `linear-gradient(135deg,#f0fafa,#fff)`,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: B.muted,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+              }}
+            >
+              EMAP 4.7 Resource Management & Mutual Aid
+            </div>
+            <div style={{ fontSize: 12, color: B.faint, marginTop: 3 }}>
+              {s47Compliant}/{s47Standards.length} standards compliant -{' '}
+              {partners.length} partner agreements - {mutualAid.length} resource
+              mappings
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {s47Standards.map((id) => (
+              <StatusDot
+                key={id}
+                status={(stds[id] || {}).status || 'not_started'}
+                size={10}
+              />
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {showForm && (
+        <Card
+          style={{
+            marginBottom: 14,
+            background: B.blueLight,
+            borderColor: B.blueBorder,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: B.text,
+              marginBottom: 12,
+            }}
+          >
+            Map Partner Resources
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <Label>Partner Organization</Label>
+            <FSel
+              value={form.partnerId}
+              onChange={(v) => setForm((p) => ({ ...p, partnerId: v }))}
+            >
+              <option value="">Select a partner...</option>
+              {partners.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.agreementType})
+                </option>
+              ))}
+            </FSel>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <Label>Shared Resources (select all that apply)</Label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              {RESOURCE_TYPES.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => toggleResource(r)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 6,
+                    border: `1px solid ${
+                      form.resources.includes(r) ? B.teal : B.border
+                    }`,
+                    background: form.resources.includes(r)
+                      ? B.tealLight
+                      : B.card,
+                    color: form.resources.includes(r) ? B.tealDark : B.muted,
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans',sans-serif",
+                    fontWeight: form.resources.includes(r) ? 700 : 400,
+                  }}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <Label>Notes</Label>
+            <FInput
+              value={form.notes}
+              onChange={(v) => setForm((p) => ({ ...p, notes: v }))}
+              placeholder="Capabilities, limitations, response time..."
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn label="Save" onClick={save} primary />
+            <Btn label="Cancel" onClick={() => setShowForm(false)} />
+          </div>
+        </Card>
+      )}
+
+      {/* Resource Coverage Matrix */}
+      <Card style={{ marginBottom: 14, padding: '16px 18px' }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: B.muted,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            marginBottom: 12,
+          }}
+        >
+          Resource Coverage Matrix
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4,1fr)',
+            gap: 6,
+          }}
+        >
+          {RESOURCE_TYPES.map((r) => {
+            const d = resourceMatrix[r];
+            return (
+              <div
+                key={r}
+                style={{
+                  padding: '10px 12px',
+                  background: d.count > 0 ? B.greenLight : '#fafcfc',
+                  border: `1px solid ${d.count > 0 ? B.greenBorder : B.border}`,
+                  borderRadius: 7,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: d.count > 0 ? B.green : B.faint,
+                  }}
+                >
+                  {r}
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: d.count > 0 ? '#065f46' : B.faint,
+                    marginTop: 2,
+                  }}
+                >
+                  {d.count > 0
+                    ? `${d.count} provider${d.count > 1 ? 's' : ''}${
+                        d.providers.length > 0 ? ' - ' + d.providers[0] : ''
+                      }${
+                        d.providers.length > 1
+                          ? ` +${d.providers.length - 1}`
+                          : ''
+                      }`
+                    : 'No coverage'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Mapped agreements list */}
+      {mutualAid.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {mutualAid.map((ma) => {
+            const partner = partners.find((p) => p.id === ma.partnerId);
+            return (
+              <Card key={ma.id} style={{ padding: '12px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
+                    style={{
+                      width: 30,
+                      height: 30,
+                      background: B.blueLight,
+                      borderRadius: 7,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: B.blue,
+                      fontSize: 12,
+                      flexShrink: 0,
+                    }}
+                  >
+                    -
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{ fontSize: 13, fontWeight: 700, color: B.text }}
+                    >
+                      {partner?.name || 'Unknown Partner'}
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 4,
+                        flexWrap: 'wrap',
+                        marginTop: 4,
+                      }}
+                    >
+                      {(ma.resources || []).map((r) => (
+                        <Tag
+                          key={r}
+                          label={r}
+                          color={B.green}
+                          bg={B.greenLight}
+                          border={B.greenBorder}
+                        />
+                      ))}
+                    </div>
+                    {ma.notes && (
+                      <div
+                        style={{ fontSize: 11, color: B.faint, marginTop: 4 }}
+                      >
+                        {ma.notes}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => remove(ma.id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#d1d5db',
+                      cursor: 'pointer',
+                      fontSize: 14,
+                    }}
+                  >
+                    x
+                  </button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+      {mutualAid.length === 0 && !showForm && (
+        <Card style={{ textAlign: 'center', padding: '32px', color: B.faint }}>
+          No resource mappings yet. Start by mapping which resources your
+          partner agencies can share.
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------
+   RECOVERY PLANNING MODULE (EMAP 4.5.4)
+------------------------------------------------------- */
+const RECOVERY_PHASES = [
+  'Short-Term (0-30 days)',
+  'Intermediate (30-180 days)',
+  'Long-Term (180+ days)',
+];
+const RECOVERY_FUNCTIONS = [
+  'Critical Infrastructure',
+  'Housing',
+  'Economic Recovery',
+  'Health & Social Services',
+  'Natural & Cultural Resources',
+  'Community Planning & Capacity',
+  'Public Information',
+];
+const RECOVERY_FRAMEWORK = [
+  {
+    phase: 'Short-Term (0-30 days)',
+    functions: [
+      'Damage assessment',
+      'Debris removal',
+      'Emergency shelter-to-housing',
+      'Temporary infrastructure',
+      'Crisis counseling',
+      'Immediate economic stabilization',
+      'Environmental hazard assessment',
+    ],
+  },
+  {
+    phase: 'Intermediate (30-180 days)',
+    functions: [
+      'Infrastructure repair prioritization',
+      'Interim housing solutions',
+      'Business recovery assistance',
+      'Long-term mental health services',
+      'Remediation planning',
+      'Recovery planning committees',
+      'Ongoing public communication',
+    ],
+  },
+  {
+    phase: 'Long-Term (180+ days)',
+    functions: [
+      'Permanent infrastructure rebuild',
+      'Affordable housing programs',
+      'Economic development incentives',
+      'Community health monitoring',
+      'Ecosystem restoration',
+      'Resilience-building measures',
+      'After-action integration',
+    ],
+  },
+];
+
+function RecoveryPlanningView({ data, setData }) {
+  const recovery = data.recovery || {
+    priorities: [],
+    functions: {},
+    notes: '',
+  };
+  const [tab, setTab] = useState('framework');
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    phase: 'Short-Term (0-30 days)',
+    function: 'Critical Infrastructure',
+    responsible: '',
+    status: 'not_started',
+    notes: '',
+  });
+  const STATUS_OPTS = [
+    { v: 'not_started', l: 'Not Started', c: B.faint },
+    { v: 'in_progress', l: 'In Progress', c: B.amber },
+    { v: 'complete', l: 'Complete', c: B.green },
+  ];
+  const stds = data.standards || {};
+  const recoveryStds = ['4.5.1', '4.5.2', '4.5.4', '4.5.5', '4.5.6', '4.5.7'];
+  const compliant = recoveryStds.filter(
+    (id) => (stds[id] || {}).status === 'compliant'
+  ).length;
+
+  const save = () => {
+    if (!form.name) return;
+    setData((prev) => ({
+      ...prev,
+      recovery: {
+        ...(prev.recovery || { priorities: [], functions: {}, notes: '' }),
+        priorities: [
+          ...((prev.recovery || {}).priorities || []),
+          { ...form, id: uid(), addedAt: Date.now() },
+        ],
+      },
+    }));
+    setForm({
+      name: '',
+      phase: 'Short-Term (0-30 days)',
+      function: 'Critical Infrastructure',
+      responsible: '',
+      status: 'not_started',
+      notes: '',
+    });
+    setShowAdd(false);
+  };
+  const updatePriority = (id, field, val) =>
+    setData((prev) => ({
+      ...prev,
+      recovery: {
+        ...(prev.recovery || {}),
+        priorities: ((prev.recovery || {}).priorities || []).map((p) =>
+          p.id === id ? { ...p, [field]: val } : p
+        ),
+      },
+    }));
+  const removePriority = (id) =>
+    setData((prev) => ({
+      ...prev,
+      recovery: {
+        ...(prev.recovery || {}),
+        priorities: ((prev.recovery || {}).priorities || []).filter(
+          (p) => p.id !== id
+        ),
+      },
+    }));
+
+  return (
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 1060 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              fontSize: 22,
+              fontWeight: 800,
+              color: B.text,
+              letterSpacing: '-0.3px',
+            }}
+          >
+            Recovery Planning
+          </h1>
+          <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
+            EMAP 4.5.4 - Short and long-term recovery priorities - {compliant}/
+            {recoveryStds.length} recovery standards compliant
+          </p>
+        </div>
+        <Btn label="+ Add Priority" onClick={() => setShowAdd(true)} primary />
+      </div>
+
+      {/* EMAP Recovery compliance strip */}
+      <Card
+        style={{
+          marginBottom: 16,
+          padding: '14px 18px',
+          background: `linear-gradient(135deg,#f0fafa,#fff)`,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: B.muted,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+              }}
+            >
+              Recovery Planning Standards (4.5)
+            </div>
+            <div style={{ fontSize: 11, color: B.faint, marginTop: 3 }}>
+              Argonne Study: Agencies investing in recovery planning are better
+              positioned to meet community needs and compliance requirements
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {recoveryStds.map((id) => (
+              <StatusDot
+                key={id}
+                status={(stds[id] || {}).status || 'not_started'}
+                size={10}
+              />
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {[
+          ['framework', 'Recovery Framework'],
+          ['priorities', 'Active Priorities'],
+          ['functions', 'By Function'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            style={{
+              padding: '7px 16px',
+              borderRadius: 7,
+              border: `1px solid ${tab === id ? B.teal : B.border}`,
+              background: tab === id ? B.tealLight : B.card,
+              color: tab === id ? B.tealDark : B.muted,
+              fontSize: 12,
+              fontWeight: tab === id ? 700 : 400,
+              cursor: 'pointer',
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {showAdd && (
+        <Card
+          style={{
+            marginBottom: 14,
+            background: B.greenLight,
+            borderColor: B.greenBorder,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: B.text,
+              marginBottom: 12,
+            }}
+          >
+            Add Recovery Priority
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '2fr 1fr 1fr',
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <div>
+              <Label>Priority / Action</Label>
+              <FInput
+                value={form.name}
+                onChange={(v) => setForm((p) => ({ ...p, name: v }))}
+                placeholder="e.g., Establish emergency housing program"
+              />
+            </div>
+            <div>
+              <Label>Phase</Label>
+              <FSel
+                value={form.phase}
+                onChange={(v) => setForm((p) => ({ ...p, phase: v }))}
+              >
+                {RECOVERY_PHASES.map((p) => (
+                  <option key={p}>{p}</option>
+                ))}
+              </FSel>
+            </div>
+            <div>
+              <Label>Function Area</Label>
+              <FSel
+                value={form.function}
+                onChange={(v) => setForm((p) => ({ ...p, function: v }))}
+              >
+                {RECOVERY_FUNCTIONS.map((f) => (
+                  <option key={f}>{f}</option>
+                ))}
+              </FSel>
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <div>
+              <Label>Responsible Party</Label>
+              <FInput
+                value={form.responsible}
+                onChange={(v) => setForm((p) => ({ ...p, responsible: v }))}
+                placeholder="Role or organization"
+              />
+            </div>
+            <div>
+              <Label>Status</Label>
+              <FSel
+                value={form.status}
+                onChange={(v) => setForm((p) => ({ ...p, status: v }))}
+              >
+                {STATUS_OPTS.map((s) => (
+                  <option key={s.v} value={s.v}>
+                    {s.l}
+                  </option>
+                ))}
+              </FSel>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn label="Save" onClick={save} primary />
+            <Btn label="Cancel" onClick={() => setShowAdd(false)} />
+          </div>
+        </Card>
+      )}
+
+      {tab === 'framework' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {RECOVERY_FRAMEWORK.map((phase) => (
+            <Card key={phase.phase}>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: B.text,
+                  marginBottom: 10,
+                }}
+              >
+                {phase.phase}
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2,1fr)',
+                  gap: 6,
+                }}
+              >
+                {phase.functions.map((f, i) => {
+                  const hasPriority = (recovery.priorities || []).some(
+                    (p) => p.phase === phase.phase
+                  );
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        padding: '8px 12px',
+                        background: hasPriority ? B.greenLight : '#fafcfc',
+                        border: `1px solid ${
+                          hasPriority ? B.greenBorder : B.border
+                        }`,
+                        borderRadius: 6,
+                        fontSize: 12,
+                        color: hasPriority ? B.green : B.muted,
+                      }}
+                    >
+                      {f}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {tab === 'priorities' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {(recovery.priorities || []).length === 0 ? (
+            <Card
+              style={{ textAlign: 'center', padding: '32px', color: B.faint }}
+            >
+              No recovery priorities defined yet. Add priorities to build your
+              recovery plan.
+            </Card>
+          ) : (
+            (recovery.priorities || []).map((p) => {
+              const sc =
+                STATUS_OPTS.find((s) => s.v === p.status) || STATUS_OPTS[0];
+              return (
+                <Card key={p.id} style={{ padding: '12px 16px' }}>
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+                  >
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: sc.c,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{ fontSize: 13, fontWeight: 700, color: B.text }}
+                      >
+                        {p.name}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                        <Tag
+                          label={p.phase}
+                          color={B.blue}
+                          bg={B.blueLight}
+                          border={B.blueBorder}
+                        />
+                        <Tag
+                          label={p.function}
+                          color={B.purple}
+                          bg={B.purpleLight}
+                          border={B.purpleBorder}
+                        />
+                        {p.responsible && (
+                          <span style={{ fontSize: 11, color: B.faint }}>
+                            {p.responsible}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <FSel
+                      value={p.status}
+                      onChange={(v) => updatePriority(p.id, 'status', v)}
+                      style={{ width: 130 }}
+                    >
+                      {STATUS_OPTS.map((s) => (
+                        <option key={s.v} value={s.v}>
+                          {s.l}
+                        </option>
+                      ))}
+                    </FSel>
+                    <button
+                      onClick={() => removePriority(p.id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#d1d5db',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                      }}
+                    >
+                      x
+                    </button>
+                  </div>
+                </Card>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {tab === 'functions' && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2,1fr)',
+            gap: 10,
+          }}
+        >
+          {RECOVERY_FUNCTIONS.map((func) => {
+            const items = (recovery.priorities || []).filter(
+              (p) => p.function === func
+            );
+            const complete = items.filter(
+              (p) => p.status === 'complete'
+            ).length;
+            return (
+              <Card key={func} style={{ padding: '14px 16px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 700, color: B.text }}>
+                    {func}
+                  </div>
+                  <Tag
+                    label={`${complete}/${items.length}`}
+                    color={
+                      complete === items.length && items.length > 0
+                        ? B.green
+                        : B.faint
+                    }
+                    bg={
+                      complete === items.length && items.length > 0
+                        ? B.greenLight
+                        : '#f8fafc'
+                    }
+                    border={
+                      complete === items.length && items.length > 0
+                        ? B.greenBorder
+                        : B.border
+                    }
+                  />
+                </div>
+                {items.length === 0 ? (
+                  <div style={{ fontSize: 11, color: B.faint }}>
+                    No priorities defined
+                  </div>
+                ) : (
+                  <div
+                    style={{ display: 'flex', flexDirection: 'column', gap: 3 }}
+                  >
+                    {items.map((p) => {
+                      const sc =
+                        STATUS_OPTS.find((s) => s.v === p.status) ||
+                        STATUS_OPTS[0];
+                      return (
+                        <div
+                          key={p.id}
+                          style={{
+                            display: 'flex',
+                            gap: 6,
+                            alignItems: 'center',
+                            fontSize: 11,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: '50%',
+                              background: sc.c,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span style={{ color: B.muted }}>{p.name}</span>
+                          <span
+                            style={{
+                              marginLeft: 'auto',
+                              fontSize: 9,
+                              color: sc.c,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {sc.l}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LandingPage({ onLogin, onSignup }) {
   return (
     <div
       style={{
         fontFamily: 'DM Sans,sans-serif',
-        background: '#080f1e',
+        background: '#1C1F22',
         minHeight: '100vh',
         color: '#f0f4fa',
         backgroundImage:
-          'linear-gradient(rgba(194,150,74,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(194,150,74,0.03) 1px,transparent 1px)',
+          'linear-gradient(rgba(194,150,74,0.03) 1px,tranSPRent 1px),linear-gradient(90deg,rgba(194,150,74,0.03) 1px,tranSPRent 1px)',
         backgroundSize: '52px 52px',
       }}
     >
@@ -16779,7 +19783,7 @@ function LandingPage({ onLogin, onSignup }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'rgba(8,15,30,0.92)',
+          background: 'rgba(20,23,25,0.92)',
           backdropFilter: 'blur(10px)',
         }}
       >
@@ -16828,7 +19832,7 @@ function LandingPage({ onLogin, onSignup }) {
             style={{
               background: 'none',
               color: '#94a3b8',
-              border: '1px solid #1e3a5f',
+              border: '1px solid #3A4045',
               borderRadius: 6,
               padding: '8px 18px',
               fontSize: 13,
@@ -16842,7 +19846,7 @@ function LandingPage({ onLogin, onSignup }) {
             onClick={onSignup}
             style={{
               background: GOLD,
-              color: '#080f1e',
+              color: '#141719',
               border: 'none',
               borderRadius: 6,
               padding: '8px 18px',
@@ -16904,7 +19908,7 @@ function LandingPage({ onLogin, onSignup }) {
           }}
         >
           planrr.app is the all-in-one platform for emergency management
-          programs that need to operate at a high standard 365 days a year.
+          programs that need to operate at a high standard.
         </p>
         <p
           style={{
@@ -16926,7 +19930,7 @@ function LandingPage({ onLogin, onSignup }) {
             onClick={onSignup}
             style={{
               background: GOLD,
-              color: '#080f1e',
+              color: '#141719',
               border: 'none',
               padding: '13px 28px',
               fontFamily: 'Syne,DM Sans,sans-serif',
@@ -16964,16 +19968,16 @@ function LandingPage({ onLogin, onSignup }) {
         style={{
           borderTop: '1px solid rgba(194,150,74,0.22)',
           borderBottom: '1px solid rgba(194,150,74,0.22)',
-          background: 'rgba(13,24,41,0.85)',
+          background: 'rgba(28,31,34,0.85)',
           display: 'grid',
           gridTemplateColumns: 'repeat(4,1fr)',
         }}
       >
         {[
           ['73', 'EMAP Standards Tracked'],
-          ['64', 'FEMA Core Capabilities'],
-          ['6', 'Step Accreditation Journey'],
-          ['100%', 'AI-Powered Guidance'],
+          ['64', 'fema core capabilities'],
+          ['6', 'step accreditation journey'],
+          ['100%', 'Program In A Box'],
         ].map(([n, l]) => (
           <div
             key={l}
@@ -17069,9 +20073,9 @@ function LandingPage({ onLogin, onSignup }) {
               'Accreditation Core',
             ],
             [
-              'Bulk Document Intake',
-              'Drop your existing EOP, COOP, and AARs. AI reads each one and maps it to the correct EMAP standards automatically.',
-              'AI-Powered',
+              'Smart Priority Queue',
+              'One prioritized list of what to work on today. Expiring MOUs, overdue reviews, credential alerts, and missing plans - sorted by urgency and EMAP impact.',
+              'Dashboard',
             ],
             [
               'Exercises & AARs',
@@ -17079,26 +20083,41 @@ function LandingPage({ onLogin, onSignup }) {
               'HSEEP Aligned',
             ],
             [
-              'SPAR / THIRA',
-              'Import your existing THIRA document — AI extracts every hazard. Or generate a full CPG 201-compliant SPR document from scratch.',
-              'EMAP 4.1',
+              'Document Templates',
+              'AI-generated templates pre-filled with your program data. Strategic plans, COOP, resource management, communications, training, and exercise plans.',
+              'AI-Powered',
             ],
             [
-              'Accreditation Journey',
-              '6-step process tracker with real deadlines, fee estimates, and checklists built from the EMAP Applicant Guide.',
-              'October 2025',
+              'Recovery Planning',
+              'Dedicated recovery module with short, intermediate, and long-term phases. Built around EMAP 4.5.4 and the Argonne study findings.',
+              'EMAP 4.5.4',
             ],
             [
-              'Grant Tracker',
-              'Track EMPG, UASI, HMGP and all active grants. Deliverable alerts surface automatically before deadlines are missed.',
+              'Evidence Export',
+              'One-click evidence packages for your assessors. All docs, training records, AARs, and notes bundled per standard. Assessment-ready.',
+              'Accreditation',
+            ],
+            [
+              'Mutual Aid Mapping',
+              'Map which partners share which resources. Coverage matrix shows gaps. Built for jurisdictions that share resources to stay independent.',
+              'EMAP 4.7',
+            ],
+            [
+              'FEMA/NIMS Alignment',
+              'Secondary compliance badge tracking ICS, NIMS, and interoperability standards. Show FEMA alignment alongside your EMAP progress.',
+              'ICS/NIMS',
+            ],
+            [
+              'Grant-EMAP Tracker',
+              'See which active grants tie to which EMAP standards. Flag when compliance gaps might jeopardize funding eligibility.',
               'EMAP 3.4',
             ],
           ].map(([t, d, tag]) => (
             <div
               key={t}
               style={{
-                background: '#0d1829',
-                border: '1px solid #1a2d47',
+                background: '#1C1F22',
+                border: '1px solid #2E3439',
                 padding: '28px 24px',
                 transition: 'all 0.2s',
               }}
@@ -17146,9 +20165,9 @@ function LandingPage({ onLogin, onSignup }) {
       {/* Pricing */}
       <div
         style={{
-          borderTop: '1px solid #1a2d47',
-          borderBottom: '1px solid #1a2d47',
-          background: 'rgba(13,24,41,0.85)',
+          borderTop: '1px solid #2E3439',
+          borderBottom: '1px solid #2E3439',
+          background: 'rgba(28,31,34,0.85)',
         }}
       >
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '72px 40px' }}>
@@ -17177,134 +20196,488 @@ function LandingPage({ onLogin, onSignup }) {
               marginBottom: 12,
             }}
           >
-            Simple pricing.
+            Built for every shop size.
             <br />
-            <span style={{ color: GOLD }}>Everything included.</span>
+            <span style={{ color: GOLD }}>No feature gating. Ever.</span>
           </h2>
           <p
             style={{
               color: '#94a3b8',
               fontSize: 15,
               fontWeight: 300,
-              maxWidth: 500,
+              maxWidth: 560,
               lineHeight: 1.75,
               marginBottom: 48,
             }}
           >
-            No tiers, no feature gating. One price gets you the full platform —
-            every module, every AI feature, unlimited use.
+            Every plan gets every feature - the full EM program in a box. We
+            price by team size because understaffed shops deserve the same tools
+            as large agencies.
           </p>
           <div
             style={{
-              maxWidth: 440,
-              background: '#080f1e',
-              border: '1px solid rgba(194,150,74,0.4)',
-              borderRadius: 8,
-              padding: '36px 40px',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4,1fr)',
+              gap: 2,
             }}
           >
+            {/* Solo Operator */}
+            <div
+              style={{
+                background: '#141719',
+                border: '1px solid #2E3439',
+                padding: '28px 24px',
+                borderRadius: '8px 0 0 8px',
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: 'DM Mono,monospace',
+                  fontSize: 9,
+                  color: B.teal,
+                  letterSpacing: '0.15em',
+                  textTransform: 'uppercase',
+                  marginBottom: 16,
+                }}
+              >
+                Solo Operator
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 4,
+                  marginBottom: 4,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: 'Syne,DM Sans,sans-serif',
+                    fontSize: 40,
+                    fontWeight: 800,
+                    color: '#f0f4fa',
+                    lineHeight: 1,
+                  }}
+                >
+                  $79
+                </span>
+                <span style={{ color: '#475569', fontSize: 12 }}>/mo</span>
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: '#475569',
+                  marginBottom: 20,
+                  lineHeight: 1.5,
+                }}
+              >
+                1 FTE or fewer. For the solo EM director wearing every hat.
+              </div>
+              {[
+                'Full platform access',
+                'All AI features',
+                'Recovery planning module',
+                'Document templates',
+                'Evidence export',
+                'Email support',
+              ].map((f) => (
+                <div
+                  key={f}
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'flex-start',
+                    marginBottom: 7,
+                    fontSize: 12,
+                    color: '#94a3b8',
+                  }}
+                >
+                  <span
+                    style={{
+                      color: B.teal,
+                      flexShrink: 0,
+                      marginTop: 1,
+                      fontSize: 10,
+                    }}
+                  >
+                    +
+                  </span>
+                  {f}
+                </div>
+              ))}
+              <button
+                onClick={onSignup}
+                style={{
+                  width: '100%',
+                  marginTop: 16,
+                  background: 'tranSPRent',
+                  color: B.teal,
+                  border: '1px solid rgba(27,201,196,0.3)',
+                  padding: '10px',
+                  fontFamily: 'DM Sans,sans-serif',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  borderRadius: 4,
+                }}
+              >
+                Start Free Trial
+              </button>
+            </div>
+            {/* Small Team - FEATURED */}
+            <div
+              style={{
+                background: '#141719',
+                border: '2px solid ' + GOLD,
+                padding: '28px 24px',
+                position: 'relative',
+                zIndex: 1,
+                borderRadius: 0,
+                boxShadow: '0 0 30px rgba(194,150,74,0.15)',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: -1,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: GOLD,
+                  color: '#141719',
+                  fontSize: 9,
+                  fontWeight: 800,
+                  padding: '3px 12px',
+                  borderRadius: '0 0 4px 4px',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Most Popular
+              </div>
+              <div
+                style={{
+                  fontFamily: 'DM Mono,monospace',
+                  fontSize: 9,
+                  color: GOLD,
+                  letterSpacing: '0.15em',
+                  textTransform: 'uppercase',
+                  marginBottom: 16,
+                }}
+              >
+                Small Team
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 4,
+                  marginBottom: 4,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: 'Syne,DM Sans,sans-serif',
+                    fontSize: 40,
+                    fontWeight: 800,
+                    color: '#f0f4fa',
+                    lineHeight: 1,
+                  }}
+                >
+                  $149
+                </span>
+                <span style={{ color: '#475569', fontSize: 12 }}>/mo</span>
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: '#475569',
+                  marginBottom: 20,
+                  lineHeight: 1.5,
+                }}
+              >
+                2-5 FTE staff. The backbone of local EM.
+              </div>
+              {[
+                'Everything in Solo',
+                'Up to 5 user seats',
+                'Mutual aid resource mapping',
+                'Bulk document intake',
+                'Priority support',
+                'Custom branding',
+              ].map((f) => (
+                <div
+                  key={f}
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'flex-start',
+                    marginBottom: 7,
+                    fontSize: 12,
+                    color: '#94a3b8',
+                  }}
+                >
+                  <span
+                    style={{
+                      color: GOLD,
+                      flexShrink: 0,
+                      marginTop: 1,
+                      fontSize: 10,
+                    }}
+                  >
+                    +
+                  </span>
+                  {f}
+                </div>
+              ))}
+              <button
+                onClick={onSignup}
+                style={{
+                  width: '100%',
+                  marginTop: 16,
+                  background: GOLD,
+                  color: '#141719',
+                  border: 'none',
+                  padding: '10px',
+                  fontFamily: 'Syne,DM Sans,sans-serif',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  borderRadius: 4,
+                }}
+              >
+                Start Free Trial
+              </button>
+            </div>
+            {/* Full Program */}
+            <div
+              style={{
+                background: '#141719',
+                border: '1px solid #2E3439',
+                padding: '28px 24px',
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: 'DM Mono,monospace',
+                  fontSize: 9,
+                  color: '#94a3b8',
+                  letterSpacing: '0.15em',
+                  textTransform: 'uppercase',
+                  marginBottom: 16,
+                }}
+              >
+                Full Program
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 4,
+                  marginBottom: 4,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: 'Syne,DM Sans,sans-serif',
+                    fontSize: 40,
+                    fontWeight: 800,
+                    color: '#f0f4fa',
+                    lineHeight: 1,
+                  }}
+                >
+                  $199
+                </span>
+                <span style={{ color: '#475569', fontSize: 12 }}>/mo</span>
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: '#475569',
+                  marginBottom: 20,
+                  lineHeight: 1.5,
+                }}
+              >
+                6+ FTE. For established programs scaling up.
+              </div>
+              {[
+                'Everything in Small Team',
+                'Unlimited user seats',
+                'Advanced analytics',
+                'API access',
+                'Dedicated onboarding',
+                'Phone support',
+              ].map((f) => (
+                <div
+                  key={f}
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'flex-start',
+                    marginBottom: 7,
+                    fontSize: 12,
+                    color: '#94a3b8',
+                  }}
+                >
+                  <span
+                    style={{
+                      color: '#94a3b8',
+                      flexShrink: 0,
+                      marginTop: 1,
+                      fontSize: 10,
+                    }}
+                  >
+                    +
+                  </span>
+                  {f}
+                </div>
+              ))}
+              <button
+                onClick={onSignup}
+                style={{
+                  width: '100%',
+                  marginTop: 16,
+                  background: 'tranSPRent',
+                  color: '#94a3b8',
+                  border: '1px solid #3A4045',
+                  padding: '10px',
+                  fontFamily: 'DM Sans,sans-serif',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  borderRadius: 4,
+                }}
+              >
+                Start Free Trial
+              </button>
+            </div>
+            {/* Enterprise / Multi-Org */}
+            <div
+              style={{
+                background: '#141719',
+                border: '1px solid #2E3439',
+                padding: '28px 24px',
+                borderRadius: '0 8px 8px 0',
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: 'DM Mono,monospace',
+                  fontSize: 9,
+                  color: B.purple,
+                  letterSpacing: '0.15em',
+                  textTransform: 'uppercase',
+                  marginBottom: 16,
+                }}
+              >
+                Enterprise
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 4,
+                  marginBottom: 4,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: 'Syne,DM Sans,sans-serif',
+                    fontSize: 28,
+                    fontWeight: 800,
+                    color: '#f0f4fa',
+                    lineHeight: 1,
+                  }}
+                >
+                  Custom
+                </span>
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: '#475569',
+                  marginBottom: 20,
+                  lineHeight: 1.5,
+                }}
+              >
+                Multi-org contractors, state agencies, and regional coalitions.
+              </div>
+              {[
+                'Multi-organization dashboard',
+                'Cross-jurisdiction reporting',
+                'Centralized admin console',
+                'Volume licensing',
+                'Custom integrations',
+                'Dedicated account manager',
+                'SLA guarantees',
+              ].map((f) => (
+                <div
+                  key={f}
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'flex-start',
+                    marginBottom: 7,
+                    fontSize: 12,
+                    color: '#94a3b8',
+                  }}
+                >
+                  <span
+                    style={{
+                      color: B.purple,
+                      flexShrink: 0,
+                      marginTop: 1,
+                      fontSize: 10,
+                    }}
+                  >
+                    +
+                  </span>
+                  {f}
+                </div>
+              ))}
+              <button
+                onClick={onSignup}
+                style={{
+                  width: '100%',
+                  marginTop: 16,
+                  background: 'tranSPRent',
+                  color: B.purple,
+                  border: '1px solid rgba(139,92,246,0.3)',
+                  padding: '10px',
+                  fontFamily: 'DM Sans,sans-serif',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  borderRadius: 4,
+                }}
+              >
+                Contact Sales
+              </button>
+            </div>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 24 }}>
+            <div
+              style={{
+                fontFamily: 'DM Mono,monospace',
+                fontSize: 10,
+                color: '#475569',
+                letterSpacing: '0.08em',
+              }}
+            >
+              14-day free trial on all plans. No credit card required. Discount
+              codes available for shops under 2 FTE.
+            </div>
             <div
               style={{
                 fontFamily: 'DM Mono,monospace',
                 fontSize: 10,
                 color: GOLD,
-                letterSpacing: '0.15em',
-                textTransform: 'uppercase',
-                marginBottom: 16,
-              }}
-            >
-              Full Platform Access
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                gap: 6,
-                marginBottom: 6,
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: 'Syne,DM Sans,sans-serif',
-                  fontSize: 52,
-                  fontWeight: 800,
-                  color: '#f0f4fa',
-                  lineHeight: 1,
-                }}
-              >
-                $149
-              </span>
-              <span style={{ color: '#475569', fontSize: 14 }}>
-                /month per program
-              </span>
-            </div>
-            <div
-              style={{
-                fontFamily: 'DM Mono,monospace',
-                fontSize: 10,
-                color: '#475569',
-                marginBottom: 28,
-              }}
-            >
-              Billed monthly. Cancel anytime.
-            </div>
-            {[
-              'All 73 EMAP EMS 5-2022 standards',
-              'Full AI suite — AAR drafting, THIRA analysis, rationale generation',
-              'Bulk document intake and auto-mapping',
-              'Accreditation Journey tracker with fee estimates',
-              'Grant tracker, exercise manager, personnel credentialing',
-              'Unlimited evidence uploads and document storage',
-              'Priority support for accreditation questions',
-            ].map((f) => (
-              <div
-                key={f}
-                style={{
-                  display: 'flex',
-                  gap: 10,
-                  alignItems: 'flex-start',
-                  marginBottom: 10,
-                  fontSize: 13,
-                  color: '#94a3b8',
-                }}
-              >
-                <span style={{ color: GOLD, flexShrink: 0, marginTop: 1 }}>
-                  +
-                </span>
-                {f}
-              </div>
-            ))}
-            <button
-              onClick={onSignup}
-              style={{
-                width: '100%',
-                marginTop: 24,
-                background: GOLD,
-                color: '#080f1e',
-                border: 'none',
-                padding: '13px',
-                fontFamily: 'Syne,DM Sans,sans-serif',
-                fontSize: 13,
-                fontWeight: 700,
                 letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                borderRadius: 4,
+                marginTop: 6,
               }}
             >
-              Start Free Trial
-            </button>
-            <div
-              style={{
-                fontFamily: 'DM Mono,monospace',
-                fontSize: 10,
-                color: '#475569',
-                textAlign: 'center',
-                marginTop: 12,
-                letterSpacing: '0.08em',
-              }}
-            >
-              14-day free trial. No credit card required.
+              Founding agency pricing locked for life.
             </div>
           </div>
         </div>
@@ -17313,7 +20686,7 @@ function LandingPage({ onLogin, onSignup }) {
       {/* CTA */}
       <div
         style={{
-          background: '#0d1829',
+          background: '#1C1F22',
           borderTop: '1px solid rgba(194,150,74,0.22)',
           borderBottom: '1px solid rgba(194,150,74,0.22)',
           padding: '64px 40px',
@@ -17360,7 +20733,7 @@ function LandingPage({ onLogin, onSignup }) {
             onClick={onSignup}
             style={{
               background: GOLD,
-              color: '#080f1e',
+              color: '#141719',
               border: 'none',
               padding: '13px 28px',
               fontFamily: 'Syne,DM Sans,sans-serif',
@@ -17408,7 +20781,7 @@ function LandingPage({ onLogin, onSignup }) {
       {/* Footer */}
       <div
         style={{
-          borderTop: '1px solid #1a2d47',
+          borderTop: '1px solid #2E3439',
           padding: '22px 40px',
           display: 'flex',
           alignItems: 'center',
@@ -17526,8 +20899,8 @@ function AuthScreen({ onAuth, initialMode }) {
   const iS = {
     width: '100%',
     padding: '10px 12px',
-    background: '#132039',
-    border: '1px solid #1e3a5f',
+    background: '#252A2E',
+    border: '1px solid #3A4045',
     borderRadius: 6,
     color: '#f0f4fa',
     fontSize: 14,
@@ -17540,7 +20913,7 @@ function AuthScreen({ onAuth, initialMode }) {
     width: '100%',
     padding: '11px',
     background: GOLD,
-    color: '#080f1e',
+    color: '#141719',
     border: 'none',
     borderRadius: 7,
     fontFamily: 'DM Sans,sans-serif',
@@ -17621,7 +20994,7 @@ function AuthScreen({ onAuth, initialMode }) {
         left: 0,
         right: 0,
         bottom: 0,
-        background: '#080f1e',
+        background: '#141719',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -17629,7 +21002,7 @@ function AuthScreen({ onAuth, initialMode }) {
     >
       <div
         style={{
-          background: '#0d1829',
+          background: '#1C1F22',
           border: '1px solid rgba(194,150,74,0.25)',
           borderRadius: 12,
           padding: '36px 40px',
@@ -17721,7 +21094,7 @@ function AuthScreen({ onAuth, initialMode }) {
               </button>
             </div>
             <div
-              style={{ height: 1, background: '#1a2d47', margin: '12px 0' }}
+              style={{ height: 1, background: '#2E3439', margin: '12px 0' }}
             />
             <div
               style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center' }}
@@ -17957,7 +21330,7 @@ function AuthScreen({ onAuth, initialMode }) {
                 padding: '10px',
                 background: 'none',
                 color: '#94a3b8',
-                border: '1px solid #1e3a5f',
+                border: '1px solid #3A4045',
                 borderRadius: 7,
                 fontSize: 13,
                 cursor: 'pointer',
@@ -17996,10 +21369,10 @@ function FirstRunWelcome({ onDone, setView }) {
     },
     {
       t: 'Build your hazard profile',
-      b: 'Go to SPAR/THIRA to profile your jurisdiction hazards. Drop in an existing THIRA and AI extracts every hazard automatically. Satisfies EMAP 4.1.',
+      b: 'Go to SPR/THIRA to profile your jurisdiction hazards. Drop in an existing THIRA and AI extracts every hazard automatically. Satisfies EMAP 4.1.',
       a: 'Open planrr.app',
       lnk: 'thira',
-      ll: 'Open SPAR/THIRA',
+      ll: 'Open SPR/THIRA',
       last: true,
     },
   ];
@@ -18013,7 +21386,7 @@ function FirstRunWelcome({ onDone, setView }) {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(8,15,30,0.85)',
+          background: 'rgba(20,23,25,0.85)',
           zIndex: 98,
         }}
       />
@@ -18026,7 +21399,7 @@ function FirstRunWelcome({ onDone, setView }) {
           zIndex: 99,
           width: 460,
           maxWidth: 'calc(100vw - 40px)',
-          background: '#0d1829',
+          background: '#1C1F22',
           border: '1px solid rgba(194,150,74,0.3)',
           borderRadius: 12,
           padding: '32px 36px',
@@ -18040,7 +21413,7 @@ function FirstRunWelcome({ onDone, setView }) {
                 height: 3,
                 flex: 1,
                 borderRadius: 2,
-                background: i <= step ? '#c2964a' : '#1e3a5f',
+                background: i <= step ? '#c2964a' : '#2E3439',
               }}
             />
           ))}
@@ -18070,7 +21443,7 @@ function FirstRunWelcome({ onDone, setView }) {
             onClick={() => (s.last ? onDone() : setStep((p) => p + 1))}
             style={{
               background: '#c2964a',
-              color: '#080f1e',
+              color: '#141719',
               border: 'none',
               borderRadius: 7,
               padding: '10px 22px',
@@ -18144,7 +21517,7 @@ function Onboarding({ onComplete }) {
           width: 400,
           height: 400,
           borderRadius: '50%',
-          background: `radial-gradient(circle,${B.teal}12,transparent 70%)`,
+          background: `radial-gradient(circle,${B.teal}12,tranSPRent 70%)`,
           top: '50%',
           left: '50%',
           transform: 'translate(-50%,-50%)',
@@ -18187,7 +21560,7 @@ function Onboarding({ onComplete }) {
             <Wordmark size="lg" />
           </div>
           <p style={{ fontSize: 14, color: B.muted, lineHeight: 1.65 }}>
-            AI-powered EM program management — EMAP accreditation, exercises &
+            AI-powered EM program management - EMAP accreditation, exercises &
             AARs, personnel credentialing, and operations in one place.
           </p>
         </div>
@@ -18210,7 +21583,7 @@ function Onboarding({ onComplete }) {
           <div>
             <Label>Jurisdiction Type</Label>
             <FSel value={jur} onChange={setJur}>
-              <option value="">Select…</option>
+              <option value="">Select...</option>
               {[
                 'State EM Agency',
                 'County / Parish EM',
@@ -18229,7 +21602,7 @@ function Onboarding({ onComplete }) {
           <div>
             <Label>State</Label>
             <FSel value={state} onChange={setState}>
-              <option value="">Select state…</option>
+              <option value="">Select state...</option>
               {US_STATES.map((s) => (
                 <option key={s}>{s}</option>
               ))}
@@ -18254,16 +21627,169 @@ function Onboarding({ onComplete }) {
             letterSpacing: '0.01em',
           }}
         >
-          Plan Smartr →
+          Plan Smartr -
         </button>
       </div>
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    APP ROOT
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
+
+/* --- FEEDBACK MODAL ---------------------------------- */
+function FeedbackModal() {
+  const [show, setShow] = useState(false);
+  const [type, setType] = useState('bug');
+  const [text, setText] = useState('');
+  const [sent, setSent] = useState(false);
+  // Check display style via DOM (triggered by topbar button)
+  useEffect(() => {
+    const el = document.getElementById('planrr-feedback');
+    if (el) {
+      const obs = new MutationObserver(() =>
+        setShow(el.style.display === 'flex')
+      );
+      obs.observe(el, { attributes: true, attributeFilter: ['style'] });
+      return () => obs.disconnect();
+    }
+  }, []);
+  const close = () => {
+    document.getElementById('planrr-feedback').style.display = 'none';
+    setSent(false);
+    setText('');
+  };
+  const submit = async () => {
+    if (!text.trim()) return;
+    // Store in localStorage as simple feedback log
+    const fb = JSON.parse(localStorage.getItem('planrr_feedback') || '[]');
+    fb.push({
+      id: uid(),
+      type,
+      text,
+      ts: Date.now(),
+      url: window.location.href,
+    });
+    localStorage.setItem('planrr_feedback', JSON.stringify(fb));
+    setSent(true);
+    setTimeout(close, 2000);
+  };
+  return (
+    <div
+      id="planrr-feedback"
+      style={{
+        display: 'none',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(15,23,42,0.5)',
+        zIndex: 999,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        style={{
+          background: '#fff',
+          borderRadius: 12,
+          padding: '28px 32px',
+          width: 440,
+          maxWidth: 'calc(100vw - 40px)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          fontFamily: 'DM Sans,sans-serif',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 700, color: B.text }}>
+            Send Feedback
+          </div>
+          <button
+            onClick={close}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: 18,
+              cursor: 'pointer',
+              color: B.faint,
+            }}
+          >
+            x
+          </button>
+        </div>
+        {sent ? (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '20px 0',
+              color: B.green,
+              fontWeight: 600,
+            }}
+          >
+            Thank you! Feedback received.
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+              {[
+                ['bug', 'Bug Report'],
+                ['idea', 'Feature Idea'],
+                ['praise', 'What Works Well'],
+                ['other', 'Other'],
+              ].map(([v, l]) => (
+                <button
+                  key={v}
+                  onClick={() => setType(v)}
+                  style={{
+                    flex: 1,
+                    padding: '7px 4px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    border: `1px solid ${type === v ? B.teal : B.border}`,
+                    background: type === v ? B.tealLight : '#f8fafc',
+                    color: type === v ? B.tealDark : B.muted,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            <FTextarea
+              value={text}
+              onChange={setText}
+              placeholder={
+                type === 'bug'
+                  ? 'Describe what happened and what you expected...'
+                  : type === 'idea'
+                  ? 'Describe the feature you would like to see...'
+                  : type === 'praise'
+                  ? "Tell us what's working well..."
+                  : 'Your feedback...'
+              }
+              rows={4}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <Btn label="Send Feedback" onClick={submit} primary />
+              <Btn label="Cancel" onClick={close} />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [data, setData] = useState(null);
   const [view, setView] = useState('dashboard');
@@ -18284,7 +21810,7 @@ export default function App() {
         ALL_STANDARDS.forEach((s) => {
           stds[s.id] = d.standards?.[s.id] || initRecord();
         });
-        setData({
+        const loaded = {
           ...initData(),
           ...d,
           standards: stds,
@@ -18294,7 +21820,10 @@ export default function App() {
           capItems: d.capItems || [],
           activityLog: d.activityLog || [],
           journey: d.journey || {},
-        });
+        };
+        const synced = syncStandardsFromOps(loaded);
+        if (synced) loaded.standards = synced;
+        setData(loaded);
         if (!d.orgName) setOnboarding(true);
         else setFirstRun(true);
       } else {
@@ -18312,9 +21841,11 @@ export default function App() {
     setData((prev) => {
       const next =
         typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
+      const synced = syncStandardsFromOps(next);
+      const final = synced ? { ...next, standards: synced } : next;
       clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => saveData(next), 500);
-      return next;
+      saveTimer.current = setTimeout(() => saveData(final), 500);
+      return final;
     });
   }, []);
   // Global search keyboard shortcut
@@ -18401,7 +21932,7 @@ export default function App() {
         </div>
         <Wordmark dark size="md" />
         <div style={{ color: B.sidebarMuted, fontSize: 12 }}>
-          Loading your program…
+          Loading your program...
         </div>
       </div>
     );
@@ -18466,7 +21997,7 @@ export default function App() {
                   <span style={{ color: B.text, fontWeight: 700 }}>
                     {data.orgName}
                   </span>{' '}
-                  ·{' '}
+                  -{' '}
                 </>
               )}
               {view === 'journey' && 'Accreditation Journey'}
@@ -18488,6 +22019,10 @@ export default function App() {
               {view === 'cap' && 'Corrective Action Program'}
               {view === 'activity' && 'Activity Log'}
               {view === 'settings' && 'Settings'}
+              {view === 'templates' && 'Document Templates'}
+              {view === 'evidence' && 'Evidence Export'}
+              {view === 'recovery' && 'Recovery Planning'}
+              {view === 'mutualaid' && 'Mutual Aid Map'}
             </span>
           </div>
           {/* Search button */}
@@ -18534,7 +22069,7 @@ export default function App() {
                 lineHeight: 1.4,
               }}
             >
-              ⌘K
+              -K
             </kbd>
           </button>
           {notifications.length > 0 && (
@@ -18693,6 +22228,18 @@ export default function App() {
           {view === 'settings' && (
             <SettingsView data={data} updateData={updateData} />
           )}
+          {view === 'templates' && (
+            <DocTemplatesView data={data} orgName={data.orgName} />
+          )}
+          {view === 'evidence' && (
+            <EvidenceExportView data={data} orgName={data.orgName} />
+          )}
+          {view === 'recovery' && (
+            <RecoveryPlanningView data={data} setData={updateData} />
+          )}
+          {view === 'mutualaid' && (
+            <MutualAidView data={data} setData={updateData} />
+          )}
         </div>
         {firstRun && !onboarding && (
           <FirstRunWelcome
@@ -18700,6 +22247,8 @@ export default function App() {
             setView={setView}
           />
         )}
+        <FeedbackModal />
+
         {searchOpen && (
           <GlobalSearch
             data={data}
