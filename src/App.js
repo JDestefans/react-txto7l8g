@@ -7,7 +7,7 @@ const B = {
   tealDark: '#13A8A4',
   tealLight: '#E6FAFA',
   tealBorder: '#9EECEA',
-  bg: '#F0F4F5',
+  bg: '#F2F5F7',
   card: '#FFFFFF',
   border: '#E2E8EA',
   text: '#111827',
@@ -883,6 +883,7 @@ function initData() {
     journey: {},
     recovery: { priorities: [], functions: {}, notes: '' },
     mutualAid: [],
+    incidents: [],
   };
 }
 function addActivity(updateData, type, module, detail) {
@@ -1265,9 +1266,9 @@ const Btn = ({
     style={{
       display: 'flex',
       alignItems: 'center',
-      gap: 5,
-      padding: small ? '5px 10px' : '8px 16px',
-      borderRadius: 7,
+      gap: 6,
+      padding: small ? '6px 12px' : '10px 20px',
+      borderRadius: 10,
       border: primary || danger ? 'none' : `1px solid ${B.border}`,
       background: primary ? B.teal : danger ? B.red : B.card,
       color: primary || danger ? '#fff' : B.muted,
@@ -1276,16 +1277,33 @@ const Btn = ({
       cursor: disabled || loading ? 'not-allowed' : 'pointer',
       opacity: disabled ? 0.5 : 1,
       fontFamily: "'DM Sans',sans-serif",
-      transition: 'all 0.15s',
+      transition: 'all 0.2s ease',
       whiteSpace: 'nowrap',
+      boxShadow: primary ? '0 2px 8px rgba(27,201,196,0.25)' : 'none',
     }}
     onMouseEnter={(e) => {
-      if (!disabled && !loading && primary)
-        e.currentTarget.style.background = B.tealDark;
+      if (!disabled && !loading) {
+        if (primary) {
+          e.currentTarget.style.background = B.tealDark;
+          e.currentTarget.style.transform = 'translateY(-1px)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(27,201,196,0.3)';
+        } else if (!danger) {
+          e.currentTarget.style.borderColor = B.teal;
+          e.currentTarget.style.color = B.teal;
+        }
+      }
     }}
     onMouseLeave={(e) => {
-      if (!disabled && !loading && primary)
-        e.currentTarget.style.background = B.teal;
+      if (!disabled && !loading) {
+        if (primary) {
+          e.currentTarget.style.background = B.teal;
+          e.currentTarget.style.transform = 'none';
+          e.currentTarget.style.boxShadow = '0 2px 8px rgba(27,201,196,0.25)';
+        } else if (!danger) {
+          e.currentTarget.style.borderColor = B.border;
+          e.currentTarget.style.color = B.muted;
+        }
+      }
     }}
   >
     <span style={{ fontSize: 12 }}>{icon || ''}</span>
@@ -1297,9 +1315,9 @@ const Card = ({ children, style }) => (
     style={{
       background: B.card,
       border: `1px solid ${B.border}`,
-      borderRadius: 11,
-      padding: '18px 20px',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+      borderRadius: 14,
+      padding: '22px 24px',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.03), 0 4px 12px rgba(0,0,0,0.02)',
       ...style,
     }}
   >
@@ -1310,11 +1328,11 @@ const Label = ({ children }) => (
   <div
     style={{
       fontSize: 11,
-      color: B.faint,
+      color: B.muted,
       textTransform: 'uppercase',
-      letterSpacing: '0.07em',
-      fontWeight: 700,
-      marginBottom: 5,
+      letterSpacing: '0.06em',
+      fontWeight: 600,
+      marginBottom: 6,
     }}
   >
     {children}
@@ -1329,19 +1347,383 @@ const FInput = ({ value, onChange, placeholder, type = 'text', style: s }) => (
     style={{
       width: '100%',
       border: `1px solid ${B.border}`,
-      borderRadius: 7,
-      padding: '8px 11px',
+      borderRadius: 10,
+      padding: '10px 14px',
       color: B.text,
       fontSize: 13,
       fontFamily: "'DM Sans',sans-serif",
       outline: 'none',
-      background: '#fafcfc',
+      background: '#f8fafb',
+      transition: 'all 0.15s ease',
       ...s,
     }}
-    onFocus={(e) => (e.target.style.borderColor = B.teal)}
-    onBlur={(e) => (e.target.style.borderColor = B.border)}
+    onFocus={(e) => {
+      e.target.style.borderColor = B.teal;
+      e.target.style.boxShadow = '0 0 0 3px rgba(27,201,196,0.1)';
+      e.target.style.background = '#fff';
+    }}
+    onBlur={(e) => {
+      e.target.style.borderColor = B.border;
+      e.target.style.boxShadow = 'none';
+      e.target.style.background = '#f8fafb';
+    }}
   />
 );
+
+/* --- COACH BANNER SYSTEM ----------------------------- */
+const COACH = {
+  thira: {
+    emoji: '🎯',
+    title: 'Start Here: Know Your Threats',
+    what: "A Threat & Hazard Identification Risk Assessment (THIRA) profiles every hazard your jurisdiction faces — natural disasters, technological incidents, human-caused threats. It's the foundation everything else is built on.",
+    why: 'EMAP 4.1 requires a documented hazard identification and risk assessment. FEMA grants (EMPG, BSIR, HMGP) all reference your THIRA. Without it, your plans have no basis.',
+    first:
+      'List 3-5 hazards you know your area faces (floods, earthquakes, wildfire, etc.). For each one, estimate likelihood and impact. If you have an existing THIRA document, upload it and AI will extract everything automatically.',
+    next: 'plans',
+  },
+  plans: {
+    emoji: '📋',
+    title: 'Build Your Plans',
+    what: "Your Emergency Operations Plan (EOP), Continuity of Operations Plan (COOP), and supporting procedures are the playbooks your team follows during incidents. These aren't shelf documents — they're how people know what to do.",
+    why: "EMAP 4.4 and 4.5 require an EOP, COOP, and supporting procedures. Plans must address all hazards identified in your THIRA (that's why hazards come first).",
+    first:
+      'Start with your EOP. If you have one, upload it. If not, go to AI Tools → Doc Templates to generate a starter EOP based on your hazard profile. Then add your COOP.',
+    next: 'partners',
+  },
+  partners: {
+    emoji: '🤝',
+    title: 'Map Your Partners',
+    what: 'Emergency management is never a solo operation. Partners include mutual aid agencies, NGOs (Red Cross, Salvation Army), private sector, neighboring jurisdictions, state/federal contacts, and utilities.',
+    why: 'EMAP 4.3 requires documented stakeholder relationships. 4.7 requires mutual aid agreements. Assessors want to see signed MOUs and defined roles.',
+    first:
+      "Add your top 5 partners — the agencies you'd call first in a disaster. Include their contact info and what they bring (personnel, equipment, shelter, etc.). Upload any existing MOUs.",
+    next: 'resources',
+  },
+  resources: {
+    emoji: '📦',
+    title: 'Inventory Your Resources',
+    what: 'Resources are the people, equipment, facilities, and supplies your program can deploy. Think apparatus, shelters, generators, caches, vehicles, and specialized teams.',
+    why: "EMAP 4.7 requires a resource management plan with documented capabilities and gaps. You can't request what you don't know you need, and you can't justify funding without a gap analysis.",
+    first:
+      "Start with your major resource categories: facilities, vehicles, equipment, supplies. For each, note quantity, condition, and who owns it. Flag gaps where you know you're short.",
+    next: 'employees',
+  },
+  employees: {
+    emoji: '👥',
+    title: 'Track Your People',
+    what: 'Personnel records include all staff and volunteers working in your EM program — their certifications (ICS, NIMS, CPR), training records, and credential expiration dates.',
+    why: 'EMAP 4.6 requires personnel credentialing, NIMS compliance, and role-based training. FEMA requires IS-100, IS-200, IS-700, IS-800 for all EM personnel. Expired certs = compliance gaps.',
+    first:
+      'Add yourself and any staff. For each person, note their ICS/NIMS courses completed and expiration dates. The app will flag anything overdue.',
+    next: 'training',
+  },
+  training: {
+    emoji: '🎓',
+    title: 'Plan Your Training',
+    what: 'A training program ensures your team and partners maintain the skills needed to execute your plans. It covers courses, schedules, attendance tracking, and gap analysis.',
+    why: 'EMAP 4.10 requires a training needs assessment, multi-year training plan, and documentation of all training conducted. Most programs fail here at accreditation.',
+    first:
+      "Add any training sessions from the past year — even simple ones like a tabletop briefing. Include date, attendees, and topic. Then identify what training you need but haven't done yet.",
+    next: 'exercises',
+  },
+  exercises: {
+    emoji: '🏋️',
+    title: 'Exercise Your Plans',
+    what: 'Exercises test your plans in controlled settings. Incidents are real-world activations your team responded to. Both need After-Action Reports (AARs) with findings and corrective actions. Use the Exercises tab for drills and exercises, and the Incidents tab for real-world events.',
+    why: 'EMAP 4.11 requires exercises with HSEEP methodology. EMAP 4.12 covers incident management. AARs from both exercises and real incidents demonstrate a closed-loop improvement cycle — the gold standard for accreditation.',
+    first:
+      "Log any exercise or real-world activation from the past 2 years. For exercises: include type, objectives, and AAR. For incidents: log the event and write an AAR with findings. If you haven't done either, schedule a tabletop — it's the easiest way to start.",
+    next: 'grants',
+  },
+  grants: {
+    emoji: '💰',
+    title: 'Fund Your Program',
+    what: 'Grants fund everything from personnel to equipment to exercises. EMPG is the big one for EM programs, but HMGP, BRIC, UASI, and SHSP are all relevant depending on your jurisdiction.',
+    why: 'Without funding, programs stagnate. Grant tracking shows your leadership the ROI of EM investment. The app maps each grant to the EMAP standards it supports, so you can show exactly how funding drives compliance.',
+    first:
+      "Add any active grants with their deadlines and deliverables. If you don't have grants yet, look at EMPG (Emergency Management Performance Grant) — it's the baseline federal funding for EM programs.",
+    next: 'accreditation',
+  },
+  accreditation: {
+    emoji: '✅',
+    title: 'Track Your Standards',
+    what: 'EMAP has 73 standards across 12 sections. Each standard needs evidence documentation to prove compliance. This is your master compliance tracker.',
+    why: "This is the whole point — demonstrating your program meets national standards. Even if you're not pursuing formal accreditation, these standards represent best practice. Hitting them means your program is solid.",
+    first:
+      "Don't try to tackle all 73 at once. Start with the sections you've already been building (4.1 Hazards, 4.5 Plans, 4.6 Personnel). Mark what you have evidence for. The dashboard will show your progress.",
+    next: 'journey',
+  },
+  journey: {
+    emoji: '🗺️',
+    title: 'Your Accreditation Roadmap',
+    what: 'The Accreditation Journey breaks the path to EMAP accreditation into phases: self-assessment, gap closure, application, on-site review, and maintenance.',
+    why: "Accreditation typically takes 12-24 months. This view helps you track where you are, what's next, and project your timeline based on current pace.",
+    first:
+      "Review your current phase. If you're just starting, you're in self-assessment. Focus on completing the Plan → Build sections first, then circle back here to track your formal progress.",
+    next: null,
+  },
+  recovery: {
+    emoji: '🔄',
+    title: 'Plan for Recovery',
+    what: 'Recovery planning covers what happens after the immediate response — restoring services, rebuilding infrastructure, supporting affected populations, and getting back to normal operations.',
+    why: "EMAP 4.5.4 requires a Recovery Plan with short/long-term priorities across critical functions. Many programs neglect this, but FEMA's emphasis on resilience makes it increasingly important.",
+    first:
+      "Identify your top 3 recovery priorities (infrastructure, housing, economic). For each, note who's responsible and what resources are needed. Even a basic framework satisfies the standard.",
+    next: null,
+  },
+  mutualaid: {
+    emoji: '🌐',
+    title: 'Map Mutual Aid',
+    what: 'Mutual aid maps your agreements with neighboring jurisdictions and what resources each partner can provide during incidents.',
+    why: "EMAP 4.7 requires documented mutual aid agreements. FEMA Core Capability 'Operational Coordination' depends on knowing who can help and what they bring.",
+    first:
+      'Add your mutual aid partners and tag what resource types they can provide (personnel, apparatus, shelter, etc.). Upload any signed agreements.',
+    next: null,
+  },
+  templates: {
+    emoji: '🤖',
+    title: 'AI Document Generation',
+    what: 'These templates use AI to generate professional EM documents pre-filled with your program data — org name, hazards, personnel, and compliance status.',
+    why: 'Writing plans from scratch is the #1 time killer for EM managers. These templates give you a 70% starting point that you customize for your jurisdiction.',
+    first:
+      'Pick the document you need most urgently. For most new programs, start with the Multi-Year Strategic Plan (EMAP 3.1.1) — it frames everything else.',
+    next: null,
+  },
+  evidence: {
+    emoji: '📎',
+    title: 'Evidence Packaging',
+    what: 'Evidence Export bundles your compliance documentation per EMAP standard into packages ready for assessor review.',
+    why: 'During accreditation review, assessors need organized evidence for each standard. This tool automates that packaging instead of you manually compiling folders.',
+    first:
+      "Select a section you're confident about and preview the evidence package. It pulls in linked plans, training records, exercise AARs, and personnel data automatically.",
+    next: null,
+  },
+  intake: {
+    emoji: '📤',
+    title: 'Bulk Document Upload',
+    what: 'Drop in your existing documents — EOPs, COOPs, AARs, SOPs, MOUs — and AI reads each one and maps it to the relevant EMAP standards automatically.',
+    why: 'If you have existing documents from a previous manager or another system, this is the fastest way to populate your program. Instead of manually entering everything, let AI do the heavy lifting.',
+    first:
+      'Gather your key documents (EOP, COOP, any AARs, training records, MOUs) and upload them. AI will identify which EMAP standards each document supports.',
+    next: null,
+  },
+  package: {
+    emoji: '📦',
+    title: 'Accreditation Package',
+    what: 'The Package Builder compiles your complete accreditation application — all evidence, narratives, and documentation organized by EMAP section.',
+    why: "When you're ready to submit for EMAP accreditation, this creates the formal package. It identifies gaps and shows what's ready vs. what still needs work.",
+    first:
+      'This is an advanced tool — come back here once you have at least 50% of standards documented. Use the EMAP Standards tracker to get there first.',
+    next: null,
+  },
+  cap: {
+    emoji: '⚠️',
+    title: 'Corrective Actions',
+    what: 'Corrective actions are improvement items identified from exercises, real-world incidents, or self-assessments. Each one needs an owner, deadline, and resolution.',
+    why: 'EMAP 4.11 requires that exercise findings feed into a corrective action program. Showing a closed-loop improvement process is critical for accreditation.',
+    first:
+      "If you've logged any exercises with AAR findings, corrective actions auto-populate here. Otherwise, add any known improvement items from recent incidents or reviews.",
+    next: null,
+  },
+};
+
+function CoachBanner({ moduleId, onNavigate }) {
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return (
+        JSON.parse(localStorage.getItem('planrr_coach_dismissed') || '{}')[
+          moduleId
+        ] || false
+      );
+    } catch {
+      return false;
+    }
+  });
+  const [expanded, setExpanded] = useState(false);
+  const c = COACH[moduleId];
+  if (!c || dismissed) return null;
+  const dismiss = () => {
+    setDismissed(true);
+    try {
+      const d = JSON.parse(
+        localStorage.getItem('planrr_coach_dismissed') || '{}'
+      );
+      d[moduleId] = true;
+      localStorage.setItem('planrr_coach_dismissed', JSON.stringify(d));
+    } catch {}
+  };
+  return (
+    <div
+      style={{
+        marginBottom: 20,
+        background: 'linear-gradient(135deg, #f0fafa 0%, #f8fafb 100%)',
+        border: `1px solid ${B.tealBorder}`,
+        borderRadius: 14,
+        padding: '18px 22px',
+        position: 'relative',
+        animation: 'fadeUp 0.3s ease',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 14,
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginBottom: 8,
+            }}
+          >
+            <span style={{ fontSize: 20 }}>{c.emoji}</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: B.text }}>
+              {c.title}
+            </span>
+            <span
+              style={{
+                fontSize: 9,
+                color: B.teal,
+                background: 'rgba(27,201,196,0.12)',
+                padding: '2px 8px',
+                borderRadius: 5,
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+              }}
+            >
+              GUIDE
+            </span>
+          </div>
+          <div
+            style={{
+              fontSize: 13,
+              color: B.muted,
+              lineHeight: 1.7,
+              marginBottom: expanded ? 12 : 0,
+            }}
+          >
+            {c.what}
+          </div>
+          {expanded && (
+            <>
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: '12px 16px',
+                  background: 'rgba(255,255,255,0.7)',
+                  borderRadius: 10,
+                  border: `1px solid ${B.border}`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: B.teal,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    marginBottom: 6,
+                  }}
+                >
+                  Why This Matters
+                </div>
+                <div style={{ fontSize: 13, color: B.muted, lineHeight: 1.7 }}>
+                  {c.why}
+                </div>
+              </div>
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: '12px 16px',
+                  background: 'rgba(27,201,196,0.06)',
+                  borderRadius: 10,
+                  border: `1px solid ${B.tealBorder}`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: '#0d9488',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    marginBottom: 6,
+                  }}
+                >
+                  What To Do First
+                </div>
+                <div style={{ fontSize: 13, color: B.muted, lineHeight: 1.7 }}>
+                  {c.first}
+                </div>
+              </div>
+              {c.next && (
+                <button
+                  onClick={() => onNavigate && onNavigate(c.next)}
+                  style={{
+                    marginTop: 12,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: B.teal,
+                    fontWeight: 600,
+                    background: 'none',
+                    border: `1px solid ${B.tealBorder}`,
+                    borderRadius: 8,
+                    padding: '6px 14px',
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans',sans-serif",
+                  }}
+                >
+                  Next step: {COACH[c.next]?.title || c.next} →
+                </button>
+              )}
+            </>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            style={{
+              fontSize: 11,
+              color: B.teal,
+              background: 'rgba(27,201,196,0.1)',
+              border: `1px solid ${B.tealBorder}`,
+              borderRadius: 7,
+              padding: '5px 12px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            {expanded ? 'Less' : 'Learn more'}
+          </button>
+          <button
+            onClick={dismiss}
+            style={{
+              fontSize: 11,
+              color: B.faint,
+              background: 'none',
+              border: `1px solid ${B.border}`,
+              borderRadius: 7,
+              padding: '5px 10px',
+              cursor: 'pointer',
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+            title="Dismiss this guide"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 const FSel = ({ value, onChange, children, style: s }) => (
   <select
     value={value}
@@ -1349,17 +1731,24 @@ const FSel = ({ value, onChange, children, style: s }) => (
     style={{
       width: '100%',
       border: `1px solid ${B.border}`,
-      borderRadius: 7,
-      padding: '8px 11px',
+      borderRadius: 10,
+      padding: '10px 14px',
       color: value ? B.text : B.faint,
       fontSize: 13,
       fontFamily: "'DM Sans',sans-serif",
       outline: 'none',
-      background: '#fafcfc',
+      background: '#f8fafb',
+      transition: 'all 0.15s ease',
       ...s,
     }}
-    onFocus={(e) => (e.target.style.borderColor = B.teal)}
-    onBlur={(e) => (e.target.style.borderColor = B.border)}
+    onFocus={(e) => {
+      e.target.style.borderColor = B.teal;
+      e.target.style.boxShadow = '0 0 0 3px rgba(27,201,196,0.1)';
+    }}
+    onBlur={(e) => {
+      e.target.style.borderColor = B.border;
+      e.target.style.boxShadow = 'none';
+    }}
   >
     {children}
   </select>
@@ -2847,6 +3236,7 @@ function AccreditationView({ data, updateData }) {
           </span>
         </div>
       </div>
+      <CoachBanner moduleId="accreditation" />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {ALL_SECTIONS.map((sec) => {
           const aggStatus = sectionAggStatus(sec, standards);
@@ -3184,6 +3574,25 @@ const HSEEP_TYPES = [
   'Functional Exercise (FE)',
   'Full-Scale Exercise (FSE)',
 ];
+const INCIDENT_TYPES = [
+  'Natural Disaster',
+  'Severe Weather',
+  'Wildfire',
+  'Flood',
+  'Earthquake',
+  'HAZMAT Incident',
+  'Mass Casualty',
+  'Active Threat',
+  'Public Health Emergency',
+  'Infrastructure Failure',
+  'Civil Unrest',
+  'Search & Rescue',
+  'Evacuation',
+  'EOC Activation',
+  'Planned Event / Special Event',
+  'Mutual Aid Deployment',
+  'Other',
+];
 const EXERCISE_STATUS = {
   planned: { label: 'Planned', color: B.blue, bg: B.blueLight },
   in_progress: { label: 'In Progress', color: B.amber, bg: B.amberLight },
@@ -3245,7 +3654,7 @@ const US_STATES = [
   'Wyoming',
 ];
 
-function ExerciseDetail({ ex, onUpdate, onClose }) {
+function ExerciseDetail({ ex, onUpdate, onClose, isIncident }) {
   const [tab, setTab] = useState('overview');
   const [aarDraftLoading, setAarDraftLoading] = useState(false);
   const [aarFinalLoading, setAarFinalLoading] = useState(false);
@@ -3400,6 +3809,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 {ex.name}
               </div>
               <div style={{ fontSize: 12, color: B.faint, marginTop: 2 }}>
+                {isIncident ? 'Incident: ' : ''}
                 {ex.type} - {fmtDate(ex.date)}
                 {ex.location ? `  -  ${ex.location}` : ''}
               </div>
@@ -3444,9 +3854,11 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 style={{
                   padding: '6px 12px',
                   borderRadius: '6px 6px 0 0',
-                  border: `1px solid ${tab === t.id ? B.border : 'tranSPRent'}`,
+                  border: `1px solid ${
+                    tab === t.id ? B.border : 'transparent'
+                  }`,
                   borderBottom: `1px solid ${tab === t.id ? B.card : B.border}`,
-                  background: tab === t.id ? B.card : 'tranSPRent',
+                  background: tab === t.id ? B.card : 'transparent',
                   color: tab === t.id ? B.teal : B.muted,
                   fontSize: 12,
                   fontWeight: tab === t.id ? 700 : 500,
@@ -3484,10 +3896,12 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   />
                 </div>
                 <div>
-                  <Label>HSEEP Exercise Type</Label>
+                  <Label>
+                    {isIncident ? 'Incident Type' : 'HSEEP Exercise Type'}
+                  </Label>
                   <FSel value={ex.type || ''} onChange={(v) => u('type', v)}>
                     <option value="">Select type...</option>
-                    {HSEEP_TYPES.map((t) => (
+                    {(isIncident ? INCIDENT_TYPES : HSEEP_TYPES).map((t) => (
                       <option key={t}>{t}</option>
                     ))}
                   </FSel>
@@ -3532,20 +3946,34 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 </div>
               </div>
               <div style={{ marginBottom: 14 }}>
-                <Label>Exercise Scenario / Overview</Label>
+                <Label>
+                  {isIncident
+                    ? 'Incident Summary'
+                    : 'Exercise Scenario / Overview'}
+                </Label>
                 <FTextarea
                   value={ex.scenario || ''}
                   onChange={(v) => u('scenario', v)}
-                  placeholder="Describe the scenario, scope, and context of the exercise..."
+                  placeholder={
+                    isIncident
+                      ? 'Describe what happened, scope, response actions taken...'
+                      : 'Describe the scenario, scope, and context of the exercise...'
+                  }
                   rows={4}
                 />
               </div>
               <div style={{ marginBottom: 14 }}>
-                <Label>Sponsoring Agency</Label>
+                <Label>
+                  {isIncident ? 'Lead/Responding Agency' : 'Sponsoring Agency'}
+                </Label>
                 <FInput
                   value={ex.sponsor || ''}
                   onChange={(v) => u('sponsor', v)}
-                  placeholder="Lead agency name"
+                  placeholder={
+                    isIncident
+                      ? 'Agency that led the response'
+                      : 'Lead agency name'
+                  }
                 />
               </div>
               <div>
@@ -4157,14 +4585,23 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
 }
 
 function ExerciseManager({ data, setData }) {
+  const [activeTab, setActiveTab] = useState('exercises');
   const [showForm, setShowForm] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedIncId, setSelectedIncId] = useState(null);
   const [form, setForm] = useState({
     name: '',
     type: 'Tabletop Exercise (TTX)',
     date: today(),
     status: 'planned',
   });
+  const [incForm, setIncForm] = useState({
+    name: '',
+    type: 'Natural Disaster',
+    date: today(),
+    status: 'completed',
+  });
+  const incidents = data.incidents || [];
   const createEx = () => {
     if (!form.name) return;
     const ex = {
@@ -4187,10 +4624,41 @@ function ExerciseManager({ data, setData }) {
     setShowForm(false);
     setSelectedId(ex.id);
   };
+  const createInc = () => {
+    if (!incForm.name) return;
+    const inc = {
+      ...incForm,
+      id: uid(),
+      isIncident: true,
+      objectives: [],
+      strengths: [],
+      afis: [],
+      corrective: [],
+      docs: [],
+      addedAt: Date.now(),
+    };
+    setData((prev) => ({
+      ...prev,
+      incidents: [...(prev.incidents || []), inc],
+    }));
+    setIncForm({
+      name: '',
+      type: 'Natural Disaster',
+      date: today(),
+      status: 'completed',
+    });
+    setShowForm(false);
+    setSelectedIncId(inc.id);
+  };
   const updateEx = (id, updates) =>
     setData((prev) => ({
       ...prev,
       exercises: prev.exercises.map((e) => (e.id === id ? updates : e)),
+    }));
+  const updateInc = (id, updates) =>
+    setData((prev) => ({
+      ...prev,
+      incidents: (prev.incidents || []).map((i) => (i.id === id ? updates : i)),
     }));
   const removeEx = (id) => {
     setData((prev) => ({
@@ -4199,9 +4667,22 @@ function ExerciseManager({ data, setData }) {
     }));
     if (selectedId === id) setSelectedId(null);
   };
+  const removeInc = (id) => {
+    setData((prev) => ({
+      ...prev,
+      incidents: (prev.incidents || []).filter((i) => i.id !== id),
+    }));
+    if (selectedIncId === id) setSelectedIncId(null);
+  };
   const sel = selectedId
     ? data.exercises.find((e) => e.id === selectedId)
     : null;
+  const selInc = selectedIncId
+    ? incidents.find((i) => i.id === selectedIncId)
+    : null;
+  const totalAARs = [...data.exercises, ...incidents].filter(
+    (e) => e.aarDraft || e.aarFinal
+  ).length;
   return (
     <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 1000 }}>
       <div
@@ -4224,226 +4705,536 @@ function ExerciseManager({ data, setData }) {
             Exercises & AARs
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.11 - HSEEP-aligned - {data.exercises.length} exercises -
-            AI-assisted AAR drafting
+            EMAP 4.11 + 4.12 - {data.exercises.length} exercises -{' '}
+            {incidents.length} incidents - {totalAARs} AARs on file
           </p>
         </div>
-        <Btn label="+ New Exercise" onClick={() => setShowForm(true)} primary />
+        <Btn
+          label={
+            activeTab === 'exercises' ? '+ New Exercise' : '+ New Incident'
+          }
+          onClick={() => setShowForm(true)}
+          primary
+        />
       </div>
+      <CoachBanner moduleId="exercises" />
+
+      {/* Tab switcher */}
       <div
         style={{
-          background: `${B.purple}10`,
-          border: `1px solid ${B.purpleBorder}`,
-          borderLeft: `3px solid ${B.purple}`,
-          borderRadius: '0 8px 8px 0',
-          padding: '9px 14px',
-          marginBottom: 14,
-          fontSize: 12,
-          color: '#5b21b6',
+          display: 'flex',
+          gap: 4,
+          marginBottom: 16,
+          padding: '4px',
+          background: '#f0f3f4',
+          borderRadius: 12,
         }}
       >
-        - Completed exercises with AARs directly satisfy{' '}
-        <strong>EMAP 4.11.2</strong>. AI drafts meet HSEEP doctrine
-        requirements.
-      </div>
-      {showForm && (
-        <div
-          style={{
-            background: B.purpleLight,
-            border: `1px solid ${B.purpleBorder}`,
-            borderRadius: 10,
-            padding: '16px 18px',
-            marginBottom: 14,
-          }}
-        >
-          <div
+        {[
+          { id: 'exercises', label: 'Exercises', count: data.exercises.length },
+          {
+            id: 'incidents',
+            label: 'Incidents & Activations',
+            count: incidents.length,
+          },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => {
+              setActiveTab(t.id);
+              setShowForm(false);
+            }}
             style={{
+              padding: '9px 18px',
+              borderRadius: 9,
+              border: 'none',
+              background: activeTab === t.id ? '#fff' : 'transparent',
+              color: activeTab === t.id ? B.text : B.faint,
               fontSize: 13,
-              fontWeight: 700,
-              color: B.text,
-              marginBottom: 12,
+              fontWeight: activeTab === t.id ? 700 : 500,
+              cursor: 'pointer',
+              fontFamily: "'DM Sans',sans-serif",
+              transition: 'all 0.15s ease',
+              boxShadow:
+                activeTab === t.id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
             }}
           >
-            New Exercise
-          </div>
+            {t.label}
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: activeTab === t.id ? B.teal : B.faint,
+                background: activeTab === t.id ? B.tealLight : '#e8ecee',
+                padding: '1px 6px',
+                borderRadius: 6,
+              }}
+            >
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'exercises' && (
+        <>
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: '2fr 1fr 1fr',
-              gap: 10,
-              marginBottom: 10,
+              background: `${B.purple}10`,
+              border: `1px solid ${B.purpleBorder}`,
+              borderLeft: `3px solid ${B.purple}`,
+              borderRadius: '0 8px 8px 0',
+              padding: '9px 14px',
+              marginBottom: 14,
+              fontSize: 12,
+              color: '#5b21b6',
             }}
           >
-            <div>
-              <Label>Exercise Name</Label>
-              <FInput
-                value={form.name}
-                onChange={(v) => setForm((p) => ({ ...p, name: v }))}
-                placeholder="Annual EOC Full-Scale Exercise"
-              />
-            </div>
-            <div>
-              <Label>Type</Label>
-              <FSel
-                value={form.type}
-                onChange={(v) => setForm((p) => ({ ...p, type: v }))}
+            Completed exercises with AARs directly satisfy{' '}
+            <strong>EMAP 4.11.2</strong>. AI drafts meet HSEEP doctrine
+            requirements.
+          </div>
+          {showForm && (
+            <div
+              style={{
+                background: B.purpleLight,
+                border: `1px solid ${B.purpleBorder}`,
+                borderRadius: 10,
+                padding: '16px 18px',
+                marginBottom: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: B.text,
+                  marginBottom: 12,
+                }}
               >
-                {HSEEP_TYPES.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </FSel>
-            </div>
-            <div>
-              <Label>Date</Label>
-              <FInput
-                type="date"
-                value={form.date}
-                onChange={(v) => setForm((p) => ({ ...p, date: v }))}
-              />
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Btn label="Create Exercise" onClick={createEx} primary />
-            <Btn label="Cancel" onClick={() => setShowForm(false)} />
-          </div>
-        </div>
-      )}
-      {data.exercises.length === 0 ? (
-        <Card style={{ textAlign: 'center', padding: '36px', color: B.faint }}>
-          No exercises yet - create your first exercise to start building EMAP
-          4.11 evidence
-        </Card>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[...data.exercises]
-            .sort((a, b) => b.date?.localeCompare(a.date))
-            .map((ex) => {
-              const sc = EXERCISE_STATUS[ex.status] || EXERCISE_STATUS.planned;
-              const openCAs = (ex.corrective || []).filter(
-                (c) => !c.closed
-              ).length;
-              const hasAAR = !!(ex.aarDraft || ex.aarFinal);
-              return (
-                <div
-                  key={ex.id}
-                  style={{
-                    background: B.card,
-                    border: `1px solid ${B.border}`,
-                    borderRadius: 9,
-                    padding: '13px 16px',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                  onClick={() => setSelectedId(ex.id)}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.borderColor = B.purple)
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.borderColor = B.border)
-                  }
-                >
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+                New Exercise
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 1fr 1fr',
+                  gap: 10,
+                  marginBottom: 10,
+                }}
+              >
+                <div>
+                  <Label>Exercise Name</Label>
+                  <FInput
+                    value={form.name}
+                    onChange={(v) => setForm((p) => ({ ...p, name: v }))}
+                    placeholder="Annual EOC Full-Scale Exercise"
+                  />
+                </div>
+                <div>
+                  <Label>Type</Label>
+                  <FSel
+                    value={form.type}
+                    onChange={(v) => setForm((p) => ({ ...p, type: v }))}
                   >
-                    <div style={{ flex: 1 }}>
+                    {HSEEP_TYPES.map((t) => (
+                      <option key={t}>{t}</option>
+                    ))}
+                  </FSel>
+                </div>
+                <div>
+                  <Label>Date</Label>
+                  <FInput
+                    type="date"
+                    value={form.date}
+                    onChange={(v) => setForm((p) => ({ ...p, date: v }))}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn label="Create Exercise" onClick={createEx} primary />
+                <Btn label="Cancel" onClick={() => setShowForm(false)} />
+              </div>
+            </div>
+          )}
+          {data.exercises.length === 0 ? (
+            <Card
+              style={{ textAlign: 'center', padding: '36px', color: B.faint }}
+            >
+              No exercises yet. Create your first exercise to start building
+              EMAP 4.11 evidence.
+            </Card>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[...data.exercises]
+                .sort((a, b) => b.date?.localeCompare(a.date))
+                .map((ex) => {
+                  const sc =
+                    EXERCISE_STATUS[ex.status] || EXERCISE_STATUS.planned;
+                  const openCAs = (ex.corrective || []).filter(
+                    (c) => !c.closed
+                  ).length;
+                  const hasAAR = !!(ex.aarDraft || ex.aarFinal);
+                  return (
+                    <div
+                      key={ex.id}
+                      style={{
+                        background: B.card,
+                        border: `1px solid ${B.border}`,
+                        borderRadius: 9,
+                        padding: '13px 16px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                      onClick={() => setSelectedId(ex.id)}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.borderColor = B.purple)
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.borderColor = B.border)
+                      }
+                    >
                       <div
                         style={{
                           display: 'flex',
-                          gap: 7,
                           alignItems: 'center',
-                          marginBottom: 3,
-                          flexWrap: 'wrap',
+                          gap: 10,
                         }}
                       >
-                        <span
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 700,
-                            color: B.text,
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              gap: 7,
+                              alignItems: 'center',
+                              marginBottom: 3,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: B.text,
+                              }}
+                            >
+                              {ex.name}
+                            </span>
+                            <Tag
+                              label={ex.type || 'Exercise'}
+                              color={B.purple}
+                              bg={B.purpleLight}
+                              border={B.purpleBorder}
+                            />
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: sc.color,
+                                background: sc.bg,
+                                padding: '2px 8px',
+                                borderRadius: 10,
+                                border: `1px solid ${sc.color}30`,
+                              }}
+                            >
+                              {sc.label}
+                            </span>
+                            {hasAAR && (
+                              <Tag
+                                label={ex.aarFinal ? 'AAR Final' : 'AAR Draft'}
+                                color={ex.aarFinal ? B.green : B.amber}
+                                bg={ex.aarFinal ? B.greenLight : B.amberLight}
+                                border={
+                                  ex.aarFinal ? B.greenBorder : B.amberBorder
+                                }
+                              />
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: B.faint,
+                              display: 'flex',
+                              gap: 12,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <span>{fmtDate(ex.date)}</span>
+                            {ex.location && <span>{ex.location}</span>}
+                            {ex.participantCount && (
+                              <span>{ex.participantCount} participants</span>
+                            )}
+                            {(ex.objectives || []).length > 0 && (
+                              <span>{ex.objectives.length} objectives</span>
+                            )}
+                            {openCAs > 0 && (
+                              <span style={{ color: B.red, fontWeight: 600 }}>
+                                {openCAs} open CAs
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeEx(ex.id);
                           }}
-                        >
-                          {ex.name}
-                        </span>
-                        <Tag
-                          label={ex.type || 'Exercise'}
-                          color={B.purple}
-                          bg={B.purpleLight}
-                          border={B.purpleBorder}
-                        />
-                        <span
                           style={{
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: sc.color,
-                            background: sc.bg,
-                            padding: '2px 8px',
-                            borderRadius: 10,
-                            border: `1px solid ${sc.color}30`,
+                            background: 'none',
+                            border: 'none',
+                            color: '#d1d5db',
+                            cursor: 'pointer',
+                            fontSize: 14,
+                            padding: '4px',
                           }}
+                          title="Delete"
                         >
-                          {sc.label}
-                        </span>
-                        {hasAAR && (
-                          <Tag
-                            label={ex.aarFinal ? 'AAR Final ok' : 'AAR Draft'}
-                            color={ex.aarFinal ? B.green : B.amber}
-                            bg={ex.aarFinal ? B.greenLight : B.amberLight}
-                            border={ex.aarFinal ? B.greenBorder : B.amberBorder}
-                          />
-                        )}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: B.faint,
-                          display: 'flex',
-                          gap: 12,
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <span>{fmtDate(ex.date)}</span>
-                        {ex.location && <span>📍 {ex.location}</span>}
-                        {ex.participantCount && (
-                          <span>- {ex.participantCount} participants</span>
-                        )}
-                        {(ex.objectives || []).length > 0 && (
-                          <span>🎯 {ex.objectives.length} objectives</span>
-                        )}
-                        {openCAs > 0 && (
-                          <span style={{ color: B.red, fontWeight: 600 }}>
-                            - {openCAs} open CAs
-                          </span>
-                        )}
+                          x
+                        </button>
                       </div>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeEx(ex.id);
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#d1d5db',
-                        cursor: 'pointer',
-                        fontSize: 14,
-                        padding: '4px',
-                      }}
-                    >
-                      -
-                    </button>
-                    <span style={{ color: B.border, fontSize: 14 }}>-</span>
-                  </div>
-                </div>
-              );
-            })}
-        </div>
+                  );
+                })}
+            </div>
+          )}
+        </>
       )}
+
+      {activeTab === 'incidents' && (
+        <>
+          <div
+            style={{
+              background: `${B.red}08`,
+              border: `1px solid ${B.redBorder}`,
+              borderLeft: `3px solid ${B.red}`,
+              borderRadius: '0 8px 8px 0',
+              padding: '9px 14px',
+              marginBottom: 14,
+              fontSize: 12,
+              color: '#991b1b',
+            }}
+          >
+            Real-world incidents with AARs demonstrate your improvement cycle
+            for <strong>EMAP 4.12</strong>. Corrective actions from incidents
+            feed directly into your CAP dashboard.
+          </div>
+          {showForm && (
+            <div
+              style={{
+                background: B.redLight,
+                border: `1px solid ${B.redBorder}`,
+                borderRadius: 10,
+                padding: '16px 18px',
+                marginBottom: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: B.text,
+                  marginBottom: 12,
+                }}
+              >
+                New Incident / Activation
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 1fr 1fr',
+                  gap: 10,
+                  marginBottom: 10,
+                }}
+              >
+                <div>
+                  <Label>Incident Name</Label>
+                  <FInput
+                    value={incForm.name}
+                    onChange={(v) => setIncForm((p) => ({ ...p, name: v }))}
+                    placeholder="2024 Creek Fire Response"
+                  />
+                </div>
+                <div>
+                  <Label>Incident Type</Label>
+                  <FSel
+                    value={incForm.type}
+                    onChange={(v) => setIncForm((p) => ({ ...p, type: v }))}
+                  >
+                    {INCIDENT_TYPES.map((t) => (
+                      <option key={t}>{t}</option>
+                    ))}
+                  </FSel>
+                </div>
+                <div>
+                  <Label>Date</Label>
+                  <FInput
+                    type="date"
+                    value={incForm.date}
+                    onChange={(v) => setIncForm((p) => ({ ...p, date: v }))}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn label="Create Incident" onClick={createInc} primary />
+                <Btn label="Cancel" onClick={() => setShowForm(false)} />
+              </div>
+            </div>
+          )}
+          {incidents.length === 0 ? (
+            <Card
+              style={{ textAlign: 'center', padding: '36px', color: B.faint }}
+            >
+              No incidents logged yet. Log real-world activations and write AARs
+              to strengthen your improvement cycle and satisfy EMAP 4.12.
+            </Card>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[...incidents]
+                .sort((a, b) => b.date?.localeCompare(a.date))
+                .map((inc) => {
+                  const sc =
+                    EXERCISE_STATUS[inc.status] || EXERCISE_STATUS.completed;
+                  const openCAs = (inc.corrective || []).filter(
+                    (c) => !c.closed
+                  ).length;
+                  const hasAAR = !!(inc.aarDraft || inc.aarFinal);
+                  return (
+                    <div
+                      key={inc.id}
+                      style={{
+                        background: B.card,
+                        border: `1px solid ${B.border}`,
+                        borderRadius: 9,
+                        padding: '13px 16px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                      onClick={() => setSelectedIncId(inc.id)}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.borderColor = B.red)
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.borderColor = B.border)
+                      }
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              gap: 7,
+                              alignItems: 'center',
+                              marginBottom: 3,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: B.text,
+                              }}
+                            >
+                              {inc.name}
+                            </span>
+                            <Tag
+                              label={inc.type || 'Incident'}
+                              color={B.red}
+                              bg={B.redLight}
+                              border={B.redBorder}
+                            />
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: sc.color,
+                                background: sc.bg,
+                                padding: '2px 8px',
+                                borderRadius: 10,
+                                border: `1px solid ${sc.color}30`,
+                              }}
+                            >
+                              {sc.label}
+                            </span>
+                            {hasAAR && (
+                              <Tag
+                                label={inc.aarFinal ? 'AAR Final' : 'AAR Draft'}
+                                color={inc.aarFinal ? B.green : B.amber}
+                                bg={inc.aarFinal ? B.greenLight : B.amberLight}
+                                border={
+                                  inc.aarFinal ? B.greenBorder : B.amberBorder
+                                }
+                              />
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: B.faint,
+                              display: 'flex',
+                              gap: 12,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <span>{fmtDate(inc.date)}</span>
+                            {inc.location && <span>{inc.location}</span>}
+                            {inc.participantCount && (
+                              <span>{inc.participantCount} responders</span>
+                            )}
+                            {openCAs > 0 && (
+                              <span style={{ color: B.red, fontWeight: 600 }}>
+                                {openCAs} open CAs
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeInc(inc.id);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#d1d5db',
+                            cursor: 'pointer',
+                            fontSize: 14,
+                            padding: '4px',
+                          }}
+                          title="Delete"
+                        >
+                          x
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </>
+      )}
+
       {sel && (
         <ExerciseDetail
           ex={sel}
           onUpdate={(updated) => updateEx(sel.id, updated)}
           onClose={() => setSelectedId(null)}
+        />
+      )}
+      {selInc && (
+        <ExerciseDetail
+          ex={selInc}
+          onUpdate={(updated) => updateInc(selInc.id, updated)}
+          onClose={() => setSelectedIncId(null)}
+          isIncident
         />
       )}
     </div>
@@ -4487,7 +5278,7 @@ const TASKBOOK_TYPES = [
   'Other FEMA Task Book',
 ];
 
-function EmployeeDetail({ emp, onUpdate, onClose }) {
+function EmployeeDetail({ emp, onUpdate, onClose, data }) {
   const [tab, setTab] = useState('profile');
   const [certForm, setCertForm] = useState({
     name: '',
@@ -4708,9 +5499,11 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                 style={{
                   padding: '6px 12px',
                   borderRadius: '6px 6px 0 0',
-                  border: `1px solid ${tab === t.id ? B.border : 'tranSPRent'}`,
+                  border: `1px solid ${
+                    tab === t.id ? B.border : 'transparent'
+                  }`,
                   borderBottom: `1px solid ${tab === t.id ? B.card : B.border}`,
-                  background: tab === t.id ? B.card : 'tranSPRent',
+                  background: tab === t.id ? B.card : 'transparent',
                   color: tab === t.id ? B.indigo : B.muted,
                   fontSize: 12,
                   fontWeight: tab === t.id ? 700 : 500,
@@ -4821,6 +5614,79 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                     <option value="dsw">Disaster Service Worker (DSW)</option>
                   </FSel>
                 </div>
+              </div>
+              <div
+                style={{
+                  marginBottom: 12,
+                  paddingTop: 12,
+                  borderTop: `1px solid ${B.border}`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: B.muted,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    marginBottom: 10,
+                  }}
+                >
+                  Billing & Cost
+                </div>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <Label>Hourly Rate ($)</Label>
+                    <FInput
+                      value={emp.hourlyRate || ''}
+                      onChange={(v) => u('hourlyRate', v)}
+                      placeholder="75.00"
+                    />
+                  </div>
+                  <div>
+                    <Label>Billable to Grant</Label>
+                    <FSel
+                      value={emp.billableGrant || ''}
+                      onChange={(v) => u('billableGrant', v)}
+                    >
+                      <option value="">Not billable</option>
+                      <option value="empg">EMPG</option>
+                      <option value="bsir">BSIR</option>
+                      <option value="uasi">UASI</option>
+                      <option value="hmgp">HMGP</option>
+                      <option value="shsp">SHSP</option>
+                      <option value="other">Other Grant</option>
+                    </FSel>
+                  </div>
+                  <div>
+                    <Label>FTE Allocation (%)</Label>
+                    <FInput
+                      value={emp.fteAllocation || ''}
+                      onChange={(v) => u('fteAllocation', v)}
+                      placeholder="100"
+                    />
+                  </div>
+                </div>
+                {emp.hourlyRate && (
+                  <div style={{ fontSize: 11, color: B.faint, marginTop: 6 }}>
+                    Annual cost estimate: $
+                    {(
+                      parseFloat(emp.hourlyRate || 0) *
+                      2080 *
+                      (parseFloat(emp.fteAllocation || 100) / 100)
+                    ).toLocaleString(undefined, {
+                      maximumFractionDigits: 0,
+                    })}{' '}
+                    ({emp.fteAllocation || 100}% FTE x ${emp.hourlyRate}/hr x
+                    2,080 hrs)
+                  </div>
+                )}
               </div>
               <div
                 style={{
@@ -5919,6 +6785,7 @@ function EmployeesView({ data, setData }) {
             )}
           </p>
         </div>
+        <CoachBanner moduleId="employees" />
         <Btn label="+ Add Employee" onClick={() => setShowForm(true)} primary />
       </div>
       <div
@@ -6372,6 +7239,7 @@ function TrainingManager({ data, setData }) {
             {[...new Set(data.training.map((t) => t.person))].length} personnel
           </p>
         </div>
+        <CoachBanner moduleId="training" />
         <div style={{ display: 'flex', gap: 8 }}>
           <Btn
             label="AI Needs Assessment"
@@ -6737,6 +7605,7 @@ function PartnerRegistry({ data, setData }) {
             EMAP 4.7 - {data.partners.length} agreements
           </p>
         </div>
+        <CoachBanner moduleId="partners" />
         <Btn label="+ Add Partner" onClick={() => setShowForm(true)} primary />
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
@@ -7187,6 +8056,7 @@ function PlanLibrary({ data, setData }) {
             {data.plans.filter((p) => p.status === 'current').length} current
           </p>
         </div>
+        <CoachBanner moduleId="plans" />
         <Btn label="+ Add Plan" onClick={() => setShowForm(true)} primary />
       </div>
       {showForm && (
@@ -7565,48 +8435,84 @@ function PlanLibrary({ data, setData }) {
 ------------------------------------------------------- */
 function ResourcesView({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
+  const [activeTab, setActiveTab] = useState('inventory');
+  const [selectedId, setSelectedId] = useState(null);
+  const [filter, setFilter] = useState('all');
   const [form, setForm] = useState({
     name: '',
     category: 'Equipment',
-    qty: '',
+    qty: '1',
     location: '',
     condition: 'Good',
+    status: 'available',
+    serialNumber: '',
+    acquisitionDate: '',
+    acquisitionCost: '',
+    fundingSource: '',
+    deployable: true,
+    assignedTo: '',
   });
   const CATS = [
     'Equipment',
     'Vehicles',
     'Communications',
     'Generators',
-    'Personnel',
+    'Shelter / Facilities',
+    'Medical / EMS',
+    'PPE / Safety',
+    'Water / Food Cache',
+    'IT / Technology',
     'Supplies',
-    'Facilities',
-    'Technology',
     'Other',
   ];
   const CONDS = ['Excellent', 'Good', 'Fair', 'Needs Repair', 'Out of Service'];
+  const STATUS_MAP = {
+    available: { label: 'Available', color: B.green, bg: B.greenLight },
+    deployed: { label: 'Deployed', color: B.blue, bg: B.blueLight },
+    maintenance: { label: 'Maintenance', color: B.amber, bg: B.amberLight },
+    reserved: { label: 'Reserved', color: B.purple, bg: B.purpleLight },
+    out_of_service: { label: 'Out of Service', color: B.red, bg: B.redLight },
+  };
+
   const save = () => {
     if (!form.name) return;
     setData((prev) => ({
       ...prev,
       resources: [
         ...prev.resources,
-        { ...form, id: uid(), docs: [], addedAt: Date.now() },
+        {
+          ...form,
+          id: uid(),
+          docs: [],
+          deploymentLog: [],
+          inventoryLog: [],
+          addedAt: Date.now(),
+        },
       ],
     }));
     setForm({
       name: '',
       category: 'Equipment',
-      qty: '',
+      qty: '1',
       location: '',
       condition: 'Good',
+      status: 'available',
+      serialNumber: '',
+      acquisitionDate: '',
+      acquisitionCost: '',
+      fundingSource: '',
+      deployable: true,
+      assignedTo: '',
     });
     setShowForm(false);
   };
-  const remove = (id) =>
+  const remove = (id) => {
     setData((prev) => ({
       ...prev,
       resources: prev.resources.filter((r) => r.id !== id),
     }));
+    if (selectedId === id) setSelectedId(null);
+  };
   const updateRes = (id, f, v) =>
     setData((prev) => ({
       ...prev,
@@ -7620,8 +8526,123 @@ function ResourcesView({ data, setData }) {
       : c === 'Fair'
       ? B.amber
       : B.red;
+
+  const resources = data.resources || [];
+  const filtered =
+    filter === 'all'
+      ? resources
+      : resources.filter((r) =>
+          filter === 'deployed'
+            ? r.status === 'deployed'
+            : filter === 'available'
+            ? r.status === 'available'
+            : filter === 'needs_attention'
+            ? r.condition === 'Needs Repair' ||
+              r.condition === 'Out of Service' ||
+              r.status === 'out_of_service'
+            : filter === 'deployable'
+            ? r.deployable !== false
+            : true
+        );
+  const deployed = resources.filter((r) => r.status === 'deployed').length;
+  const available = resources.filter((r) => r.status === 'available').length;
+  const needsAttention = resources.filter(
+    (r) => r.condition === 'Needs Repair' || r.condition === 'Out of Service'
+  ).length;
+  const totalValue = resources.reduce(
+    (a, r) => a + parseFloat(r.acquisitionCost || 0) * parseInt(r.qty || 1),
+    0
+  );
+  const needsInventory = resources.filter((r) => {
+    const last = r.lastInventoryDate;
+    if (!last) return true;
+    const d = new Date(last);
+    const now = new Date();
+    return (now - d) / (1000 * 60 * 60 * 24) > 365;
+  });
+
+  // Deploy / Return functions
+  const deployResource = (id, location, incident, assignee) => {
+    setData((prev) => ({
+      ...prev,
+      resources: prev.resources.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              status: 'deployed',
+              deployedTo: location,
+              deployedIncident: incident,
+              deployedAssignee: assignee,
+              deployedDate: today(),
+              deploymentLog: [
+                ...(r.deploymentLog || []),
+                {
+                  id: uid(),
+                  action: 'deployed',
+                  location,
+                  incident,
+                  assignee,
+                  date: today(),
+                  ts: Date.now(),
+                },
+              ],
+            }
+          : r
+      ),
+    }));
+  };
+  const returnResource = (id, condition) => {
+    setData((prev) => ({
+      ...prev,
+      resources: prev.resources.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              status: 'available',
+              condition: condition || r.condition,
+              deployedTo: '',
+              deployedIncident: '',
+              deployedAssignee: '',
+              deployedDate: '',
+              deploymentLog: [
+                ...(r.deploymentLog || []),
+                {
+                  id: uid(),
+                  action: 'returned',
+                  condition,
+                  date: today(),
+                  ts: Date.now(),
+                },
+              ],
+            }
+          : r
+      ),
+    }));
+  };
+  // Inventory verification
+  const verifyInventory = (id, verifiedBy, notes) => {
+    setData((prev) => ({
+      ...prev,
+      resources: prev.resources.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              lastInventoryDate: today(),
+              lastInventoryBy: verifiedBy,
+              inventoryLog: [
+                ...(r.inventoryLog || []),
+                { id: uid(), date: today(), verifiedBy, notes, ts: Date.now() },
+              ],
+            }
+          : r
+      ),
+    }));
+  };
+
+  const sel = selectedId ? resources.find((r) => r.id === selectedId) : null;
+
   return (
-    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 960 }}>
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 1100 }}>
       <div
         style={{
           display: 'flex',
@@ -7642,11 +8663,102 @@ function ResourcesView({ data, setData }) {
             Resource Inventory
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.7 - {data.resources.length} items
+            EMAP 4.7 - {resources.length} items - {deployed} deployed -{' '}
+            {available} available
+            {totalValue > 0
+              ? `  -  $${totalValue.toLocaleString()} total value`
+              : ''}
           </p>
         </div>
         <Btn label="+ Add Resource" onClick={() => setShowForm(true)} primary />
       </div>
+      <CoachBanner moduleId="resources" />
+
+      {/* Stats bar */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(5,1fr)',
+          gap: 10,
+          marginBottom: 16,
+        }}
+      >
+        {[
+          { label: 'Total Assets', val: resources.length, color: B.blue },
+          { label: 'Available', val: available, color: B.green },
+          { label: 'Deployed', val: deployed, color: B.blue },
+          {
+            label: 'Needs Attention',
+            val: needsAttention,
+            color: needsAttention > 0 ? B.red : B.green,
+          },
+          {
+            label: 'Needs Inventory',
+            val: needsInventory.length,
+            color: needsInventory.length > 0 ? B.amber : B.green,
+          },
+        ].map((s) => (
+          <Card
+            key={s.label}
+            style={{ padding: '10px 12px', textAlign: 'center' }}
+          >
+            <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>
+              {s.val}
+            </div>
+            <div style={{ fontSize: 10, color: B.faint, marginTop: 2 }}>
+              {s.label}
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Tab switcher */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 4,
+          marginBottom: 16,
+          padding: '4px',
+          background: '#f0f3f4',
+          borderRadius: 12,
+        }}
+      >
+        {[
+          { id: 'inventory', label: 'Inventory' },
+          { id: 'deployed', label: `Deployed (${deployed})` },
+          {
+            id: 'annual',
+            label: `Annual Inventory ${
+              needsInventory.length > 0
+                ? '(' + needsInventory.length + ' due)'
+                : ''
+            }`,
+          },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 9,
+              border: 'none',
+              background: activeTab === t.id ? '#fff' : 'transparent',
+              color: activeTab === t.id ? B.text : B.faint,
+              fontSize: 13,
+              fontWeight: activeTab === t.id ? 700 : 500,
+              cursor: 'pointer',
+              fontFamily: "'DM Sans',sans-serif",
+              transition: 'all 0.15s ease',
+              boxShadow:
+                activeTab === t.id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Add form */}
       {showForm && (
         <div
           style={{
@@ -7659,18 +8771,28 @@ function ResourcesView({ data, setData }) {
         >
           <div
             style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: B.text,
+              marginBottom: 12,
+            }}
+          >
+            Add Resource / Asset
+          </div>
+          <div
+            style={{
               display: 'grid',
-              gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr',
+              gridTemplateColumns: '2fr 1fr 1fr',
               gap: 10,
               marginBottom: 10,
             }}
           >
             <div>
-              <Label>Name</Label>
+              <Label>Name / Description</Label>
               <FInput
                 value={form.name}
                 onChange={(v) => setForm((p) => ({ ...p, name: v }))}
-                placeholder="Resource name"
+                placeholder="e.g. Honda EU7000 Generator"
               />
             </div>
             <div>
@@ -7689,7 +8811,24 @@ function ResourcesView({ data, setData }) {
               <FInput
                 value={form.qty}
                 onChange={(v) => setForm((p) => ({ ...p, qty: v }))}
-                placeholder="Qty"
+                placeholder="1"
+              />
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr 1fr',
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <div>
+              <Label>Serial / Tag #</Label>
+              <FInput
+                value={form.serialNumber}
+                onChange={(v) => setForm((p) => ({ ...p, serialNumber: v }))}
+                placeholder="SN or asset tag"
               />
             </div>
             <div>
@@ -7697,20 +8836,8 @@ function ResourcesView({ data, setData }) {
               <FInput
                 value={form.location}
                 onChange={(v) => setForm((p) => ({ ...p, location: v }))}
-                placeholder="Location"
+                placeholder="Warehouse, Station 1..."
               />
-            </div>
-            <div>
-              <Label>Status</Label>
-              <FSel
-                value={form.status || 'available'}
-                onChange={(v) => setForm((p) => ({ ...p, status: v }))}
-              >
-                <option value="available">Available</option>
-                <option value="deployed">Deployed</option>
-                <option value="maintenance">In Maintenance</option>
-                <option value="out_of_service">Out of Service</option>
-              </FSel>
             </div>
             <div>
               <Label>Condition</Label>
@@ -7723,148 +8850,967 @@ function ResourcesView({ data, setData }) {
                 ))}
               </FSel>
             </div>
+            <div>
+              <Label>Deployable Asset</Label>
+              <FSel
+                value={form.deployable ? 'yes' : 'no'}
+                onChange={(v) =>
+                  setForm((p) => ({ ...p, deployable: v === 'yes' }))
+                }
+              >
+                <option value="yes">Yes - Deployable</option>
+                <option value="no">No - Fixed</option>
+              </FSel>
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <div>
+              <Label>Acquisition Date</Label>
+              <FInput
+                type="date"
+                value={form.acquisitionDate}
+                onChange={(v) => setForm((p) => ({ ...p, acquisitionDate: v }))}
+              />
+            </div>
+            <div>
+              <Label>Acquisition Cost ($)</Label>
+              <FInput
+                value={form.acquisitionCost}
+                onChange={(v) => setForm((p) => ({ ...p, acquisitionCost: v }))}
+                placeholder="5000"
+              />
+            </div>
+            <div>
+              <Label>Funding Source</Label>
+              <FSel
+                value={form.fundingSource}
+                onChange={(v) => setForm((p) => ({ ...p, fundingSource: v }))}
+              >
+                <option value="">General Fund</option>
+                <option value="empg">EMPG</option>
+                <option value="hmgp">HMGP</option>
+                <option value="uasi">UASI</option>
+                <option value="bric">BRIC</option>
+                <option value="shsp">SHSP</option>
+                <option value="donated">Donated</option>
+                <option value="other">Other Grant</option>
+              </FSel>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn label="Save" onClick={save} primary small />
+            <Btn label="Add Resource" onClick={save} primary small />
             <Btn label="Cancel" onClick={() => setShowForm(false)} small />
           </div>
         </div>
       )}
-      {data.resources.length === 0 ? (
-        <Card style={{ textAlign: 'center', padding: '32px', color: B.faint }}>
-          No resources tracked yet
-        </Card>
-      ) : (
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr
+
+      {/* INVENTORY TAB */}
+      {activeTab === 'inventory' && (
+        <>
+          <div
+            style={{
+              display: 'flex',
+              gap: 6,
+              marginBottom: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            {[
+              ['all', 'All'],
+              ['available', 'Available'],
+              ['deployed', 'Deployed'],
+              ['deployable', 'Deployable'],
+              ['needs_attention', 'Needs Attention'],
+            ].map(([f, lbl]) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
                 style={{
-                  background: '#f8fcfc',
-                  borderBottom: `1px solid ${B.border}`,
+                  padding: '6px 12px',
+                  borderRadius: 7,
+                  border: `1px solid ${filter === f ? B.teal : B.border}`,
+                  background: filter === f ? B.tealLight : B.card,
+                  color: filter === f ? B.tealDark : B.muted,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: "'DM Sans',sans-serif",
                 }}
               >
-                {[
-                  'Resource',
-                  'Category',
-                  'Qty',
-                  'Location',
-                  'Condition',
-                  'Attachments',
-                  '',
-                ].map((h) => (
-                  <th
-                    key={h}
+                {lbl} (
+                {f === 'all'
+                  ? resources.length
+                  : f === 'available'
+                  ? available
+                  : f === 'deployed'
+                  ? deployed
+                  : f === 'deployable'
+                  ? resources.filter((r) => r.deployable !== false).length
+                  : needsAttention}
+                )
+              </button>
+            ))}
+          </div>
+          {filtered.length === 0 ? (
+            <Card
+              style={{ textAlign: 'center', padding: '32px', color: B.faint }}
+            >
+              No resources match this filter
+            </Card>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {filtered.map((r) => {
+                const st = STATUS_MAP[r.status] || STATUS_MAP.available;
+                return (
+                  <div
+                    key={r.id}
                     style={{
-                      padding: '9px 13px',
-                      fontSize: 10,
-                      color: B.faint,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
-                      fontWeight: 700,
-                      textAlign: 'left',
+                      background: B.card,
+                      border: `1px solid ${B.border}`,
+                      borderRadius: 9,
+                      padding: '12px 14px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
                     }}
+                    onClick={() => setSelectedId(r.id)}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.borderColor = B.teal)
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.borderColor = B.border)
+                    }
                   >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.resources.map((r, i) => (
-                <tr
-                  key={r.id}
-                  style={{
-                    borderBottom: `1px solid #f4f8f9`,
-                    background: i % 2 === 0 ? '#fff' : '#fafcfc',
-                  }}
-                >
-                  <td
-                    style={{
-                      padding: '9px 13px',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: B.text,
-                    }}
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 7,
+                            alignItems: 'center',
+                            marginBottom: 3,
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: B.text,
+                            }}
+                          >
+                            {r.name}
+                          </span>
+                          <Tag
+                            label={r.category}
+                            color={B.muted}
+                            bg="#f0f3f4"
+                            border={B.border}
+                          />
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: st.color,
+                              background: st.bg,
+                              padding: '2px 8px',
+                              borderRadius: 10,
+                              border: `1px solid ${st.color}30`,
+                            }}
+                          >
+                            {st.label}
+                          </span>
+                          {r.deployable !== false && (
+                            <span
+                              style={{
+                                fontSize: 9,
+                                color: B.blue,
+                                fontWeight: 600,
+                              }}
+                            >
+                              DEPLOYABLE
+                            </span>
+                          )}
+                          <Tag
+                            label={r.condition}
+                            color={cc(r.condition)}
+                            bg={
+                              cc(r.condition) === B.green
+                                ? B.greenLight
+                                : cc(r.condition) === B.amber
+                                ? B.amberLight
+                                : B.redLight
+                            }
+                            border={B.border}
+                          />
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: B.faint,
+                            display: 'flex',
+                            gap: 12,
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          {r.serialNumber && <span>#{r.serialNumber}</span>}
+                          {r.location && <span>{r.location}</span>}
+                          {r.qty && parseInt(r.qty) > 1 && (
+                            <span>Qty: {r.qty}</span>
+                          )}
+                          {r.status === 'deployed' && r.deployedTo && (
+                            <span style={{ color: B.blue, fontWeight: 600 }}>
+                              @ {r.deployedTo}
+                            </span>
+                          )}
+                          {r.acquisitionCost && (
+                            <span>
+                              ${parseFloat(r.acquisitionCost).toLocaleString()}
+                            </span>
+                          )}
+                          {r.fundingSource && (
+                            <span style={{ textTransform: 'uppercase' }}>
+                              {r.fundingSource}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          remove(r.id);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#d1d5db',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          padding: '4px',
+                        }}
+                        title="Delete"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* DEPLOYED TAB */}
+      {activeTab === 'deployed' && (
+        <>
+          <div
+            style={{
+              background: `${B.blue}08`,
+              border: `1px solid ${B.blueBorder}`,
+              borderLeft: `3px solid ${B.blue}`,
+              borderRadius: '0 8px 8px 0',
+              padding: '9px 14px',
+              marginBottom: 14,
+              fontSize: 12,
+              color: '#1e40af',
+            }}
+          >
+            Track where your deployable assets are right now. Click any resource
+            in the Inventory tab to deploy or return it.
+          </div>
+          {deployed === 0 ? (
+            <Card
+              style={{ textAlign: 'center', padding: '32px', color: B.faint }}
+            >
+              No resources currently deployed. Click a resource in the Inventory
+              tab to deploy it.
+            </Card>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {resources
+                .filter((r) => r.status === 'deployed')
+                .map((r) => (
+                  <Card
+                    key={r.id}
+                    style={{ borderLeft: `3px solid ${B.blue}` }}
                   >
-                    {r.name}
-                  </td>
-                  <td
-                    style={{
-                      padding: '9px 13px',
-                      fontSize: 12,
-                      color: B.muted,
-                    }}
-                  >
-                    {r.category}
-                  </td>
-                  <td
-                    style={{
-                      padding: '9px 13px',
-                      fontSize: 12,
-                      color: B.muted,
-                    }}
-                  >
-                    {r.qty || '-'}
-                  </td>
-                  <td
-                    style={{
-                      padding: '9px 13px',
-                      fontSize: 12,
-                      color: B.muted,
-                    }}
-                  >
-                    {r.location || '-'}
-                  </td>
-                  <td style={{ padding: '9px 13px' }}>
-                    <Tag
-                      label={r.condition}
-                      color={cc(r.condition)}
-                      bg={
-                        cc(r.condition) === B.green
-                          ? B.greenLight
-                          : cc(r.condition) === B.amber
-                          ? B.amberLight
-                          : B.redLight
-                      }
-                      border={B.border}
-                    />
-                  </td>
-                  <td style={{ padding: '9px 13px' }}>
-                    <Attachments
-                      docs={r.docs || []}
-                      onAdd={(doc) =>
-                        updateRes(r.id, 'docs', [...(r.docs || []), doc])
-                      }
-                      onRemove={(id) =>
-                        updateRes(
-                          r.id,
-                          'docs',
-                          (r.docs || []).filter((d) => d.id !== id)
-                        )
-                      }
-                      compact
-                    />
-                  </td>
-                  <td style={{ padding: '9px 13px' }}>
-                    <button
-                      onClick={() => remove(r.id)}
+                    <div
                       style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#d1d5db',
-                        cursor: 'pointer',
-                        fontSize: 14,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
                       }}
                     >
-                      -
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: B.text,
+                            marginBottom: 3,
+                          }}
+                        >
+                          {r.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: B.faint,
+                            display: 'flex',
+                            gap: 10,
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          {r.deployedTo && (
+                            <span style={{ fontWeight: 600, color: B.blue }}>
+                              Location: {r.deployedTo}
+                            </span>
+                          )}
+                          {r.deployedIncident && (
+                            <span>Incident: {r.deployedIncident}</span>
+                          )}
+                          {r.deployedAssignee && (
+                            <span>Assigned to: {r.deployedAssignee}</span>
+                          )}
+                          {r.deployedDate && (
+                            <span>Since: {fmtDate(r.deployedDate)}</span>
+                          )}
+                        </div>
+                      </div>
+                      <Btn
+                        label="Return"
+                        onClick={() => returnResource(r.id)}
+                        small
+                      />
+                    </div>
+                  </Card>
+                ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ANNUAL INVENTORY TAB */}
+      {activeTab === 'annual' && (
+        <>
+          <div
+            style={{
+              background: `${B.amber}08`,
+              border: `1px solid ${B.amberBorder}`,
+              borderLeft: `3px solid ${B.amber}`,
+              borderRadius: '0 8px 8px 0',
+              padding: '9px 14px',
+              marginBottom: 14,
+              fontSize: 12,
+              color: '#92400e',
+            }}
+          >
+            Many grants (EMPG, HMGP) and county purchasing require annual
+            physical inventory of assets. Items not verified in 12+ months are
+            flagged. Click each to verify.
+          </div>
+          {totalValue > 0 && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr 1fr',
+                gap: 10,
+                marginBottom: 16,
+              }}
+            >
+              <Card style={{ padding: '12px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: B.blue }}>
+                  ${totalValue.toLocaleString()}
+                </div>
+                <div style={{ fontSize: 10, color: B.faint, marginTop: 2 }}>
+                  Total Asset Value
+                </div>
+              </Card>
+              <Card style={{ padding: '12px 14px', textAlign: 'center' }}>
+                <div
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 800,
+                    color: needsInventory.length > 0 ? B.amber : B.green,
+                  }}
+                >
+                  {needsInventory.length}
+                </div>
+                <div style={{ fontSize: 10, color: B.faint, marginTop: 2 }}>
+                  Need Verification
+                </div>
+              </Card>
+              <Card style={{ padding: '12px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: B.green }}>
+                  {resources.length - needsInventory.length}
+                </div>
+                <div style={{ fontSize: 10, color: B.faint, marginTop: 2 }}>
+                  Verified (12 mo)
+                </div>
+              </Card>
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {resources.map((r) => {
+              const overdue = needsInventory.includes(r);
+              const lastDate = r.lastInventoryDate;
+              return (
+                <div
+                  key={r.id}
+                  style={{
+                    background: B.card,
+                    border: `1px solid ${overdue ? B.amberBorder : B.border}`,
+                    borderLeft: `3px solid ${overdue ? B.amber : B.green}`,
+                    borderRadius: '0 9px 9px 0',
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 8,
+                        alignItems: 'center',
+                        marginBottom: 2,
+                      }}
+                    >
+                      <span
+                        style={{ fontSize: 13, fontWeight: 600, color: B.text }}
+                      >
+                        {r.name}
+                      </span>
+                      {r.serialNumber && (
+                        <span style={{ fontSize: 11, color: B.faint }}>
+                          #{r.serialNumber}
+                        </span>
+                      )}
+                      {r.fundingSource && (
+                        <Tag
+                          label={r.fundingSource.toUpperCase()}
+                          color={B.blue}
+                          bg={B.blueLight}
+                          border={B.blueBorder}
+                        />
+                      )}
+                      {r.acquisitionCost && (
+                        <span style={{ fontSize: 11, color: B.muted }}>
+                          ${parseFloat(r.acquisitionCost).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: B.faint }}>
+                      {lastDate ? (
+                        <>
+                          Last verified: {fmtDate(lastDate)}
+                          {r.lastInventoryBy ? ` by ${r.lastInventoryBy}` : ''}
+                        </>
+                      ) : (
+                        <span style={{ color: B.amber, fontWeight: 600 }}>
+                          Never inventoried
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {overdue ? (
+                    <Btn
+                      label="Verify Now"
+                      onClick={() => {
+                        const by = prompt('Verified by (your name):');
+                        if (by)
+                          verifyInventory(
+                            r.id,
+                            by,
+                            'Annual inventory verification'
+                          );
+                      }}
+                      primary
+                      small
+                    />
+                  ) : (
+                    <Tag
+                      label="Current"
+                      color={B.green}
+                      bg={B.greenLight}
+                      border={B.greenBorder}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {resources.length > 0 && (
+            <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
+              <Btn
+                label="Verify All Resources"
+                onClick={() => {
+                  const by = prompt('Verified by (your name):');
+                  if (by)
+                    resources.forEach((r) =>
+                      verifyInventory(r.id, by, 'Bulk annual inventory')
+                    );
+                }}
+                primary
+              />
+              <Btn
+                label="Export Inventory Report"
+                onClick={() => {
+                  const lines = [
+                    'ANNUAL INVENTORY REPORT',
+                    'Date: ' + new Date().toLocaleDateString(),
+                    'Organization: ' + (data.orgName || ''),
+                    '',
+                    'Name | Serial/Tag | Category | Qty | Location | Condition | Acquisition Cost | Funding Source | Last Verified',
+                    '---',
+                    '',
+                  ];
+                  resources.forEach((r) => {
+                    lines.push(
+                      `${r.name} | ${r.serialNumber || 'N/A'} | ${
+                        r.category
+                      } | ${r.qty || 1} | ${r.location || 'N/A'} | ${
+                        r.condition
+                      } | $${r.acquisitionCost || 'N/A'} | ${(
+                        r.fundingSource || 'general fund'
+                      ).toUpperCase()} | ${
+                        r.lastInventoryDate
+                          ? fmtDate(r.lastInventoryDate)
+                          : 'Never'
+                      }`
+                    );
+                  });
+                  lines.push(
+                    '',
+                    'Total Assets: ' + resources.length,
+                    'Total Value: $' + totalValue.toLocaleString(),
+                    'Items Needing Verification: ' + needsInventory.length
+                  );
+                  const blob = new Blob([lines.join('\n')], {
+                    type: 'text/plain',
+                  });
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `inventory-report-${today()}.txt`;
+                  a.click();
+                }}
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Resource Detail Panel */}
+      {sel && (
+        <>
+          <div
+            onClick={() => setSelectedId(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15,23,42,0.3)',
+              zIndex: 49,
+              animation: 'fadeIn 0.15s',
+            }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              right: 0,
+              width: 560,
+              height: '100vh',
+              background: B.card,
+              borderLeft: `1px solid ${B.border}`,
+              zIndex: 50,
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'slideIn 0.25s cubic-bezier(0.4,0,0.2,1)',
+              boxShadow: '-20px 0 60px rgba(0,0,0,0.08)',
+            }}
+          >
+            <div
+              style={{
+                padding: '16px 20px',
+                borderBottom: `1px solid ${B.border}`,
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: B.text }}>
+                    {sel.name}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 6,
+                      marginTop: 4,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <Tag
+                      label={sel.category}
+                      color={B.muted}
+                      bg="#f0f3f4"
+                      border={B.border}
+                    />
+                    <Tag
+                      label={
+                        (STATUS_MAP[sel.status] || STATUS_MAP.available).label
+                      }
+                      color={
+                        (STATUS_MAP[sel.status] || STATUS_MAP.available).color
+                      }
+                      bg={(STATUS_MAP[sel.status] || STATUS_MAP.available).bg}
+                      border={B.border}
+                    />
+                    {sel.deployable !== false && (
+                      <Tag
+                        label="Deployable"
+                        color={B.blue}
+                        bg={B.blueLight}
+                        border={B.blueBorder}
+                      />
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedId(null)}
+                  style={{
+                    background: '#f4f7f8',
+                    border: `1px solid ${B.border}`,
+                    borderRadius: 7,
+                    color: B.muted,
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    padding: '4px 9px',
+                    lineHeight: 1,
+                  }}
+                >
+                  x
+                </button>
+              </div>
+            </div>
+            <div
+              style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px' }}
+            >
+              {/* Quick Actions */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  marginBottom: 16,
+                  flexWrap: 'wrap',
+                }}
+              >
+                {sel.status !== 'deployed' && sel.deployable !== false && (
+                  <Btn
+                    label="Deploy"
+                    onClick={() => {
+                      const loc = prompt('Deploy to location:');
+                      if (loc) {
+                        const inc = prompt('Incident/Event (optional):') || '';
+                        const who = prompt('Assigned to (optional):') || '';
+                        deployResource(sel.id, loc, inc, who);
+                      }
+                    }}
+                    primary
+                    small
+                  />
+                )}
+                {sel.status === 'deployed' && (
+                  <Btn
+                    label="Return to Inventory"
+                    onClick={() => {
+                      const cond =
+                        prompt(
+                          'Condition on return (Excellent/Good/Fair/Needs Repair):'
+                        ) || sel.condition;
+                      returnResource(sel.id, cond);
+                    }}
+                    small
+                  />
+                )}
+                <Btn
+                  label="Verify Inventory"
+                  onClick={() => {
+                    const by = prompt('Verified by:');
+                    if (by) verifyInventory(sel.id, by, 'Manual verification');
+                  }}
+                  small
+                />
+              </div>
+
+              {/* Details */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 10,
+                  marginBottom: 14,
+                }}
+              >
+                <div>
+                  <Label>Name</Label>
+                  <FInput
+                    value={sel.name || ''}
+                    onChange={(v) => updateRes(sel.id, 'name', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Serial / Asset Tag</Label>
+                  <FInput
+                    value={sel.serialNumber || ''}
+                    onChange={(v) => updateRes(sel.id, 'serialNumber', v)}
+                    placeholder="SN-001"
+                  />
+                </div>
+                <div>
+                  <Label>Category</Label>
+                  <FSel
+                    value={sel.category}
+                    onChange={(v) => updateRes(sel.id, 'category', v)}
+                  >
+                    {CATS.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </FSel>
+                </div>
+                <div>
+                  <Label>Qty</Label>
+                  <FInput
+                    value={sel.qty || ''}
+                    onChange={(v) => updateRes(sel.id, 'qty', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Location</Label>
+                  <FInput
+                    value={sel.location || ''}
+                    onChange={(v) => updateRes(sel.id, 'location', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Condition</Label>
+                  <FSel
+                    value={sel.condition}
+                    onChange={(v) => updateRes(sel.id, 'condition', v)}
+                  >
+                    {CONDS.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </FSel>
+                </div>
+                <div>
+                  <Label>Acquisition Date</Label>
+                  <FInput
+                    type="date"
+                    value={sel.acquisitionDate || ''}
+                    onChange={(v) => updateRes(sel.id, 'acquisitionDate', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Acquisition Cost ($)</Label>
+                  <FInput
+                    value={sel.acquisitionCost || ''}
+                    onChange={(v) => updateRes(sel.id, 'acquisitionCost', v)}
+                    placeholder="5000"
+                  />
+                </div>
+                <div>
+                  <Label>Funding Source</Label>
+                  <FSel
+                    value={sel.fundingSource || ''}
+                    onChange={(v) => updateRes(sel.id, 'fundingSource', v)}
+                  >
+                    <option value="">General Fund</option>
+                    <option value="empg">EMPG</option>
+                    <option value="hmgp">HMGP</option>
+                    <option value="uasi">UASI</option>
+                    <option value="bric">BRIC</option>
+                    <option value="shsp">SHSP</option>
+                    <option value="donated">Donated</option>
+                    <option value="other">Other</option>
+                  </FSel>
+                </div>
+                <div>
+                  <Label>Assigned To</Label>
+                  <FInput
+                    value={sel.assignedTo || ''}
+                    onChange={(v) => updateRes(sel.id, 'assignedTo', v)}
+                    placeholder="Person or unit"
+                  />
+                </div>
+              </div>
+
+              {/* Deployment status */}
+              {sel.status === 'deployed' && (
+                <Card
+                  style={{
+                    marginBottom: 14,
+                    borderLeft: `3px solid ${B.blue}`,
+                    borderRadius: '0 14px 14px 0',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: B.blue,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Currently Deployed
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: B.muted,
+                      display: 'flex',
+                      gap: 12,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    {sel.deployedTo && (
+                      <span>
+                        Location: <strong>{sel.deployedTo}</strong>
+                      </span>
+                    )}
+                    {sel.deployedIncident && (
+                      <span>Incident: {sel.deployedIncident}</span>
+                    )}
+                    {sel.deployedAssignee && (
+                      <span>Assigned: {sel.deployedAssignee}</span>
+                    )}
+                    {sel.deployedDate && (
+                      <span>Since: {fmtDate(sel.deployedDate)}</span>
+                    )}
+                  </div>
+                </Card>
+              )}
+
+              {/* Deployment History */}
+              {(sel.deploymentLog || []).length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: B.muted,
+                      marginBottom: 8,
+                    }}
+                  >
+                    Deployment History
+                  </div>
+                  {[...(sel.deploymentLog || [])]
+                    .reverse()
+                    .slice(0, 10)
+                    .map((log) => (
+                      <div
+                        key={log.id}
+                        style={{
+                          fontSize: 11,
+                          color: B.faint,
+                          padding: '5px 0',
+                          borderBottom: `1px solid #f4f8f9`,
+                          display: 'flex',
+                          gap: 8,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: 600,
+                            color: log.action === 'deployed' ? B.blue : B.green,
+                          }}
+                        >
+                          {log.action === 'deployed' ? 'Deployed' : 'Returned'}
+                        </span>
+                        <span>{fmtDate(log.date)}</span>
+                        {log.location && <span>@ {log.location}</span>}
+                        {log.assignee && <span>to {log.assignee}</span>}
+                        {log.condition && (
+                          <span>Condition: {log.condition}</span>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              {/* Inventory History */}
+              <div style={{ marginBottom: 14 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: B.muted,
+                    marginBottom: 4,
+                  }}
+                >
+                  Inventory Verification
+                </div>
+                <div style={{ fontSize: 11, color: B.faint, marginBottom: 8 }}>
+                  Last:{' '}
+                  {sel.lastInventoryDate ? (
+                    `${fmtDate(sel.lastInventoryDate)}${
+                      sel.lastInventoryBy ? ' by ' + sel.lastInventoryBy : ''
+                    }`
+                  ) : (
+                    <span style={{ color: B.amber }}>Never verified</span>
+                  )}
+                </div>
+                {(sel.inventoryLog || []).length > 0 &&
+                  [...(sel.inventoryLog || [])]
+                    .reverse()
+                    .slice(0, 5)
+                    .map((log) => (
+                      <div
+                        key={log.id}
+                        style={{
+                          fontSize: 11,
+                          color: B.faint,
+                          padding: '3px 0',
+                        }}
+                      >
+                        {fmtDate(log.date)} - {log.verifiedBy}
+                        {log.notes ? ' - ' + log.notes : ''}
+                      </div>
+                    ))}
+              </div>
+
+              {/* Docs */}
+              <Attachments
+                docs={sel.docs || []}
+                onAdd={(doc) =>
+                  updateRes(sel.id, 'docs', [...(sel.docs || []), doc])
+                }
+                onRemove={(id) =>
+                  updateRes(
+                    sel.id,
+                    'docs',
+                    (sel.docs || []).filter((d) => d.id !== id)
+                  )
+                }
+              />
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -7876,55 +9822,52 @@ function ResourcesView({ data, setData }) {
 function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
   const nav = [
     {
-      group: 'Overview',
+      group: '',
       items: [
         { id: 'dashboard', icon: '⊞', label: 'Dashboard' },
-        { id: 'calendar', icon: '⊟', label: 'Program Calendar' },
-        { id: 'activity', icon: '-', label: 'Activity Log' },
+        { id: 'settings', icon: '◧', label: 'My Program' },
       ],
     },
     {
       group: 'Program Ops',
       items: [
-        { id: 'training', icon: '-', label: 'Training' },
-        { id: 'exercises', icon: '-', label: 'Exercises & AARs' },
-        { id: 'plans', icon: '-', label: 'Plan Library' },
-        { id: 'partners', icon: '-', label: 'Partners & MOUs' },
-        { id: 'resources', icon: '-', label: 'Resources' },
-        { id: 'employees', icon: '-', label: 'Employees' },
-        { id: 'grants', icon: '$', label: 'Grant Tracker' },
+        { id: 'thira', icon: '◉', label: 'Hazard Analysis' },
+        { id: 'plans', icon: '◉', label: 'Plans & SOPs' },
+        { id: 'partners', icon: '◉', label: 'Partners & MOUs' },
+        { id: 'resources', icon: '◉', label: 'Resources' },
+        { id: 'employees', icon: '◉', label: 'Personnel' },
+        { id: 'training', icon: '◉', label: 'Training' },
+        { id: 'exercises', icon: '◉', label: 'Exercises & AARs' },
+        { id: 'grants', icon: '◉', label: 'Grants & Funding' },
       ],
     },
     {
-      group: 'Accreditation',
+      group: 'Compliance',
       items: [
-        { id: 'accreditation', icon: '-', label: 'EMAP Standards' },
-        { id: 'journey', icon: '-', label: 'Accreditation Journey' },
-        { id: 'intake', icon: '⊙', label: 'Bulk Doc Intake' },
-        { id: 'package', icon: '◧', label: 'Package Builder' },
-        { id: 'thira', icon: '-', label: 'SPR/THIRA' },
-        { id: 'cap', icon: '-', label: 'Corrective Actions' },
-        { id: 'reports', icon: '◧', label: 'Reports' },
+        { id: 'accreditation', icon: '✓', label: 'EMAP Standards' },
+        { id: 'journey', icon: '→', label: 'Accreditation Journey' },
+        { id: 'package', icon: '▤', label: 'Package Builder' },
+        { id: 'cap', icon: '⚑', label: 'Corrective Actions' },
       ],
     },
     {
-      group: 'AI',
+      group: 'AI Tools',
       items: [
         { id: 'assistant', icon: null, label: 'AI Assistant', ai: true },
-        { id: 'templates', icon: '◧', label: 'Doc Templates' },
-        { id: 'evidence', icon: '◧', label: 'Evidence Export' },
+        { id: 'intake', icon: '↑', label: 'Bulk Doc Intake' },
+        { id: 'templates', icon: '✦', label: 'Doc Templates' },
+        { id: 'evidence', icon: '↓', label: 'Evidence Export' },
       ],
     },
     {
-      group: 'Recovery & Mutual Aid',
+      group: 'Advanced',
       items: [
-        { id: 'recovery', icon: '-', label: 'Recovery Planning' },
-        { id: 'mutualaid', icon: '-', label: 'Mutual Aid Map' },
+        { id: 'recovery', icon: '↻', label: 'Recovery Planning' },
+        { id: 'mutualaid', icon: '◎', label: 'Mutual Aid' },
+        { id: 'reports', icon: '▤', label: 'Reports' },
+        { id: 'calendar', icon: '▦', label: 'Calendar' },
+        { id: 'activity', icon: '◷', label: 'Activity Log' },
       ],
-    },
-    {
-      group: 'Config',
-      items: [{ id: 'settings', icon: '◧', label: 'Settings' }],
     },
   ];
   const counts = {
@@ -7990,39 +9933,30 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
             <BrainIcon size={22} color={B.teal} strokeWidth={1.3} />
           </div>
           <Wordmark dark size="sm" />
-          {notifCount > 0 && (
-            <span
-              style={{
-                marginLeft: 'auto',
-                background: B.red,
-                color: '#fff',
-                borderRadius: 10,
-                fontSize: 9,
-                padding: '2px 5px',
-                fontWeight: 700,
-                flexShrink: 0,
-              }}
-            >
-              {notifCount}
-            </span>
-          )}
         </div>
         <div
           onClick={onEditOrg}
           style={{
             background: B.sidebarMid,
-            borderRadius: 8,
-            padding: '10px 12px',
+            borderRadius: 10,
+            padding: '12px 14px',
             cursor: 'pointer',
             border: `1px solid ${B.sidebarBorder}`,
+            transition: 'border-color 0.15s',
           }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.borderColor = 'rgba(27,201,196,0.3)')
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.borderColor = B.sidebarBorder)
+          }
         >
           <div
             style={{
-              fontSize: 12,
+              fontSize: 12.5,
               fontWeight: 700,
               color: '#e2e8f0',
-              marginBottom: 6,
+              marginBottom: 8,
             }}
           >
             {orgName || 'My Organization'}
@@ -8031,7 +9965,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
             style={{
               display: 'flex',
               justifyContent: 'space-between',
-              marginBottom: 4,
+              marginBottom: 5,
             }}
           >
             <span
@@ -8046,7 +9980,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
             </span>
             <span
               style={{
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: 700,
                 color:
                   overall.pct > 79
@@ -8059,48 +9993,68 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
               {overall.pct}%
             </span>
           </div>
-          <div style={{ height: 3, background: '#2E3439', borderRadius: 2 }}>
+          <div
+            style={{
+              height: 4,
+              background: '#2E3439',
+              borderRadius: 3,
+              overflow: 'hidden',
+            }}
+          >
             <div
               style={{
                 height: '100%',
                 width: `${overall.pct}%`,
                 background: `linear-gradient(90deg,${B.teal},${B.tealDark})`,
-                borderRadius: 2,
+                borderRadius: 3,
                 transition: 'width 0.8s ease',
               }}
             />
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 7 }}>
             <span style={{ fontSize: 9, color: '#34d399' }}>
-              ok{overall.compliant}
+              {overall.compliant} done
             </span>
             <span style={{ fontSize: 9, color: '#fbbf24' }}>
-              -{overall.in_progress}
+              {overall.in_progress} active
             </span>
             <span style={{ fontSize: 9, color: '#f87171' }}>
-              !{overall.needs_review}
+              {overall.needs_review} review
             </span>
-            <span style={{ fontSize: 9, color: B.sidebarBorder }}>
-              o{overall.not_started}
+            <span style={{ fontSize: 9, color: '#4A5568' }}>
+              {overall.not_started} todo
             </span>
           </div>
         </div>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 0' }}>
-        {nav.map((g) => (
-          <div key={g.group}>
-            <div
-              style={{
-                padding: '8px 18px 3px',
-                fontSize: 9,
-                color: B.sidebarBorder,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                fontWeight: 700,
-              }}
-            >
-              {g.group}
-            </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+        {nav.map((g, gi) => (
+          <div key={g.group || 'top'}>
+            {g.group && (
+              <div
+                style={{
+                  padding: '14px 18px 5px',
+                  fontSize: 9,
+                  color: '#4A5568',
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                {g.group}
+                <div
+                  style={{
+                    flex: 1,
+                    height: 1,
+                    background: B.sidebarBorder,
+                    opacity: 0.5,
+                  }}
+                />
+              </div>
+            )}
             {g.items.map((item) => (
               <button
                 key={item.id}
@@ -8108,83 +10062,68 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  width: 'calc(100% - 12px)',
-                  margin: '1px 6px',
-                  padding: '7px 10px',
-                  borderRadius: 7,
+                  gap: 9,
+                  width: 'calc(100% - 16px)',
+                  margin: '1px 8px',
+                  padding: '8px 12px',
+                  borderRadius: 9,
                   background:
-                    view === item.id ? 'rgba(27,201,196,0.12)' : 'none',
+                    view === item.id ? 'rgba(27,201,196,0.10)' : 'none',
                   border: `1px solid ${
-                    view === item.id ? 'rgba(27,201,196,0.3)' : 'tranSPRent'
+                    view === item.id ? 'rgba(27,201,196,0.25)' : 'transparent'
                   }`,
                   color:
                     view === item.id
                       ? B.teal
                       : item.ai
-                      ? B.teal
+                      ? '#6EDCD8'
                       : B.sidebarMuted,
                   cursor: 'pointer',
-                  fontSize: 12,
+                  fontSize: 12.5,
                   fontFamily: "'DM Sans',sans-serif",
                   textAlign: 'left',
-                  transition: 'all 0.12s',
+                  transition: 'all 0.15s ease',
+                  fontWeight: view === item.id ? 600 : 400,
+                }}
+                onMouseEnter={(e) => {
+                  if (view !== item.id)
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                }}
+                onMouseLeave={(e) => {
+                  if (view !== item.id)
+                    e.currentTarget.style.background = 'none';
                 }}
               >
                 {item.ai ? (
                   <BrainIcon
-                    size={13}
-                    color={view === item.id ? B.teal : '#6A8090'}
-                    strokeWidth={1.2}
+                    size={14}
+                    color={view === item.id ? B.teal : '#6EDCD8'}
+                    strokeWidth={1.3}
                   />
                 ) : (
-                  <span style={{ fontSize: 11, opacity: 0.8 }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      opacity: 0.5,
+                      width: 16,
+                      textAlign: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
                     {item.icon}
                   </span>
                 )}
-                {item.label}
-                {counts[item.id] > 0 && (
-                  <span
-                    style={{
-                      marginLeft: 'auto',
-                      background:
-                        view === item.id ? 'rgba(27,201,196,0.2)' : '#2E3439',
-                      color: view === item.id ? B.teal : B.sidebarMuted,
-                      borderRadius: 8,
-                      fontSize: 9,
-                      padding: '1px 5px',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {counts[item.id]}
-                  </span>
-                )}
-                {item.highlight && !counts[item.id] && view !== item.id && (
-                  <span
-                    style={{
-                      marginLeft: 'auto',
-                      fontSize: 9,
-                      color: B.amber,
-                      background: 'rgba(245,158,11,0.12)',
-                      padding: '1px 5px',
-                      borderRadius: 5,
-                      border: '1px solid rgba(245,158,11,0.2)',
-                      fontWeight: 700,
-                    }}
-                  >
-                    NEW
-                  </span>
-                )}
+                <span style={{ flex: 1 }}>{item.label}</span>
                 {item.ai && view !== item.id && (
                   <span
                     style={{
-                      marginLeft: 'auto',
-                      fontSize: 9,
+                      fontSize: 8,
                       color: B.teal,
                       background: 'rgba(27,201,196,0.1)',
-                      padding: '1px 5px',
-                      borderRadius: 5,
-                      border: `1px solid rgba(27,201,196,0.2)`,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontWeight: 700,
+                      letterSpacing: '0.05em',
                     }}
                   >
                     AI
@@ -8197,22 +10136,18 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
       </div>
       <div
         style={{
-          padding: '10px 18px',
+          padding: '12px 18px',
           borderTop: `1px solid ${B.sidebarBorder}`,
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
+          gap: 7,
         }}
       >
-        <BrainIcon size={11} color={B.sidebarBorder} strokeWidth={1} />
+        <BrainIcon size={12} color={'#4A5568'} strokeWidth={1} />
         <span
-          style={{
-            fontSize: 9,
-            color: B.sidebarBorder,
-            letterSpacing: '0.06em',
-          }}
+          style={{ fontSize: 9, color: '#4A5568', letterSpacing: '0.06em' }}
         >
-          PLANRR - EMAP EMS 5-2022 - ANSI
+          PLANRR · EMAP EMS 5-2022
         </span>
       </div>
     </aside>
@@ -8583,7 +10518,7 @@ function ReportsView({ data, orgName }) {
             EMAP EMS 5-2022 - {today2}
             {brand.logoBase64
               ? ''
-              : '  -  Add your logo in Settings - Branding'}
+              : '  -  Add your logo in My Program → Branding'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -8983,8 +10918,8 @@ function ReportsView({ data, orgName }) {
           }}
         >
           Tip: Upload your agency logo in{' '}
-          <strong style={{ color: B.text }}>Settings - Branding</strong> to add
-          it to exports, along with your accent color and footer disclaimer.
+          <strong style={{ color: B.text }}>My Program → Branding</strong> to
+          add it to exports, along with your accent color and footer disclaimer.
         </div>
       )}
     </div>
@@ -9285,20 +11220,37 @@ const GRANT_STATUS = {
 };
 
 /* --- GRANT WORK LOG ---------------------------------- */
-function GrantWorkLog({ grant, onUpdate }) {
+function GrantWorkLog({ grant, onUpdate, employees }) {
+  const deliverables = grant.deliverables || [];
   const [form, setForm] = useState({
     date: today(),
     description: '',
     hours: '',
     person: '',
     type: 'Meeting',
+    deliverableId: '',
+    costOverride: '',
   });
   const entries = grant.workLog || [];
+
+  // Find employee billable rate
+  const getRate = (personName) => {
+    if (!employees || !personName) return 0;
+    const emp = employees.find(
+      (e) => e.name?.toLowerCase() === personName.toLowerCase()
+    );
+    return parseFloat(emp?.hourlyRate || 0);
+  };
+
   const addEntry = () => {
     if (!form.description) return;
+    const rate = form.costOverride
+      ? parseFloat(form.costOverride)
+      : getRate(form.person);
+    const cost = rate * parseFloat(form.hours || 0);
     onUpdate('workLog', [
       ...entries,
-      { ...form, id: uid(), addedAt: Date.now() },
+      { ...form, id: uid(), addedAt: Date.now(), rate, cost },
     ]);
     setForm({
       date: today(),
@@ -9306,6 +11258,8 @@ function GrantWorkLog({ grant, onUpdate }) {
       hours: '',
       person: '',
       type: 'Meeting',
+      deliverableId: '',
+      costOverride: '',
     });
   };
   const removeEntry = (id) =>
@@ -9314,6 +11268,7 @@ function GrantWorkLog({ grant, onUpdate }) {
       entries.filter((e) => e.id !== id)
     );
   const totalHours = entries.reduce((a, e) => a + parseFloat(e.hours || 0), 0);
+  const totalCost = entries.reduce((a, e) => a + parseFloat(e.cost || 0), 0);
   return (
     <div>
       <div
@@ -9366,6 +11321,7 @@ function GrantWorkLog({ grant, onUpdate }) {
               <option>Training</option>
               <option>Exercise</option>
               <option>Reporting</option>
+              <option>Procurement</option>
               <option>Other</option>
             </FSel>
           </div>
@@ -9386,31 +11342,107 @@ function GrantWorkLog({ grant, onUpdate }) {
             />
           </div>
         </div>
-        <div style={{ marginBottom: 8 }}>
-          <Label>Description</Label>
-          <FInput
-            value={form.description}
-            onChange={(v) => setForm((p) => ({ ...p, description: v }))}
-            placeholder="Meeting with state agency re: quarterly report..."
-          />
-        </div>
-        <Btn label="Log Entry" onClick={addEntry} primary small />
-      </div>
-      {totalHours > 0 && (
         <div
           style={{
-            background: `${B.green}10`,
-            border: `1px solid ${B.greenBorder}`,
-            borderRadius: 7,
-            padding: '8px 14px',
-            marginBottom: 12,
-            fontSize: 12,
-            color: '#166534',
-            fontWeight: 600,
+            display: 'grid',
+            gridTemplateColumns: '2fr 1fr 1fr',
+            gap: 8,
+            marginBottom: 8,
           }}
         >
-          Total logged: {totalHours.toFixed(1)} hours across {entries.length}{' '}
-          entries
+          <div>
+            <Label>Description</Label>
+            <FInput
+              value={form.description}
+              onChange={(v) => setForm((p) => ({ ...p, description: v }))}
+              placeholder="Meeting with state agency re: quarterly report..."
+            />
+          </div>
+          <div>
+            <Label>Deliverable</Label>
+            <FSel
+              value={form.deliverableId}
+              onChange={(v) => setForm((p) => ({ ...p, deliverableId: v }))}
+            >
+              <option value="">None</option>
+              {deliverables.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.item.slice(0, 40)}
+                  {d.item.length > 40 ? '...' : ''}
+                </option>
+              ))}
+            </FSel>
+          </div>
+          <div>
+            <Label>Cost Override ($)</Label>
+            <FInput
+              value={form.costOverride}
+              onChange={(v) => setForm((p) => ({ ...p, costOverride: v }))}
+              placeholder={
+                form.person ? `Auto: $${getRate(form.person)}/hr` : 'Rate'
+              }
+            />
+          </div>
+        </div>
+        {form.hours && (form.costOverride || getRate(form.person) > 0) && (
+          <div
+            style={{
+              fontSize: 11,
+              color: B.teal,
+              marginBottom: 8,
+              fontWeight: 600,
+            }}
+          >
+            Cost: {parseFloat(form.hours || 0)} hrs x $
+            {form.costOverride || getRate(form.person)}/hr = $
+            {(
+              parseFloat(form.hours || 0) *
+              (parseFloat(form.costOverride) || getRate(form.person))
+            ).toFixed(2)}
+          </div>
+        )}
+        <Btn label="Log Entry" onClick={addEntry} primary small />
+      </div>
+      {(totalHours > 0 || totalCost > 0) && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 10,
+            marginBottom: 12,
+          }}
+        >
+          <div
+            style={{
+              background: `${B.green}10`,
+              border: `1px solid ${B.greenBorder}`,
+              borderRadius: 7,
+              padding: '8px 14px',
+              fontSize: 12,
+              color: '#166534',
+              fontWeight: 600,
+            }}
+          >
+            {totalHours.toFixed(1)} hours logged across {entries.length} entries
+          </div>
+          <div
+            style={{
+              background: `${B.teal}10`,
+              border: `1px solid ${B.tealBorder}`,
+              borderRadius: 7,
+              padding: '8px 14px',
+              fontSize: 12,
+              color: B.tealDark,
+              fontWeight: 600,
+            }}
+          >
+            $
+            {totalCost.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}{' '}
+            labor cost
+          </div>
         </div>
       )}
       {entries.length === 0 ? (
@@ -9424,55 +11456,87 @@ function GrantWorkLog({ grant, onUpdate }) {
             fontSize: 13,
           }}
         >
-          No work log entries yet
+          No work log entries yet. Log hours to track labor costs against this
+          grant.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {[...entries].reverse().map((e) => (
-            <div
-              key={e.id}
-              style={{
-                background: B.card,
-                border: `1px solid ${B.border}`,
-                borderRadius: 8,
-                padding: '10px 13px',
-                display: 'flex',
-                gap: 10,
-                alignItems: 'flex-start',
-              }}
-            >
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: B.text,
-                    marginBottom: 2,
-                  }}
-                >
-                  {e.description}
-                </div>
-                <div style={{ fontSize: 11, color: B.faint }}>
-                  {fmtDate(e.date)} - {e.type}
-                  {e.person ? '  -  ' + e.person : ''}
-                  {e.hours ? '  -  ' + e.hours + 'h' : ''}
-                </div>
-              </div>
-              <button
-                onClick={() => removeEntry(e.id)}
+          {[...entries].reverse().map((e) => {
+            const dlName = e.deliverableId
+              ? deliverables.find((d) => d.id === e.deliverableId)?.item
+              : '';
+            return (
+              <div
+                key={e.id}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#d1d5db',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  padding: '2px 6px',
+                  background: B.card,
+                  border: `1px solid ${B.border}`,
+                  borderRadius: 8,
+                  padding: '10px 13px',
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'flex-start',
                 }}
               >
-                x
-              </button>
-            </div>
-          ))}
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: B.text,
+                      marginBottom: 2,
+                    }}
+                  >
+                    {e.description}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: B.faint,
+                      display: 'flex',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span>{fmtDate(e.date)}</span>
+                    <span>{e.type}</span>
+                    {e.person && <span>{e.person}</span>}
+                    {e.hours && <span>{e.hours}h</span>}
+                    {e.cost > 0 && (
+                      <span style={{ color: B.teal, fontWeight: 600 }}>
+                        ${parseFloat(e.cost).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  {dlName && (
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: B.green,
+                        marginTop: 3,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Deliverable: {dlName.slice(0, 50)}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => removeEntry(e.id)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#d1d5db',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    padding: '2px 6px',
+                  }}
+                >
+                  x
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -9651,9 +11715,11 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                 style={{
                   padding: '6px 12px',
                   borderRadius: '6px 6px 0 0',
-                  border: `1px solid ${tab === t.id ? B.border : 'tranSPRent'}`,
+                  border: `1px solid ${
+                    tab === t.id ? B.border : 'transparent'
+                  }`,
                   borderBottom: `1px solid ${tab === t.id ? B.card : B.border}`,
-                  background: tab === t.id ? B.card : 'tranSPRent',
+                  background: tab === t.id ? B.card : 'transparent',
                   color: tab === t.id ? B.green : B.muted,
                   fontSize: 12,
                   fontWeight: tab === t.id ? 700 : 500,
@@ -9866,6 +11932,13 @@ function GrantDetail({ grant, onUpdate, onClose }) {
               {(grant.deliverables || []).map((d) => {
                 const dueDays = daysUntil(d.due);
                 const urgent = dueDays !== null && dueDays < 14 && !d.done;
+                const dlExpense = parseFloat(d.expense || 0);
+                const dlLoggedCost = (grant.workLog || [])
+                  .filter((w) => w.deliverableId === d.id)
+                  .reduce((a, w) => a + parseFloat(w.cost || 0), 0);
+                const dlLoggedHrs = (grant.workLog || [])
+                  .filter((w) => w.deliverableId === d.id)
+                  .reduce((a, w) => a + parseFloat(w.hours || 0), 0);
                 return (
                   <div
                     key={d.id}
@@ -9920,6 +11993,17 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                           border={B.redBorder}
                         />
                       )}
+                      {(dlExpense > 0 || dlLoggedCost > 0) && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            color: B.teal,
+                            fontWeight: 600,
+                          }}
+                        >
+                          ${(dlExpense + dlLoggedCost).toLocaleString()}
+                        </span>
+                      )}
                       <button
                         onClick={() => removeDel(d.id)}
                         style={{
@@ -9930,37 +12014,72 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                           fontSize: 13,
                         }}
                       >
-                        -
+                        x
                       </button>
                     </div>
                     {!d.done && (
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 1fr 2fr',
-                          gap: 8,
-                          marginLeft: 24,
-                          marginBottom: 8,
-                        }}
-                      >
-                        <div>
-                          <Label>Due Date</Label>
-                          <FInput
-                            type="date"
-                            value={d.due || ''}
-                            onChange={(v) => updateDel(d.id, 'due', v)}
-                            style={{ fontSize: 11, padding: '5px 8px' }}
-                          />
+                      <div style={{ marginLeft: 24, marginBottom: 4 }}>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr 1fr',
+                            gap: 8,
+                            marginBottom: 8,
+                          }}
+                        >
+                          <div>
+                            <Label>Due Date</Label>
+                            <FInput
+                              type="date"
+                              value={d.due || ''}
+                              onChange={(v) => updateDel(d.id, 'due', v)}
+                              style={{ fontSize: 11, padding: '5px 8px' }}
+                            />
+                          </div>
+                          <div>
+                            <Label>Direct Expense ($)</Label>
+                            <FInput
+                              value={d.expense || ''}
+                              onChange={(v) => updateDel(d.id, 'expense', v)}
+                              placeholder="0.00"
+                              style={{ fontSize: 11, padding: '5px 8px' }}
+                            />
+                          </div>
+                          <div>
+                            <Label>Notes</Label>
+                            <FInput
+                              value={d.notes || ''}
+                              onChange={(v) => updateDel(d.id, 'notes', v)}
+                              placeholder="Notes..."
+                              style={{ fontSize: 11, padding: '5px 8px' }}
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <Label>Notes</Label>
-                          <FInput
-                            value={d.notes || ''}
-                            onChange={(v) => updateDel(d.id, 'notes', v)}
-                            placeholder="Notes..."
-                            style={{ fontSize: 11, padding: '5px 8px' }}
-                          />
-                        </div>
+                        {dlLoggedHrs > 0 && (
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: B.faint,
+                              marginBottom: 6,
+                            }}
+                          >
+                            {dlLoggedHrs.toFixed(1)}h logged in work log = $
+                            {dlLoggedCost.toFixed(2)} labor
+                          </div>
+                        )}
+                        <Attachments
+                          docs={d.docs || []}
+                          onAdd={(doc) =>
+                            updateDel(d.id, 'docs', [...(d.docs || []), doc])
+                          }
+                          onRemove={(id) =>
+                            updateDel(
+                              d.id,
+                              'docs',
+                              (d.docs || []).filter((x) => x.id !== id)
+                            )
+                          }
+                        />
                       </div>
                     )}
                   </div>
@@ -9984,165 +12103,369 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                 Log meetings, site visits, and hours billed to this grant. EMPG
                 requires personnel time documentation.
               </div>
-              <GrantWorkLog grant={grant} onUpdate={u} />
+              <GrantWorkLog
+                grant={grant}
+                onUpdate={u}
+                employees={grant._employees}
+              />
             </div>
           )}
-          {tab === 'budget' && (
-            <div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 12,
-                  marginBottom: 16,
-                }}
-              >
+          {tab === 'budget' &&
+            (() => {
+              const laborCost = (grant.workLog || []).reduce(
+                (a, e) => a + parseFloat(e.cost || 0),
+                0
+              );
+              const directExpenses = (grant.deliverables || []).reduce(
+                (a, d) => a + parseFloat(d.expense || 0),
+                0
+              );
+              const manualExpended = parseFloat(grant.expended || 0);
+              const calculatedExpended = laborCost + directExpenses;
+              const totalExpended = Math.max(
+                manualExpended,
+                calculatedExpended
+              );
+              const expendPct =
+                totalBudget > 0
+                  ? Math.round((totalExpended / totalBudget) * 100)
+                  : 0;
+              return (
                 <div>
-                  <Label>Award Amount ($)</Label>
-                  <FInput
-                    value={grant.amount || ''}
-                    onChange={(v) => u('amount', v)}
-                    placeholder="250000"
-                  />
-                </div>
-                <div>
-                  <Label>Non-Federal Match (%)</Label>
-                  <FInput
-                    value={grant.matchPct || ''}
-                    onChange={(v) => u('matchPct', v)}
-                    placeholder="25"
-                  />
-                </div>
-              </div>
-              {totalBudget > 0 && (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr 1fr',
-                    gap: 10,
-                    marginBottom: 16,
-                  }}
-                >
-                  {[
-                    {
-                      label: 'Federal Award',
-                      val: `$${totalBudget.toLocaleString()}`,
-                      color: B.green,
-                    },
-                    {
-                      label: 'Match Required',
-                      val: `$${matchAmt.toLocaleString()}`,
-                      color: B.amber,
-                    },
-                    {
-                      label: 'Total Project',
-                      val: `$${(totalBudget + matchAmt).toLocaleString()}`,
-                      color: B.blue,
-                    },
-                  ].map((s) => (
-                    <Card
-                      key={s.label}
-                      style={{ padding: '12px 14px', textAlign: 'center' }}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 12,
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div>
+                      <Label>Award Amount ($)</Label>
+                      <FInput
+                        value={grant.amount || ''}
+                        onChange={(v) => u('amount', v)}
+                        placeholder="250000"
+                      />
+                    </div>
+                    <div>
+                      <Label>Non-Federal Match (%)</Label>
+                      <FInput
+                        value={grant.matchPct || ''}
+                        onChange={(v) => u('matchPct', v)}
+                        placeholder="25"
+                      />
+                    </div>
+                  </div>
+                  {totalBudget > 0 && (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr 1fr',
+                        gap: 10,
+                        marginBottom: 16,
+                      }}
                     >
-                      <div
+                      {[
+                        {
+                          label: 'Federal Award',
+                          val: `$${totalBudget.toLocaleString()}`,
+                          color: B.green,
+                        },
+                        {
+                          label: 'Match Required',
+                          val: `$${matchAmt.toLocaleString()}`,
+                          color: B.amber,
+                        },
+                        {
+                          label: 'Total Project',
+                          val: `$${(totalBudget + matchAmt).toLocaleString()}`,
+                          color: B.blue,
+                        },
+                      ].map((s) => (
+                        <Card
+                          key={s.label}
+                          style={{ padding: '12px 14px', textAlign: 'center' }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 18,
+                              fontWeight: 800,
+                              color: s.color,
+                            }}
+                          >
+                            {s.val}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: B.faint,
+                              marginTop: 3,
+                            }}
+                          >
+                            {s.label}
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Expenditure breakdown */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: B.text,
+                        marginBottom: 10,
+                      }}
+                    >
+                      Funds Expended
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                        gap: 10,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <Card
                         style={{
-                          fontSize: 18,
-                          fontWeight: 800,
-                          color: s.color,
-                        }}
-                      >
-                        {s.val}
-                      </div>
-                      <div
-                        style={{ fontSize: 11, color: B.faint, marginTop: 3 }}
-                      >
-                        {s.label}
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
-              <div style={{ marginBottom: 12 }}>
-                <Label>Match Source / Notes</Label>
-                <FTextarea
-                  value={grant.matchNotes || ''}
-                  onChange={(v) => u('matchNotes', v)}
-                  rows={3}
-                  placeholder="Describe how the non-federal match will be met (in-kind, cash, etc.)..."
-                />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <Label>Budget Narrative / Notes</Label>
-                <FTextarea
-                  value={grant.budgetNotes || ''}
-                  onChange={(v) => u('budgetNotes', v)}
-                  rows={4}
-                  placeholder="Budget breakdown, expenditure tracking notes..."
-                />
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 10,
-                }}
-              >
-                <div>
-                  <Label>Funds Expended ($)</Label>
-                  <FInput
-                    value={grant.expended || ''}
-                    onChange={(v) => u('expended', v)}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <Label>Expenditure Rate</Label>
-                  {grant.amount && grant.expended ? (
-                    <div style={{ marginTop: 5 }}>
-                      <div
-                        style={{
-                          height: 6,
-                          background: '#edf2f4',
-                          borderRadius: 3,
-                          overflow: 'hidden',
+                          padding: '12px 14px',
+                          textAlign: 'center',
+                          background: `${B.teal}08`,
                         }}
                       >
                         <div
                           style={{
-                            height: '100%',
-                            width: `${Math.min(
-                              100,
-                              Math.round(
-                                (parseFloat(grant.expended) /
-                                  parseFloat(grant.amount)) *
-                                  100
-                              )
-                            )}%`,
+                            fontSize: 18,
+                            fontWeight: 800,
+                            color: B.teal,
+                          }}
+                        >
+                          $
+                          {laborCost.toLocaleString(undefined, {
+                            maximumFractionDigits: 0,
+                          })}
+                        </div>
+                        <div
+                          style={{ fontSize: 10, color: B.faint, marginTop: 3 }}
+                        >
+                          Labor (from Work Log)
+                        </div>
+                      </Card>
+                      <Card
+                        style={{
+                          padding: '12px 14px',
+                          textAlign: 'center',
+                          background: `${B.amber}08`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 800,
+                            color: B.amber,
+                          }}
+                        >
+                          $
+                          {directExpenses.toLocaleString(undefined, {
+                            maximumFractionDigits: 0,
+                          })}
+                        </div>
+                        <div
+                          style={{ fontSize: 10, color: B.faint, marginTop: 3 }}
+                        >
+                          Direct (from Deliverables)
+                        </div>
+                      </Card>
+                      <Card
+                        style={{
+                          padding: '12px 14px',
+                          textAlign: 'center',
+                          background: `${B.green}08`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 800,
+                            color: B.green,
+                          }}
+                        >
+                          $
+                          {totalExpended.toLocaleString(undefined, {
+                            maximumFractionDigits: 0,
+                          })}
+                        </div>
+                        <div
+                          style={{ fontSize: 10, color: B.faint, marginTop: 3 }}
+                        >
+                          Total Expended
+                        </div>
+                      </Card>
+                      <Card
+                        style={{ padding: '12px 14px', textAlign: 'center' }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 800,
+                            color:
+                              totalBudget > 0
+                                ? expendPct > 90
+                                  ? B.red
+                                  : expendPct > 70
+                                  ? B.amber
+                                  : B.teal
+                                : B.faint,
+                          }}
+                        >
+                          {expendPct}%
+                        </div>
+                        <div
+                          style={{ fontSize: 10, color: B.faint, marginTop: 3 }}
+                        >
+                          Burn Rate
+                        </div>
+                      </Card>
+                    </div>
+                    {totalBudget > 0 && (
+                      <div
+                        style={{
+                          height: 8,
+                          background: '#edf2f4',
+                          borderRadius: 4,
+                          overflow: 'hidden',
+                          marginBottom: 8,
+                        }}
+                      >
+                        <div style={{ height: '100%', display: 'flex' }}>
+                          <div
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.round((laborCost / totalBudget) * 100)
+                              )}%`,
+                              background: B.teal,
+                              transition: 'width 0.5s',
+                            }}
+                          />
+                          <div
+                            style={{
+                              width: `${Math.min(
+                                100 -
+                                  Math.round((laborCost / totalBudget) * 100),
+                                Math.round((directExpenses / totalBudget) * 100)
+                              )}%`,
+                              background: B.amber,
+                              transition: 'width 0.5s',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 12,
+                        fontSize: 11,
+                        color: B.faint,
+                      }}
+                    >
+                      <span>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: 8,
+                            height: 8,
+                            borderRadius: 2,
                             background: B.teal,
-                            borderRadius: 3,
+                            marginRight: 4,
                           }}
                         />
-                      </div>
-                      <div
-                        style={{ fontSize: 11, color: B.muted, marginTop: 3 }}
-                      >
-                        {Math.round(
-                          (parseFloat(grant.expended) /
-                            parseFloat(grant.amount)) *
-                            100
-                        )}
-                        % expended
+                        Labor
+                      </span>
+                      <span>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: 8,
+                            height: 8,
+                            borderRadius: 2,
+                            background: B.amber,
+                            marginRight: 4,
+                          }}
+                        />
+                        Direct expenses
+                      </span>
+                      <span>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: 8,
+                            height: 8,
+                            borderRadius: 2,
+                            background: '#edf2f4',
+                            marginRight: 4,
+                          }}
+                        />
+                        Remaining
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div>
+                      <Label>Manual Override - Expended ($)</Label>
+                      <FInput
+                        value={grant.expended || ''}
+                        onChange={(v) => u('expended', v)}
+                        placeholder="Auto-calculated above"
+                      />
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-end',
+                        paddingBottom: 2,
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: B.faint }}>
+                        Use this to override the auto-calculation if needed. The
+                        higher of manual or calculated is used.
                       </div>
                     </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: B.faint, marginTop: 8 }}>
-                      Enter amounts above
-                    </div>
-                  )}
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <Label>Match Source / Notes</Label>
+                    <FTextarea
+                      value={grant.matchNotes || ''}
+                      onChange={(v) => u('matchNotes', v)}
+                      rows={3}
+                      placeholder="Describe how the non-federal match will be met (in-kind, cash, etc.)..."
+                    />
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <Label>Budget Narrative / Notes</Label>
+                    <FTextarea
+                      value={grant.budgetNotes || ''}
+                      onChange={(v) => u('budgetNotes', v)}
+                      rows={4}
+                      placeholder="Budget breakdown, expenditure tracking notes..."
+                    />
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              );
+            })()}
           {tab === 'ai' && (
             <div>
               <div
@@ -10288,6 +12611,7 @@ function GrantTracker({ data, setData }) {
             federal funding - EMAP 3.4, 4.7
           </p>
         </div>
+        <CoachBanner moduleId="grants" />
         <Btn label="+ Add Grant" onClick={() => setShowForm(true)} primary />
       </div>
       {grants.length > 0 && (
@@ -10624,8 +12948,11 @@ function GrantTracker({ data, setData }) {
       )}
       {sel && (
         <GrantDetail
-          grant={sel}
-          onUpdate={(updated) => updateGrant(sel.id, updated)}
+          grant={{ ...sel, _employees: data.employees || [] }}
+          onUpdate={(updated) => {
+            const { _employees, ...clean } = updated;
+            updateGrant(sel.id, clean);
+          }}
           onClose={() => setSelectedId(null)}
         />
       )}
@@ -10669,6 +12996,9 @@ const CORE_CAPS = [
   'Interdiction & Disruption',
   'Screening, Search & Detection',
   'Access Control & ID Verification',
+  'Physical Protective Measures',
+  'Risk Management for Protection Programs & Activities',
+  'Supply Chain Integrity & Security',
   'Critical Transportation',
   'Environmental Response / Health & Safety',
   'Fatality Management Services',
@@ -10676,9 +13006,8 @@ const CORE_CAPS = [
   'Logistics & Supply Chain Mgmt',
   'Mass Care Services',
   'Mass Search & Rescue',
-  'On-scene Security & Protection',
+  'On-scene Security, Protection & Law Enforcement',
   'Operational Communications',
-  'Public & Private Services & Resources',
   'Public Health, Healthcare & EMS',
   'Situational Assessment',
   'Infrastructure Systems',
@@ -10911,7 +13240,7 @@ function ThiraView({ data, setData }) {
   };
 
   // Generate a full THIRA/SPR document
-  const generateSPR = async () => {
+  const generateSpar = async () => {
     setGenLoad(true);
     setGenDoc('');
     const hazList = (thira.hazards || [])
@@ -10954,7 +13283,7 @@ function ThiraView({ data, setData }) {
     setGenLoad(false);
   };
 
-  const downloadSPR = () => {
+  const downloadSpar = () => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([genDoc], { type: 'text/plain' }));
     a.download = `${data.orgName || 'planrr'}-SPR-THIRA-${today()}.txt`;
@@ -11011,6 +13340,7 @@ function ThiraView({ data, setData }) {
           <Btn label="+ Add Hazard" onClick={() => setShowForm(true)} primary />
         </div>
       </div>
+      <CoachBanner moduleId="thira" />
 
       {/* Tabs */}
       <div
@@ -11028,9 +13358,9 @@ function ThiraView({ data, setData }) {
             style={{
               padding: '7px 16px',
               borderRadius: '7px 7px 0 0',
-              border: `1px solid ${tab === t.id ? B.border : 'tranSPRent'}`,
+              border: `1px solid ${tab === t.id ? B.border : 'transparent'}`,
               borderBottom: `1px solid ${tab === t.id ? B.card : B.border}`,
-              background: tab === t.id ? B.card : 'tranSPRent',
+              background: tab === t.id ? B.card : 'transparent',
               color: tab === t.id ? B.blue : B.muted,
               fontSize: 12,
               fontWeight: tab === t.id ? 700 : 500,
@@ -11804,7 +14134,7 @@ function ThiraView({ data, setData }) {
             }}
           >
             <button
-              onClick={generateSPR}
+              onClick={generateSpar}
               disabled={genLoad}
               style={{
                 background: B.purple,
@@ -11828,10 +14158,10 @@ function ThiraView({ data, setData }) {
                 : 'Generate THIRA/SPR Document'}
             </button>
             {genDoc && !genLoad && (
-              <Btn label="- Download .txt" onClick={downloadSPR} />
+              <Btn label="- Download .txt" onClick={downloadSpar} />
             )}
             {genDoc && !genLoad && (
-              <Btn label="Regenerate" onClick={generateSPR} />
+              <Btn label="Regenerate" onClick={generateSpar} />
             )}
           </div>
           {genLoad && (
@@ -11901,7 +14231,7 @@ function ThiraView({ data, setData }) {
                   {data.orgName || 'Your Organization'} - THIRA/SPR Document
                 </div>
                 <div style={{ display: 'flex', gap: 7 }}>
-                  <Btn label="- Download .txt" onClick={downloadSPR} small />
+                  <Btn label="- Download .txt" onClick={downloadSpar} small />
                   <button
                     onClick={() => {
                       navigator.clipboard?.writeText(genDoc);
@@ -12020,6 +14350,21 @@ function CapDashboard({ data, setData }) {
         });
       });
     });
+    (data.incidents || []).forEach((inc) => {
+      (inc.corrective || []).forEach((ca) => {
+        all.push({
+          id: 'inc-' + ca.id,
+          item: ca.item,
+          source: 'real_incident',
+          sourceRef: inc.name,
+          priority: 'high',
+          responsible: '',
+          due: ca.due || '',
+          closed: ca.closed,
+          emapRef: '4.12',
+        });
+      });
+    });
     return all;
   }, [data.exercises]);
   const allCAs = [...exCAs, ...capItems];
@@ -12119,6 +14464,7 @@ function CapDashboard({ data, setData }) {
         </div>
         <Btn label="+ Add CAP Item" onClick={() => setShowForm(true)} primary />
       </div>
+      <CoachBanner moduleId="cap" />
       <div
         style={{
           display: 'grid',
@@ -12758,18 +15104,18 @@ function SettingsView({ data, updateData }) {
 
   return (
     <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 860 }}>
-      <div style={{ marginBottom: 22 }}>
+      <div style={{ marginBottom: 28 }}>
         <h1
           style={{
-            fontSize: 22,
+            fontSize: 24,
             fontWeight: 800,
             color: B.text,
-            letterSpacing: '-0.3px',
+            letterSpacing: '-0.5px',
           }}
         >
-          Settings
+          My Program
         </h1>
-        <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
+        <p style={{ color: B.faint, fontSize: 13, marginTop: 4 }}>
           Organization profile, agency branding, and export configuration
         </p>
       </div>
@@ -12778,10 +15124,11 @@ function SettingsView({ data, updateData }) {
       <div
         style={{
           display: 'flex',
-          gap: 2,
-          marginBottom: 20,
-          borderBottom: `1px solid ${B.border}`,
-          paddingBottom: 0,
+          gap: 4,
+          marginBottom: 24,
+          padding: '4px',
+          background: '#f0f3f4',
+          borderRadius: 12,
         }}
       >
         {tabs.map((t) => (
@@ -12789,21 +15136,18 @@ function SettingsView({ data, updateData }) {
             key={t.id}
             onClick={() => setActiveTab(t.id)}
             style={{
-              padding: '8px 16px',
-              borderRadius: '8px 8px 0 0',
-              border: `1px solid ${
-                activeTab === t.id ? B.border : 'tranSPRent'
-              }`,
-              borderBottom: `1px solid ${
-                activeTab === t.id ? B.card : B.border
-              }`,
-              background: activeTab === t.id ? B.card : 'tranSPRent',
-              color: activeTab === t.id ? B.teal : B.muted,
+              padding: '9px 18px',
+              borderRadius: 9,
+              border: 'none',
+              background: activeTab === t.id ? '#fff' : 'transparent',
+              color: activeTab === t.id ? B.text : B.faint,
               fontSize: 13,
               fontWeight: activeTab === t.id ? 700 : 500,
               cursor: 'pointer',
               fontFamily: "'DM Sans',sans-serif",
-              marginBottom: -1,
+              transition: 'all 0.15s ease',
+              boxShadow:
+                activeTab === t.id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
             }}
           >
             {t.label}
@@ -12817,10 +15161,10 @@ function SettingsView({ data, updateData }) {
           <Card style={{ marginBottom: 14 }}>
             <div
               style={{
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: 700,
                 color: B.text,
-                marginBottom: 14,
+                marginBottom: 16,
               }}
             >
               Organization Details
@@ -12904,10 +15248,10 @@ function SettingsView({ data, updateData }) {
           <Card style={{ marginBottom: 14 }}>
             <div
               style={{
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: 700,
                 color: B.text,
-                marginBottom: 14,
+                marginBottom: 16,
               }}
             >
               Primary Emergency Manager
@@ -12965,7 +15309,7 @@ function SettingsView({ data, updateData }) {
             </div>
             <div style={{ fontSize: 12, color: B.faint, marginBottom: 14 }}>
               Appears top-left on all PDF exports and printed reports.
-              Recommended: PNG or SVG, tranSPRent background, at least 200px
+              Recommended: PNG or SVG, transparent background, at least 200px
               wide.
             </div>
             <div
@@ -13155,7 +15499,7 @@ function SettingsView({ data, updateData }) {
                     borderRadius: 8,
                     background: c,
                     border: `2px solid ${
-                      brand.accentColor === c ? '#111' : 'tranSPRent'
+                      brand.accentColor === c ? '#111' : 'transparent'
                     }`,
                     cursor: 'pointer',
                     boxShadow:
@@ -14478,7 +16822,7 @@ function Dashboard({ data, setView, orgName }) {
                   (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')
                 }
                 onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = 'tranSPRent')
+                  (e.currentTarget.style.background = 'transparent')
                 }
               >
                 <span
@@ -14621,8 +16965,11 @@ function Dashboard({ data, setView, orgName }) {
                     gap: 10,
                     alignItems: 'center',
                     padding: '8px 10px',
-                    background: i === 0 ? 'rgba(239,68,68,0.04)' : 'tranSPRent',
-                    border: `1px solid ${i === 0 ? B.redBorder : 'tranSPRent'}`,
+                    background:
+                      i === 0 ? 'rgba(239,68,68,0.04)' : 'transparent',
+                    border: `1px solid ${
+                      i === 0 ? B.redBorder : 'transparent'
+                    }`,
                     borderRadius: 7,
                     cursor: 'pointer',
                     transition: 'all 0.12s',
@@ -14632,7 +16979,7 @@ function Dashboard({ data, setView, orgName }) {
                   }
                   onMouseLeave={(e) =>
                     (e.currentTarget.style.background =
-                      i === 0 ? 'rgba(239,68,68,0.04)' : 'tranSPRent')
+                      i === 0 ? 'rgba(239,68,68,0.04)' : 'transparent')
                   }
                 >
                   <div
@@ -15435,6 +17782,7 @@ function BulkIntake({ data, updateData }) {
           program.
         </p>
       </div>
+      <CoachBanner moduleId="intake" />
       <div
         style={{
           display: 'grid',
@@ -16198,7 +18546,7 @@ function GlobalSearch({ data, setView, onClose }) {
                 outline: 'none',
                 fontSize: 14,
                 color: B.text,
-                background: 'tranSPRent',
+                background: 'transparent',
                 fontFamily: "'DM Sans',sans-serif",
               }}
             />
@@ -16644,6 +18992,7 @@ function PackageBuilder({ data, setView }) {
           compliance summary, executive summary, and final review.
         </p>
       </div>
+      <CoachBanner moduleId="package" />
       {/* Step tabs */}
       <div
         style={{
@@ -16663,7 +19012,7 @@ function PackageBuilder({ data, setView }) {
               flex: 1,
               padding: '10px 6px',
               background:
-                step === i ? accent : step > i ? `${accent}18` : 'tranSPRent',
+                step === i ? accent : step > i ? `${accent}18` : 'transparent',
               border: 'none',
               borderRight:
                 i < steps.length - 1 ? `1px solid ${B.border}` : 'none',
@@ -17625,6 +19974,7 @@ function AccreditationJourney({ data, updateData, setView }) {
           deadlines and fees
         </p>
       </div>
+      <CoachBanner moduleId="journey" />
 
       {/* Overall progress bar */}
       <div
@@ -18348,6 +20698,7 @@ function DocTemplatesView({ data, orgName }) {
           export for EMAP compliance.
         </p>
       </div>
+      <CoachBanner moduleId="templates" />
       <div
         style={{
           display: 'grid',
@@ -18658,6 +21009,7 @@ function EvidenceExportView({ data, orgName }) {
           records.
         </p>
       </div>
+      <CoachBanner moduleId="evidence" />
       <div
         style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}
       >
@@ -18927,6 +21279,7 @@ function MutualAidView({ data, setData }) {
             {mutualAid.length} resource agreements
           </p>
         </div>
+        <CoachBanner moduleId="mutualaid" />
         <Btn
           label="+ Map Resources"
           onClick={() => setShowForm(true)}
@@ -19357,6 +21710,7 @@ function RecoveryPlanningView({ data, setData }) {
         </div>
         <Btn label="+ Add Priority" onClick={() => setShowAdd(true)} primary />
       </div>
+      <CoachBanner moduleId="recovery" />
 
       {/* EMAP Recovery compliance strip */}
       <Card
@@ -19768,7 +22122,7 @@ function LandingPage({ onLogin, onSignup }) {
         minHeight: '100vh',
         color: '#f0f4fa',
         backgroundImage:
-          'linear-gradient(rgba(194,150,74,0.03) 1px,tranSPRent 1px),linear-gradient(90deg,rgba(194,150,74,0.03) 1px,tranSPRent 1px)',
+          'linear-gradient(rgba(194,150,74,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(194,150,74,0.03) 1px,transparent 1px)',
         backgroundSize: '52px 52px',
       }}
     >
@@ -19908,7 +22262,8 @@ function LandingPage({ onLogin, onSignup }) {
           }}
         >
           planrr.app is the all-in-one platform for emergency management
-          programs that need to operate at a high standard.
+          programs that need to operate at a high standard - not just when an
+          assessor is coming, but 365 days a year.
         </p>
         <p
           style={{
@@ -19975,8 +22330,8 @@ function LandingPage({ onLogin, onSignup }) {
       >
         {[
           ['73', 'EMAP Standards Tracked'],
-          ['64', 'fema core capabilities'],
-          ['6', 'step accreditation journey'],
+          ['32', 'FEMA Core Capabilities'],
+          ['6', 'AI Document Templates'],
           ['100%', 'Program In A Box'],
         ].map(([n, l]) => (
           <div
@@ -20310,7 +22665,7 @@ function LandingPage({ onLogin, onSignup }) {
                 style={{
                   width: '100%',
                   marginTop: 16,
-                  background: 'tranSPRent',
+                  background: 'transparent',
                   color: B.teal,
                   border: '1px solid rgba(27,201,196,0.3)',
                   padding: '10px',
@@ -20538,7 +22893,7 @@ function LandingPage({ onLogin, onSignup }) {
                 style={{
                   width: '100%',
                   marginTop: 16,
-                  background: 'tranSPRent',
+                  background: 'transparent',
                   color: '#94a3b8',
                   border: '1px solid #3A4045',
                   padding: '10px',
@@ -20641,7 +22996,7 @@ function LandingPage({ onLogin, onSignup }) {
                 style={{
                   width: '100%',
                   marginTop: 16,
-                  background: 'tranSPRent',
+                  background: 'transparent',
                   color: B.purple,
                   border: '1px solid rgba(139,92,246,0.3)',
                   padding: '10px',
@@ -20898,45 +23253,51 @@ function AuthScreen({ onAuth, initialMode }) {
   const [ok, setOk] = useState('');
   const iS = {
     width: '100%',
-    padding: '10px 12px',
-    background: '#252A2E',
-    border: '1px solid #3A4045',
-    borderRadius: 6,
+    padding: '12px 16px',
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 10,
     color: '#f0f4fa',
     fontSize: 14,
     fontFamily: 'DM Sans,sans-serif',
     outline: 'none',
-    marginBottom: 12,
+    marginBottom: 14,
     boxSizing: 'border-box',
+    transition: 'all 0.2s',
   };
   const bS = {
     width: '100%',
-    padding: '11px',
-    background: GOLD,
-    color: '#141719',
+    padding: '13px',
+    background: `linear-gradient(135deg, ${B.teal}, ${B.tealDark})`,
+    color: '#fff',
     border: 'none',
-    borderRadius: 7,
+    borderRadius: 10,
     fontFamily: 'DM Sans,sans-serif',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: 700,
     cursor: 'pointer',
-    marginBottom: 8,
+    marginBottom: 10,
+    boxShadow: '0 4px 14px rgba(27,201,196,0.3)',
+    transition: 'all 0.2s',
+    letterSpacing: '0.01em',
   };
   const lS = {
     display: 'block',
     fontSize: 11,
     fontWeight: 600,
     color: '#94a3b8',
-    marginBottom: 4,
+    marginBottom: 5,
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
   };
   const lkS = {
     background: 'none',
     border: 'none',
-    color: GOLD,
+    color: B.teal,
     fontSize: 12,
     cursor: 'pointer',
     padding: 0,
-    textDecoration: 'underline',
+    fontWeight: 600,
   };
   async function doLogin(e) {
     e.preventDefault();
@@ -20994,287 +23355,420 @@ function AuthScreen({ onAuth, initialMode }) {
         left: 0,
         right: 0,
         bottom: 0,
-        background: '#141719',
+        background: '#0f1113',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        backgroundImage:
+          'radial-gradient(ellipse at 30% 20%, rgba(27,201,196,0.06) 0%, transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(194,150,74,0.04) 0%, transparent 50%)',
+        backgroundSize: '100% 100%',
       }}
     >
+      {/* Subtle grid pattern */}
       <div
         style={{
-          background: '#1C1F22',
-          border: '1px solid rgba(194,150,74,0.25)',
-          borderRadius: 12,
-          padding: '36px 40px',
-          width: 400,
-          maxWidth: 'calc(100vw - 40px)',
+          position: 'absolute',
+          inset: 0,
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
           position: 'relative',
+          width: 440,
+          maxWidth: 'calc(100vw - 40px)',
         }}
       >
-        <div style={{ marginBottom: 24 }}>
-          <Wordmark dark size="lg" />
+        {/* Logo + tagline above card */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              marginBottom: 12,
+            }}
+          >
+            <div
+              style={{
+                background: 'rgba(27,201,196,0.1)',
+                borderRadius: 14,
+                padding: '10px',
+                border: '1px solid rgba(27,201,196,0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <BrainIcon size={28} color={B.teal} strokeWidth={1.3} />
+            </div>
+            <Wordmark dark size="lg" />
+          </div>
+          <div
+            style={{ fontSize: 13, color: '#64748b', letterSpacing: '0.02em' }}
+          >
+            AI-powered emergency management
+          </div>
         </div>
-        {err && (
-          <div
-            style={{
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 6,
-              padding: '9px 12px',
-              fontSize: 12,
-              color: '#ef4444',
-              marginBottom: 12,
-            }}
-          >
-            {err}
-          </div>
-        )}
-        {ok && (
-          <div
-            style={{
-              background: 'rgba(27,201,196,0.1)',
-              border: '1px solid rgba(27,201,196,0.3)',
-              borderRadius: 6,
-              padding: '9px 12px',
-              fontSize: 12,
-              color: B.teal,
-              marginBottom: 12,
-            }}
-          >
-            {ok}
-          </div>
-        )}
-        {mode === 'login' && (
-          <form onSubmit={doLogin}>
+        {/* Card */}
+        <div
+          style={{
+            background: 'rgba(28,31,34,0.85)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 18,
+            padding: '36px 40px',
+            boxShadow:
+              '0 24px 64px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.03) inset',
+          }}
+        >
+          {err && (
             <div
               style={{
-                fontSize: 19,
-                fontWeight: 700,
-                color: '#f0f4fa',
-                marginBottom: 4,
+                background: 'rgba(239,68,68,0.1)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 10,
+                padding: '10px 14px',
+                fontSize: 12,
+                color: '#ef4444',
+                marginBottom: 14,
               }}
             >
-              Welcome back
+              {err}
             </div>
-            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20 }}>
-              Sign in to your program
+          )}
+          {ok && (
+            <div
+              style={{
+                background: 'rgba(27,201,196,0.1)',
+                border: '1px solid rgba(27,201,196,0.3)',
+                borderRadius: 10,
+                padding: '10px 14px',
+                fontSize: 12,
+                color: B.teal,
+                marginBottom: 14,
+              }}
+            >
+              {ok}
             </div>
-            <label style={lS}>Work email</label>
-            <input
-              type="email"
-              value={fe}
-              onChange={(e) => setFe(e.target.value)}
-              placeholder="you@county.gov"
-              style={iS}
-              required
-            />
-            <label style={lS}>Password</label>
-            <input
-              type="password"
-              value={fp}
-              onChange={(e) => setFp(e.target.value)}
-              placeholder="Password"
-              style={iS}
-              required
-            />
-            <button type="submit" disabled={loading} style={bS}>
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-            <div style={{ textAlign: 'center', marginBottom: 6 }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('reset');
-                  setErr('');
-                  setOk('');
+          )}
+          {mode === 'login' && (
+            <form onSubmit={doLogin}>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 4,
+                  letterSpacing: '-0.5px',
                 }}
-                style={lkS}
               >
-                Forgot password?
-              </button>
-            </div>
-            <div
-              style={{ height: 1, background: '#2E3439', margin: '12px 0' }}
-            />
-            <div
-              style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center' }}
-            >
-              No account?{' '}
+                Welcome back
+              </div>
+              <div style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>
+                Sign in to your program
+              </div>
+              <label style={lS}>Work email</label>
+              <input
+                type="email"
+                value={fe}
+                onChange={(e) => setFe(e.target.value)}
+                placeholder="you@county.gov"
+                style={iS}
+                required
+              />
+              <label style={lS}>Password</label>
+              <input
+                type="password"
+                value={fp}
+                onChange={(e) => setFp(e.target.value)}
+                placeholder="Password"
+                style={iS}
+                required
+              />
               <button
-                type="button"
-                onClick={() => {
-                  setMode('signup');
-                  setErr('');
-                  setOk('');
+                type="submit"
+                disabled={loading}
+                style={{ ...bS, opacity: loading ? 0.7 : 1 }}
+                onMouseEnter={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow =
+                      '0 6px 20px rgba(27,201,196,0.4)';
+                  }
                 }}
-                style={lkS}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'none';
+                  e.currentTarget.style.boxShadow =
+                    '0 4px 14px rgba(27,201,196,0.3)';
+                }}
               >
-                Request access
+                {loading ? 'Signing in...' : 'Sign In'}
               </button>
-            </div>
-          </form>
-        )}
-        {mode === 'signup' && (
-          <form onSubmit={doSignup}>
-            <div
-              style={{
-                fontSize: 19,
-                fontWeight: 700,
-                color: '#f0f4fa',
-                marginBottom: 4,
-              }}
-            >
-              Start your program
-            </div>
-            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20 }}>
-              Create your PLANRR account
-            </div>
-            <label style={lS}>Full name</label>
-            <input
-              type="text"
-              value={fn}
-              onChange={(e) => setFn(e.target.value)}
-              placeholder="Jane Smith"
-              style={iS}
-            />
-            <label style={lS}>Work email</label>
-            <input
-              type="email"
-              value={fe}
-              onChange={(e) => setFe(e.target.value)}
-              placeholder="you@county.gov"
-              style={iS}
-              required
-            />
-            <label style={lS}>Organization name</label>
-            <input
-              type="text"
-              value={fo}
-              onChange={(e) => setFo(e.target.value)}
-              placeholder="San Joaquin County OES"
-              style={iS}
-              required
-            />
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '0 12px',
-              }}
-            >
-              <div>
-                <label style={lS}>Jurisdiction type</label>
-                <select
-                  value={fj}
-                  onChange={(e) => setFj(e.target.value)}
-                  style={{ ...iS, marginBottom: 12 }}
+              <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('reset');
+                    setErr('');
+                    setOk('');
+                  }}
+                  style={lkS}
                 >
-                  <option value="">Select type...</option>
-                  <option>County</option>
-                  <option>Municipal</option>
-                  <option>State</option>
-                  <option>Tribal</option>
-                  <option>Territory</option>
-                  <option>University / College</option>
-                  <option>Hospital / Healthcare</option>
-                  <option>Private Sector</option>
-                  <option>Federal Agency</option>
-                </select>
+                  Forgot password?
+                </button>
               </div>
-              <div>
-                <label style={lS}>State</label>
-                <select
-                  value={fs}
-                  onChange={(e) => setFs(e.target.value)}
-                  style={{ ...iS, marginBottom: 12 }}
+              <div
+                style={{
+                  height: 1,
+                  background: 'rgba(255,255,255,0.06)',
+                  margin: '16px 0',
+                }}
+              />
+              <div
+                style={{ fontSize: 12, color: '#64748b', textAlign: 'center' }}
+              >
+                No account?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('signup');
+                    setErr('');
+                    setOk('');
+                  }}
+                  style={lkS}
                 >
-                  <option value="">Select state...</option>
-                  {[
-                    'AL',
-                    'AK',
-                    'AZ',
-                    'AR',
-                    'CA',
-                    'CO',
-                    'CT',
-                    'DE',
-                    'FL',
-                    'GA',
-                    'HI',
-                    'ID',
-                    'IL',
-                    'IN',
-                    'IA',
-                    'KS',
-                    'KY',
-                    'LA',
-                    'ME',
-                    'MD',
-                    'MA',
-                    'MI',
-                    'MN',
-                    'MS',
-                    'MO',
-                    'MT',
-                    'NE',
-                    'NV',
-                    'NH',
-                    'NJ',
-                    'NM',
-                    'NY',
-                    'NC',
-                    'ND',
-                    'OH',
-                    'OK',
-                    'OR',
-                    'PA',
-                    'RI',
-                    'SC',
-                    'SD',
-                    'TN',
-                    'TX',
-                    'UT',
-                    'VT',
-                    'VA',
-                    'WA',
-                    'WV',
-                    'WI',
-                    'WY',
-                    'DC',
-                    'PR',
-                    'GU',
-                    'VI',
-                  ].map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
-                </select>
+                  Request access
+                </button>
               </div>
-            </div>
-            <label style={lS}>Password</label>
-            <input
-              type="password"
-              value={fp}
-              onChange={(e) => setFp(e.target.value)}
-              placeholder="8 or more characters"
-              style={iS}
-              required
-            />
-            <label style={lS}>Confirm password</label>
-            <input
-              type="password"
-              value={fp2}
-              onChange={(e) => setFp2(e.target.value)}
-              placeholder="Repeat password"
-              style={iS}
-              required
-            />
-            <button type="submit" disabled={loading} style={bS}>
-              {loading ? 'Creating...' : 'Create Account'}
-            </button>
-            <div
-              style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center' }}
-            >
-              Have an account?{' '}
+            </form>
+          )}
+          {mode === 'signup' && (
+            <form onSubmit={doSignup}>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 4,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                Start your program
+              </div>
+              <div style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>
+                Create your PLANRR account
+              </div>
+              <label style={lS}>Full name</label>
+              <input
+                type="text"
+                value={fn}
+                onChange={(e) => setFn(e.target.value)}
+                placeholder="Jane Smith"
+                style={iS}
+              />
+              <label style={lS}>Work email</label>
+              <input
+                type="email"
+                value={fe}
+                onChange={(e) => setFe(e.target.value)}
+                placeholder="you@county.gov"
+                style={iS}
+                required
+              />
+              <label style={lS}>Organization name</label>
+              <input
+                type="text"
+                value={fo}
+                onChange={(e) => setFo(e.target.value)}
+                placeholder="San Joaquin County OES"
+                style={iS}
+                required
+              />
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '0 12px',
+                }}
+              >
+                <div>
+                  <label style={lS}>Jurisdiction type</label>
+                  <select
+                    value={fj}
+                    onChange={(e) => setFj(e.target.value)}
+                    style={{ ...iS, marginBottom: 12 }}
+                  >
+                    <option value="">Select type...</option>
+                    <option>County</option>
+                    <option>Municipal</option>
+                    <option>State</option>
+                    <option>Tribal</option>
+                    <option>Territory</option>
+                    <option>University / College</option>
+                    <option>Hospital / Healthcare</option>
+                    <option>Private Sector</option>
+                    <option>Federal Agency</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={lS}>State</label>
+                  <select
+                    value={fs}
+                    onChange={(e) => setFs(e.target.value)}
+                    style={{ ...iS, marginBottom: 12 }}
+                  >
+                    <option value="">Select state...</option>
+                    {[
+                      'AL',
+                      'AK',
+                      'AZ',
+                      'AR',
+                      'CA',
+                      'CO',
+                      'CT',
+                      'DE',
+                      'FL',
+                      'GA',
+                      'HI',
+                      'ID',
+                      'IL',
+                      'IN',
+                      'IA',
+                      'KS',
+                      'KY',
+                      'LA',
+                      'ME',
+                      'MD',
+                      'MA',
+                      'MI',
+                      'MN',
+                      'MS',
+                      'MO',
+                      'MT',
+                      'NE',
+                      'NV',
+                      'NH',
+                      'NJ',
+                      'NM',
+                      'NY',
+                      'NC',
+                      'ND',
+                      'OH',
+                      'OK',
+                      'OR',
+                      'PA',
+                      'RI',
+                      'SC',
+                      'SD',
+                      'TN',
+                      'TX',
+                      'UT',
+                      'VT',
+                      'VA',
+                      'WA',
+                      'WV',
+                      'WI',
+                      'WY',
+                      'DC',
+                      'PR',
+                      'GU',
+                      'VI',
+                    ].map((s) => (
+                      <option key={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <label style={lS}>Password</label>
+              <input
+                type="password"
+                value={fp}
+                onChange={(e) => setFp(e.target.value)}
+                placeholder="8 or more characters"
+                style={iS}
+                required
+              />
+              <label style={lS}>Confirm password</label>
+              <input
+                type="password"
+                value={fp2}
+                onChange={(e) => setFp2(e.target.value)}
+                placeholder="Repeat password"
+                style={iS}
+                required
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                style={{ ...bS, opacity: loading ? 0.7 : 1 }}
+                onMouseEnter={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow =
+                      '0 6px 20px rgba(27,201,196,0.4)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'none';
+                  e.currentTarget.style.boxShadow =
+                    '0 4px 14px rgba(27,201,196,0.3)';
+                }}
+              >
+                {loading ? 'Creating...' : 'Create Account'}
+              </button>
+              <div
+                style={{ fontSize: 12, color: '#64748b', textAlign: 'center' }}
+              >
+                Have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('login');
+                    setErr('');
+                    setOk('');
+                  }}
+                  style={lkS}
+                >
+                  Sign in
+                </button>
+              </div>
+            </form>
+          )}
+          {mode === 'reset' && (
+            <form onSubmit={doReset}>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 4,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                Reset password
+              </div>
+              <div style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>
+                We'll send a reset link to your email
+              </div>
+              <label style={lS}>Work email</label>
+              <input
+                type="email"
+                value={fe}
+                onChange={(e) => setFe(e.target.value)}
+                placeholder="you@county.gov"
+                style={iS}
+                required
+              />
+              {!ok && (
+                <button type="submit" disabled={loading} style={bS}>
+                  {loading ? 'Sending...' : 'Send Reset Link'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -21282,64 +23776,51 @@ function AuthScreen({ onAuth, initialMode }) {
                   setErr('');
                   setOk('');
                 }}
-                style={lkS}
+                style={{
+                  width: '100%',
+                  padding: '11px',
+                  background: 'none',
+                  color: '#94a3b8',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 10,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(27,201,196,0.3)';
+                  e.currentTarget.style.color = B.teal;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                  e.currentTarget.style.color = '#94a3b8';
+                }}
               >
-                Sign in
+                Back to Sign In
               </button>
-            </div>
-          </form>
-        )}
-        {mode === 'reset' && (
-          <form onSubmit={doReset}>
-            <div
-              style={{
-                fontSize: 19,
-                fontWeight: 700,
-                color: '#f0f4fa',
-                marginBottom: 4,
-              }}
-            >
-              Reset password
-            </div>
-            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20 }}>
-              We will send a reset link to your email
-            </div>
-            <label style={lS}>Work email</label>
-            <input
-              type="email"
-              value={fe}
-              onChange={(e) => setFe(e.target.value)}
-              placeholder="you@county.gov"
-              style={iS}
-              required
-            />
-            {!ok && (
-              <button type="submit" disabled={loading} style={bS}>
-                {loading ? 'Sending...' : 'Send Reset Link'}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setMode('login');
-                setErr('');
-                setOk('');
-              }}
-              style={{
-                width: '100%',
-                padding: '10px',
-                background: 'none',
-                color: '#94a3b8',
-                border: '1px solid #3A4045',
-                borderRadius: 7,
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              Back to Sign In
-            </button>
-          </form>
-        )}
+            </form>
+          )}
+        </div>
+        {/* Footer below card */}
+        <div
+          style={{
+            textAlign: 'center',
+            marginTop: 24,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            alignItems: 'center',
+          }}
+        >
+          <div
+            style={{ display: 'flex', gap: 16, fontSize: 11, color: '#475569' }}
+          >
+            <span>EMAP EMS 5-2022</span>
+            <span>HSEEP Aligned</span>
+            <span>FEMA Compatible</span>
+          </div>
+          <div style={{ fontSize: 10, color: '#334155' }}>Plan Smartr</div>
+        </div>
       </div>
     </div>
   );
@@ -21347,36 +23828,16 @@ function AuthScreen({ onAuth, initialMode }) {
 
 function FirstRunWelcome({ onDone, setView }) {
   const [step, setStep] = useState(0);
-  const steps = [
-    {
-      t: 'Welcome to planrr.app',
-      b: 'Your program is ready with all 73 EMAP standards. Here are 3 things to do first.',
-      a: 'Get started',
-    },
-    {
-      t: 'Set up your profile',
-      b: 'Go to Settings and enter your organization name, jurisdiction, state, and EM contact. This flows into every report and AI document.',
-      a: 'Next',
-      lnk: 'settings',
-      ll: 'Open Settings',
-    },
-    {
-      t: 'Drop in your documents',
-      b: 'Use Bulk Doc Intake to upload your EOP, COOP, AARs and plans. AI maps each one to the relevant EMAP standards automatically.',
-      a: 'Next',
-      lnk: 'intake',
-      ll: 'Open Bulk Intake',
-    },
-    {
-      t: 'Build your hazard profile',
-      b: 'Go to SPR/THIRA to profile your jurisdiction hazards. Drop in an existing THIRA and AI extracts every hazard automatically. Satisfies EMAP 4.1.',
-      a: 'Open planrr.app',
-      lnk: 'thira',
-      ll: 'Open SPR/THIRA',
-      last: true,
-    },
-  ];
-  const s = steps[step];
+  const [path, setPath] = useState(null);
+  const totalSteps = 5;
+  const pct = Math.round((step / totalSteps) * 100);
+
+  // Step 0: Welcome + path selection
+  // Step 1: What your role looks like
+  // Step 2: The Plan → Build → Sustain framework
+  // Step 3: Where to start based on path
+  // Step 4: Your first action
+
   return (
     <>
       <div
@@ -21386,9 +23847,11 @@ function FirstRunWelcome({ onDone, setView }) {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(20,23,25,0.85)',
+          background: 'rgba(20,23,25,0.92)',
           zIndex: 98,
+          backdropFilter: 'blur(4px)',
         }}
+        onClick={step >= 4 ? onDone : undefined}
       />
       <div
         style={{
@@ -21397,99 +23860,640 @@ function FirstRunWelcome({ onDone, setView }) {
           left: '50%',
           transform: 'translate(-50%,-50%)',
           zIndex: 99,
-          width: 460,
+          width: 520,
           maxWidth: 'calc(100vw - 40px)',
           background: '#1C1F22',
-          border: '1px solid rgba(194,150,74,0.3)',
-          borderRadius: 12,
-          padding: '32px 36px',
+          border: '1px solid #2E3439',
+          borderRadius: 16,
+          padding: 0,
+          overflow: 'hidden',
+          boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
         }}
       >
-        <div style={{ display: 'flex', gap: 6, marginBottom: 24 }}>
-          {steps.map((_, i) => (
-            <div
-              key={i}
-              style={{
-                height: 3,
-                flex: 1,
-                borderRadius: 2,
-                background: i <= step ? '#c2964a' : '#2E3439',
-              }}
-            />
-          ))}
-        </div>
-        <div
-          style={{
-            fontSize: 18,
-            fontWeight: 700,
-            color: '#f0f4fa',
-            marginBottom: 8,
-          }}
-        >
-          {s.t}
-        </div>
-        <div
-          style={{
-            fontSize: 14,
-            color: '#94a3b8',
-            lineHeight: 1.7,
-            marginBottom: 22,
-          }}
-        >
-          {s.b}
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            onClick={() => (s.last ? onDone() : setStep((p) => p + 1))}
+        {/* Progress bar */}
+        <div style={{ height: 3, background: '#2E3439' }}>
+          <div
             style={{
-              background: '#c2964a',
-              color: '#141719',
-              border: 'none',
-              borderRadius: 7,
-              padding: '10px 22px',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: 'pointer',
+              height: '100%',
+              width: `${pct}%`,
+              background: `linear-gradient(90deg, ${B.teal}, #c2964a)`,
+              borderRadius: 2,
+              transition: 'width 0.4s ease',
             }}
-          >
-            {s.a}
-          </button>
-          {s.lnk && (
-            <button
-              onClick={() => {
-                setView(s.lnk);
-                onDone();
-              }}
-              style={{
-                background: 'none',
-                color: '#c2964a',
-                border: '1px solid rgba(194,150,74,0.3)',
-                borderRadius: 7,
-                padding: '9px 16px',
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              {s.ll}
-            </button>
-          )}
+          />
         </div>
-        {step > 0 && (
-          <button
-            onClick={() => setStep((p) => p - 1)}
+
+        <div style={{ padding: '32px 36px' }}>
+          {/* Step counter */}
+          <div
             style={{
-              background: 'none',
-              border: 'none',
+              fontSize: 10,
               color: '#475569',
-              fontSize: 11,
-              cursor: 'pointer',
-              marginTop: 12,
-              padding: 0,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              marginBottom: 16,
+              fontWeight: 600,
             }}
           >
-            Back
-          </button>
-        )}
+            {step === 0
+              ? 'Welcome'
+              : step === totalSteps
+              ? 'Ready'
+              : 'Step ' + step + ' of ' + (totalSteps - 1)}
+          </div>
+
+          {step === 0 && (
+            <>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 8,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                Welcome to planrr.app
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: '#94a3b8',
+                  lineHeight: 1.8,
+                  marginBottom: 24,
+                }}
+              >
+                We're going to help you build a professional emergency
+                management program — whether you're starting from scratch or
+                organizing what you already have. First, tell us where you are:
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  marginBottom: 20,
+                }}
+              >
+                <button
+                  onClick={() => {
+                    setPath('new');
+                    setStep(1);
+                  }}
+                  style={{
+                    background:
+                      path === 'new' ? 'rgba(27,201,196,0.12)' : '#252A2E',
+                    border: `1px solid ${
+                      path === 'new' ? 'rgba(27,201,196,0.3)' : '#2E3439'
+                    }`,
+                    borderRadius: 12,
+                    padding: '16px 20px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.borderColor = 'rgba(27,201,196,0.3)')
+                  }
+                  onMouseLeave={(e) => {
+                    if (path !== 'new')
+                      e.currentTarget.style.borderColor = '#2E3439';
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: B.teal,
+                      marginBottom: 4,
+                    }}
+                  >
+                    🆕 I'm starting a new program
+                  </div>
+                  <div
+                    style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}
+                  >
+                    EM was just assigned to me, or I'm building from the ground
+                    up. I need guidance on what to do and where to start.
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setPath('existing');
+                    setStep(1);
+                  }}
+                  style={{
+                    background:
+                      path === 'existing' ? 'rgba(194,150,74,0.12)' : '#252A2E',
+                    border: `1px solid ${
+                      path === 'existing' ? 'rgba(194,150,74,0.3)' : '#2E3439'
+                    }`,
+                    borderRadius: 12,
+                    padding: '16px 20px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.borderColor = 'rgba(194,150,74,0.3)')
+                  }
+                  onMouseLeave={(e) => {
+                    if (path !== 'existing')
+                      e.currentTarget.style.borderColor = '#2E3439';
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: '#c2964a',
+                      marginBottom: 4,
+                    }}
+                  >
+                    📂 I have an existing program
+                  </div>
+                  <div
+                    style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}
+                  >
+                    I already have plans, training records, and documents. I
+                    want to organize them and track EMAP compliance.
+                  </div>
+                </button>
+              </div>
+            </>
+          )}
+
+          {step === 1 && (
+            <>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 8,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                {path === 'new'
+                  ? "You're not alone in this"
+                  : "Let's organize what you have"}
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: '#94a3b8',
+                  lineHeight: 1.8,
+                  marginBottom: 20,
+                }}
+              >
+                {path === 'new'
+                  ? 'Over half of local EM programs are managed by someone doing it as an additional duty. Planrr is built for exactly that — it walks you through every step so nothing falls through the cracks.'
+                  : 'Most EM programs have documents scattered across drives, email, and filing cabinets. Planrr brings everything into one place and maps it to EMAP standards automatically.'}
+              </div>
+              <div
+                style={{
+                  background: '#252A2E',
+                  borderRadius: 10,
+                  padding: '16px 18px',
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 10,
+                  }}
+                >
+                  {(path === 'new'
+                    ? [
+                        { n: '73', l: 'EMAP standards loaded' },
+                        { n: '32', l: 'FEMA capabilities mapped' },
+                        { n: '6', l: 'AI templates ready' },
+                        { n: '∞', l: 'Guided coaching built in' },
+                      ]
+                    : [
+                        { n: '📤', l: 'Bulk document upload' },
+                        { n: '🤖', l: 'AI auto-maps to standards' },
+                        { n: '📊', l: 'Instant gap analysis' },
+                        { n: '📋', l: 'Evidence packaging' },
+                      ]
+                  ).map((s) => (
+                    <div
+                      key={s.l}
+                      style={{ textAlign: 'center', padding: '10px' }}
+                    >
+                      <div
+                        style={{ fontSize: 18, fontWeight: 800, color: B.teal }}
+                      >
+                        {s.n}
+                      </div>
+                      <div
+                        style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}
+                      >
+                        {s.l}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 8,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                Plan → Build → Sustain
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: '#94a3b8',
+                  lineHeight: 1.8,
+                  marginBottom: 20,
+                }}
+              >
+                Every EM program follows the same three phases. The sidebar
+                groups your tools by function:
+              </div>
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+              >
+                {[
+                  {
+                    phase: 'Plan',
+                    color: B.teal,
+                    icon: '📋',
+                    items: [
+                      'Identify your hazards (THIRA)',
+                      'Write your plans & SOPs',
+                      'Map your partners',
+                      'Inventory your resources',
+                    ],
+                  },
+                  {
+                    phase: 'Build',
+                    color: '#c2964a',
+                    icon: '🔨',
+                    items: [
+                      'Staff & credential your people',
+                      'Train your team',
+                      'Exercise your plans',
+                      'Secure funding',
+                    ],
+                  },
+                  {
+                    phase: 'Sustain',
+                    color: '#8B5CF6',
+                    icon: '✅',
+                    items: [
+                      'Track EMAP standards',
+                      'Build evidence packages',
+                      'Maintain accreditation',
+                    ],
+                  },
+                ].map((p) => (
+                  <div
+                    key={p.phase}
+                    style={{
+                      background: '#252A2E',
+                      borderRadius: 10,
+                      padding: '14px 18px',
+                      borderLeft: `3px solid ${p.color}`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginBottom: 6,
+                      }}
+                    >
+                      <span style={{ fontSize: 16 }}>{p.icon}</span>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: p.color,
+                        }}
+                      >
+                        {p.phase}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {p.items.map((i) => (
+                        <span
+                          key={i}
+                          style={{
+                            fontSize: 11,
+                            color: '#94a3b8',
+                            background: '#1C1F22',
+                            padding: '3px 10px',
+                            borderRadius: 6,
+                          }}
+                        >
+                          {i}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 8,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                {path === 'new'
+                  ? 'Your first 3 steps'
+                  : 'Your fast-track setup'}
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: '#94a3b8',
+                  lineHeight: 1.8,
+                  marginBottom: 20,
+                }}
+              >
+                {path === 'new'
+                  ? "Don't try to do everything at once. Here's exactly where to start:"
+                  : "Here's the fastest way to get your existing program loaded:"}
+              </div>
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+              >
+                {(path === 'new'
+                  ? [
+                      {
+                        n: '1',
+                        title: 'Set up My Program',
+                        desc: 'Enter your org name, jurisdiction, and contact info. Takes 2 minutes. This populates every document and report.',
+                        where: 'settings',
+                      },
+                      {
+                        n: '2',
+                        title: 'Profile your hazards',
+                        desc: 'Go to Hazard Analysis and list 3-5 threats your area faces. This is the foundation for everything else.',
+                        where: 'thira',
+                      },
+                      {
+                        n: '3',
+                        title: 'Generate your first plan',
+                        desc: 'Go to AI Tools → Doc Templates and generate a Strategic Plan. AI uses your org data to create a 70% starting point.',
+                        where: 'templates',
+                      },
+                    ]
+                  : [
+                      {
+                        n: '1',
+                        title: 'Set up My Program',
+                        desc: 'Enter your org name, jurisdiction, and contact info. Takes 2 minutes.',
+                        where: 'settings',
+                      },
+                      {
+                        n: '2',
+                        title: 'Bulk upload your documents',
+                        desc: 'Drop your EOP, COOP, AARs, MOUs, and training records into Bulk Doc Intake. AI maps them to EMAP standards.',
+                        where: 'intake',
+                      },
+                      {
+                        n: '3',
+                        title: 'Review your gap analysis',
+                        desc: 'Check the Dashboard and EMAP Standards to see where you stand. Focus on the gaps.',
+                        where: 'dashboard',
+                      },
+                    ]
+                ).map((s) => (
+                  <div
+                    key={s.n}
+                    style={{
+                      display: 'flex',
+                      gap: 14,
+                      alignItems: 'flex-start',
+                      background: '#252A2E',
+                      borderRadius: 10,
+                      padding: '14px 18px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 8,
+                        background: `linear-gradient(135deg, ${B.teal}, ${B.tealDark})`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 14,
+                        fontWeight: 800,
+                        color: '#fff',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {s.n}
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: '#f0f4fa',
+                          marginBottom: 3,
+                        }}
+                      >
+                        {s.title}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: '#94a3b8',
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {s.desc}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {step === 4 && (
+            <>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 8,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                You're ready to go
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: '#94a3b8',
+                  lineHeight: 1.8,
+                  marginBottom: 16,
+                }}
+              >
+                Every section has a coaching guide that explains what it is, why
+                it matters, and what to do first. Look for the teal guide
+                banners as you go.
+              </div>
+              <div
+                style={{
+                  background:
+                    'linear-gradient(135deg, rgba(27,201,196,0.1), rgba(194,150,74,0.1))',
+                  borderRadius: 10,
+                  padding: '16px 18px',
+                  border: '1px solid #2E3439',
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>💡</span>
+                  <span
+                    style={{ fontSize: 13, fontWeight: 700, color: '#f0f4fa' }}
+                  >
+                    Pro tip
+                  </span>
+                </div>
+                <div
+                  style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.7 }}
+                >
+                  {path === 'new'
+                    ? 'Follow the sidebar top to bottom. Each section builds on the one before it. The numbered steps (①-⑧) are your roadmap. Take it one section at a time.'
+                    : "Start with Bulk Doc Intake to upload everything you have. Then check the Dashboard — it'll show you exactly where your gaps are and what to tackle next."}
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: '#475569', marginBottom: 4 }}>
+                The guide banners can be dismissed any time. You can always find
+                help in the AI Assistant.
+              </div>
+            </>
+          )}
+
+          {/* Navigation buttons */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              marginTop: 24,
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              {step > 0 && (
+                <button
+                  onClick={() => setStep((p) => p - 1)}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #2E3439',
+                    color: '#94a3b8',
+                    borderRadius: 8,
+                    padding: '8px 16px',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans',sans-serif",
+                  }}
+                >
+                  Back
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {step < totalSteps && step > 0 && (
+                <button
+                  onClick={() => setStep((p) => p + 1)}
+                  style={{
+                    background: `linear-gradient(135deg, ${B.teal}, ${B.tealDark})`,
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '10px 24px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans',sans-serif",
+                    boxShadow: '0 2px 10px rgba(27,201,196,0.3)',
+                  }}
+                >
+                  Continue
+                </button>
+              )}
+              {step === totalSteps - 1 && <></>}
+              {step >= 4 && (
+                <button
+                  onClick={() => {
+                    setView(path === 'new' ? 'settings' : 'intake');
+                    onDone();
+                  }}
+                  style={{
+                    background: `linear-gradient(135deg, ${B.teal}, ${B.tealDark})`,
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '10px 24px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans',sans-serif",
+                    boxShadow: '0 2px 10px rgba(27,201,196,0.3)',
+                  }}
+                >
+                  {path === 'new'
+                    ? 'Start with My Program →'
+                    : 'Go to Bulk Upload →'}
+                </button>
+              )}
+              <button
+                onClick={onDone}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#475569',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  fontFamily: "'DM Sans',sans-serif",
+                  padding: '8px 4px',
+                }}
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -21517,7 +24521,7 @@ function Onboarding({ onComplete }) {
           width: 400,
           height: 400,
           borderRadius: '50%',
-          background: `radial-gradient(circle,${B.teal}12,tranSPRent 70%)`,
+          background: `radial-gradient(circle,${B.teal}12,transparent 70%)`,
           top: '50%',
           left: '50%',
           transform: 'translate(-50%,-50%)',
@@ -21820,6 +24824,7 @@ export default function App() {
           capItems: d.capItems || [],
           activityLog: d.activityLog || [],
           journey: d.journey || {},
+          incidents: d.incidents || [],
         };
         const synced = syncStandardsFromOps(loaded);
         if (synced) loaded.standards = synced;
@@ -21978,26 +24983,26 @@ export default function App() {
             position: 'sticky',
             top: 0,
             zIndex: 30,
-            background: 'rgba(240,244,245,0.96)',
-            backdropFilter: 'blur(8px)',
-            borderBottom: `1px solid ${B.border}`,
-            height: 50,
+            background: 'rgba(240,244,245,0.92)',
+            backdropFilter: 'blur(12px)',
+            borderBottom: `1px solid rgba(226,232,234,0.8)`,
+            height: 52,
             display: 'flex',
             alignItems: 'center',
-            padding: '0 28px',
-            gap: 10,
+            padding: '0 32px',
+            gap: 12,
           }}
         >
           <div
             style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}
           >
-            <span style={{ fontSize: 13, color: B.muted, fontWeight: 500 }}>
+            <span style={{ fontSize: 13, color: B.faint, fontWeight: 500 }}>
               {data.orgName && (
                 <>
                   <span style={{ color: B.text, fontWeight: 700 }}>
                     {data.orgName}
-                  </span>{' '}
-                  -{' '}
+                  </span>
+                  <span style={{ margin: '0 8px', color: '#d1d5db' }}>/</span>
                 </>
               )}
               {view === 'journey' && 'Accreditation Journey'}
@@ -22008,17 +25013,17 @@ export default function App() {
               {view === 'training' && 'Training Manager'}
               {view === 'exercises' && 'Exercises & AARs'}
               {view === 'partners' && 'Partner Registry'}
-              {view === 'plans' && 'Plan Library'}
-              {view === 'resources' && 'Resource Inventory'}
-              {view === 'employees' && 'Employees & Credentials'}
+              {view === 'plans' && 'Plans & SOPs'}
+              {view === 'resources' && 'Resources'}
+              {view === 'employees' && 'Personnel'}
               {view === 'calendar' && 'Program Calendar'}
               {view === 'reports' && 'Compliance Report'}
               {view === 'assistant' && 'AI Assistant'}
-              {view === 'grants' && 'Grant Tracker'}
-              {view === 'thira' && 'THIRA/SPR'}
+              {view === 'grants' && 'Grants & Funding'}
+              {view === 'thira' && 'Hazard Analysis'}
               {view === 'cap' && 'Corrective Action Program'}
               {view === 'activity' && 'Activity Log'}
-              {view === 'settings' && 'Settings'}
+              {view === 'settings' && 'My Program'}
               {view === 'templates' && 'Document Templates'}
               {view === 'evidence' && 'Evidence Export'}
               {view === 'recovery' && 'Recovery Planning'}
@@ -22153,14 +25158,23 @@ export default function App() {
           <button
             onClick={sbSignOut}
             style={{
-              fontSize: 10,
+              fontSize: 11,
               color: B.faint,
               background: 'none',
               border: '1px solid ' + B.border,
-              borderRadius: 5,
-              padding: '3px 8px',
+              borderRadius: 7,
+              padding: '4px 10px',
               cursor: 'pointer',
               marginLeft: 6,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = B.red;
+              e.currentTarget.style.color = B.red;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = B.border;
+              e.currentTarget.style.color = B.faint;
             }}
           >
             Sign out
