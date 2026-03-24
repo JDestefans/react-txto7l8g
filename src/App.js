@@ -2953,7 +2953,7 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
 }
 
 /* --- STANDARD DETAIL PANEL ---------------------------- */
-function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
+function DetailPanel({ stdId, standards, onUpdateStd, onClose, onAddCapItem }) {
   const std = ALL_STANDARDS.find((s) => s.id === stdId);
   const st = standards[stdId] || initRecord();
   const allIds = ALL_STANDARDS.map((s) => s.id);
@@ -3016,6 +3016,24 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
         'notes',
         (st.notes ? st.notes + '\n\n-\n\n' : '') + aiData[aiMode]
       );
+      if (aiMode === 'action' && onAddCapItem) {
+        const lines = aiData[aiMode].split('\n').filter(l => l.match(/^\d+[\.\)]\s/));
+        lines.forEach(line => {
+          const text = line.replace(/^\d+[\.\)]\s*/, '').trim();
+          if (text.length > 5) {
+            onAddCapItem({
+              id: uid(),
+              item: text,
+              source: `EMAP ${std.id}`,
+              stdRef: std.id,
+              priority: 'medium',
+              status: 'open',
+              closed: false,
+              addedAt: Date.now(),
+            });
+          }
+        });
+      }
       setAdopted(true);
       setTimeout(() => setAdopted(false), 2500);
     }
@@ -3916,6 +3934,13 @@ function AccreditationView({ data, updateData }) {
           onClose={(nextId) => {
             if (nextId) setDetailId(nextId);
             else setDetailId(null);
+          }}
+          onAddCapItem={(item) => {
+            updateData(prev => ({
+              ...prev,
+              capItems: [...(prev.capItems || []), item],
+            }));
+            addActivity(updateData, 'created', 'cap', `CAP item from EMAP ${item.stdRef}: ${item.item.slice(0, 60)}`);
           }}
         />
       )}
@@ -10430,12 +10455,11 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
                   width: 'calc(100% - 16px)',
                   margin: '1px 8px',
                   padding: '8px 12px',
-                  borderRadius: 9,
+                  borderRadius: 6,
                   background:
-                    view === item.id ? 'rgba(27,201,196,0.10)' : 'none',
-                  border: `1px solid ${
-                    view === item.id ? 'rgba(27,201,196,0.25)' : 'transparent'
-                  }`,
+                    view === item.id ? 'rgba(27,201,196,0.08)' : 'none',
+                  border: 'none',
+                  borderLeft: view === item.id ? `3px solid ${B.teal}` : '3px solid transparent',
                   color:
                     view === item.id
                       ? B.teal
@@ -25500,6 +25524,25 @@ function AppInner() {
         typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
       const synced = syncStandardsFromOps(next);
       const final = synced ? { ...next, standards: synced } : next;
+      const autoLog = [];
+      const track = [
+        ['training', 'training', 'Training record'],
+        ['exercises', 'exercises', 'Exercise'],
+        ['partners', 'partners', 'Partner agreement'],
+        ['plans', 'plans', 'Plan'],
+        ['employees', 'employees', 'Personnel record'],
+        ['resources', 'resources', 'Resource'],
+      ];
+      track.forEach(([key, mod, label]) => {
+        const pLen = (prev[key] || []).length;
+        const nLen = (final[key] || []).length;
+        if (nLen > pLen) autoLog.push({ type: 'created', module: mod, detail: `${label} added (${nLen} total)` });
+        else if (nLen < pLen) autoLog.push({ type: 'deleted', module: mod, detail: `${label} removed (${nLen} total)` });
+      });
+      if (autoLog.length > 0 && final.activityLog) {
+        const entries = autoLog.map(a => ({ id: uid(), ts: Date.now(), ...a }));
+        final.activityLog = [...entries, ...final.activityLog].slice(0, 200);
+      }
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => saveData(final), 500);
       return final;
