@@ -3,6 +3,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation, Routes, Route, Navigate, Link } from 'react-router-dom';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
+import SharedReport from './pages/SharedReport';
+import { STARTER_PACKS, applyStarterPack } from './data/starterPacks';
+import { downloadICal } from './services/calendar';
+import { buildShareURL } from './services/shareReport';
+import { buildGrantNarrativePrompt } from './services/grantHelper';
 
 /* --- ERROR BOUNDARY ----------------------------------- */
 class ErrorBoundary extends Component {
@@ -12995,7 +13000,23 @@ function GrantTracker({ data, setData }) {
           </p>
         </div>
         <CoachBanner moduleId="grants" />
-        <Btn label="+ Add Grant" onClick={() => setShowForm(true)} primary />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Btn label="+ Add Grant" onClick={() => setShowForm(true)} primary />
+          <Btn label="AI: Generate EMPG Narrative" onClick={async () => {
+            const prompt = buildGrantNarrativePrompt(data, 'empg');
+            let result = '';
+            try {
+              await callAI(SYS, prompt, (chunk) => { result += chunk; }, 'grant_guidance');
+              const blob = new Blob([result], { type: 'text/plain' });
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = `EMPG_Narrative_${(data.orgName || 'draft').replace(/\s/g, '_')}.txt`;
+              a.click();
+            } catch (e) {
+              alert(e.message || 'Error generating narrative');
+            }
+          }} />
+        </div>
       </div>
       {grants.length > 0 && (
         <div
@@ -16445,6 +16466,21 @@ function SettingsView({ data, updateData }) {
                 }}
               />
               <Btn
+                label="Export to Calendar (.ics)"
+                onClick={() => downloadICal(data)}
+              />
+              <Btn
+                label="Share Compliance Report"
+                onClick={() => {
+                  const url = buildShareURL(data);
+                  navigator.clipboard.writeText(url).then(() => {
+                    alert('Report link copied to clipboard!');
+                  }).catch(() => {
+                    prompt('Copy this link:', url);
+                  });
+                }}
+              />
+              <Btn
                 label="Import JSON"
                 onClick={() => {
                   const inp = document.createElement('input');
@@ -16462,6 +16498,37 @@ function SettingsView({ data, updateData }) {
                   inp.click();
                 }}
               />
+            </div>
+            {/* Starter Packs */}
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${B.border}` }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: B.text, marginBottom: 10 }}>
+                Starter Packs
+              </div>
+              <div style={{ fontSize: 12, color: B.faint, marginBottom: 12, lineHeight: 1.6 }}>
+                Pre-built plans, exercises, and training for common EM program types. Data is added to your existing program.
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {Object.values(STARTER_PACKS).map(pack => (
+                  <button key={pack.id} onClick={() => {
+                    if (window.confirm(`Add the "${pack.name}" starter pack? This adds ${pack.plans.length} plans, ${pack.exercises.length} exercises, and ${pack.training.length} training records to your program.`)) {
+                      updateData(prev => applyStarterPack(prev, pack.id));
+                    }
+                  }} style={{
+                    background: B.card, border: `1px solid ${B.border}`, borderRadius: 10,
+                    padding: '14px 18px', cursor: 'pointer', textAlign: 'left', maxWidth: 280,
+                    transition: 'border-color 0.15s',
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = B.teal}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = B.border}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, color: B.text, marginBottom: 4 }}>{pack.name}</div>
+                    <div style={{ fontSize: 11, color: B.faint, lineHeight: 1.5 }}>{pack.description}</div>
+                    <div style={{ fontSize: 10, color: B.teal, marginTop: 8, fontWeight: 600 }}>
+                      {pack.plans.length} plans · {pack.exercises.length} exercises · {pack.training.length} training
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
             <div
               style={{
@@ -26062,6 +26129,7 @@ export default function App() {
       <Routes>
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/report" element={<SharedReport />} />
         <Route path="/app/*" element={<AppInner />} />
         <Route path="/*" element={<AppInner />} />
       </Routes>
