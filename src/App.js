@@ -1,5 +1,71 @@
-import React from 'react';
+import React, { Component } from 'react';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
+
+/* --- ERROR BOUNDARY ----------------------------------- */
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          height: '100vh', background: '#1C1F22', flexDirection: 'column', gap: 16,
+          fontFamily: "'DM Sans',sans-serif",
+        }}>
+          <div style={{ fontSize: 48 }}>⚠</div>
+          <div style={{ color: '#f0f4fa', fontSize: 20, fontWeight: 700 }}>Something went wrong</div>
+          <div style={{ color: '#94a3b8', fontSize: 14, maxWidth: 400, textAlign: 'center', lineHeight: 1.6 }}>
+            An unexpected error occurred. Please reload the page to continue.
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: 8, background: '#c2964a', color: '#141719', border: 'none',
+              padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/* --- VIEW TITLES (for document.title) ----------------- */
+const VIEW_TITLES = {
+  dashboard: 'Dashboard',
+  accreditation: 'EMAP Standards',
+  intake: 'Bulk Document Intake',
+  package: 'Accreditation Package Builder',
+  training: 'Training Manager',
+  exercises: 'Exercises & AARs',
+  partners: 'Partner Registry',
+  plans: 'Plans & SOPs',
+  resources: 'Resources',
+  employees: 'Personnel',
+  calendar: 'Program Calendar',
+  reports: 'Compliance Report',
+  assistant: 'AI Assistant',
+  grants: 'Grants & Funding',
+  thira: 'Hazard Analysis',
+  cap: 'Corrective Action Program',
+  activity: 'Activity Log',
+  settings: 'My Program',
+  templates: 'Document Templates',
+  evidence: 'Evidence Export',
+  recovery: 'Recovery Planning',
+  mutualaid: 'Mutual Aid Map',
+  journey: 'Accreditation Journey',
+};
 
 /* --- BRAND (fixed contrast) --------------------------- */
 const B = {
@@ -70,6 +136,39 @@ const ST = {
 
 /* --- WORDMARK + PLACEHOLDER MARK ---------------------- */
 const GOLD = '#c2964a';
+
+/* --- LOADING SKELETON --------------------------------- */
+function Skeleton({ width, height = 14, style }) {
+  return (
+    <div style={{
+      width: width || '100%', height, borderRadius: 6,
+      background: `linear-gradient(90deg, ${B.border} 25%, #e8ecee 50%, ${B.border} 75%)`,
+      backgroundSize: '200% 100%',
+      animation: 'shimmer 1.5s ease infinite',
+      ...style,
+    }} />
+  );
+}
+
+function ViewSkeleton() {
+  return (
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', animation: 'fadeIn 0.3s ease' }}>
+      <Skeleton width={220} height={20} style={{ marginBottom: 24 }} />
+      <Skeleton width="60%" height={14} style={{ marginBottom: 12 }} />
+      <Skeleton width="80%" height={14} style={{ marginBottom: 12 }} />
+      <Skeleton width="45%" height={14} style={{ marginBottom: 32 }} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
+        {[1,2,3].map(i => (
+          <div key={i} style={{ background: B.card, border: `1px solid ${B.border}`, borderRadius: 12, padding: 20 }}>
+            <Skeleton width={100} height={12} style={{ marginBottom: 12 }} />
+            <Skeleton height={28} style={{ marginBottom: 8 }} />
+            <Skeleton width="60%" height={10} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /* Minimal square mark - placeholder until final logo is locked */
 const BrainIcon = ({ size = 28, color = B.teal, strokeWidth = 1.2 }) => (
@@ -696,7 +795,7 @@ async function callAI(system, prompt, onChunk, operation) {
   const op = operation || 'general';
   const tier = getModelTier(op);
   const res = await fetch(
-    'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/super-endpoint',
+    SB_URL + '/functions/v1/super-endpoint',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -762,7 +861,7 @@ async function callAIWithDoc(system, textBefore, fileData, onChunk) {
   }
   const tier = getModelTier('interpret_doc');
   const res = await fetch(
-    'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/super-endpoint',
+    SB_URL + '/functions/v1/super-endpoint',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -10059,6 +10158,8 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
   );
   return (
     <aside
+      role="navigation"
+      aria-label="Main navigation"
       style={{
         width: 244,
         background: B.sidebar,
@@ -13344,7 +13445,7 @@ function ThiraView({ data, setData }) {
       }
 
       const res = await fetch(
-        'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/super-endpoint',
+        SB_URL + '/functions/v1/super-endpoint',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -17839,7 +17940,7 @@ function BulkIntake({ data, updateData }) {
           });
         }
         const res = await fetch(
-          'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/super-endpoint',
+          SB_URL + '/functions/v1/super-endpoint',
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -22281,6 +22382,7 @@ function RecoveryPlanningView({ data, setData }) {
 }
 
 function LandingPage({ onLogin, onSignup }) {
+  const [mobileNav, setMobileNav] = useState(false);
   return (
     <div
       style={{
@@ -22293,7 +22395,7 @@ function LandingPage({ onLogin, onSignup }) {
         backgroundSize: '52px 52px',
       }}
     >
-      <style>{`@media(max-width:768px){.planrr-pricing-grid{grid-template-columns:1fr!important}.planrr-features-grid{grid-template-columns:1fr!important}.planrr-stats-strip{grid-template-columns:repeat(2,1fr)!important}.planrr-security-grid{grid-template-columns:1fr!important}.planrr-landing-header{padding:14px 16px!important}.planrr-landing-hero{padding:48px 20px 40px!important}.planrr-landing-section{padding:48px 20px!important}}@media(max-width:480px){.planrr-stats-strip{grid-template-columns:1fr!important}}`}</style>
+      <style>{`@media(max-width:768px){.planrr-pricing-grid{grid-template-columns:1fr!important}.planrr-features-grid{grid-template-columns:1fr!important}.planrr-stats-strip{grid-template-columns:repeat(2,1fr)!important}.planrr-security-grid{grid-template-columns:1fr!important}.planrr-landing-header{padding:14px 16px!important}.planrr-landing-hero{padding:48px 20px 40px!important}.planrr-landing-section{padding:48px 20px!important}.planrr-header-actions{display:none!important}.planrr-mobile-menu-btn{display:flex!important}}@media(max-width:480px){.planrr-stats-strip{grid-template-columns:1fr!important}}`}</style>
       {/* Header */}
       <div
         className="planrr-landing-header"
@@ -22335,7 +22437,7 @@ function LandingPage({ onLogin, onSignup }) {
             Early Access
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div className="planrr-header-actions" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <div
             style={{
               fontFamily: 'DM Mono,monospace',
@@ -22382,7 +22484,21 @@ function LandingPage({ onLogin, onSignup }) {
             Get Started
           </button>
         </div>
+        <button
+          className="planrr-mobile-menu-btn"
+          onClick={() => setMobileNav(p => !p)}
+          aria-label="Toggle navigation menu"
+          style={{ display: 'none', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #3A4045', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', color: '#f0f4fa', fontSize: 18 }}
+        >
+          {mobileNav ? '✕' : '☰'}
+        </button>
       </div>
+      {mobileNav && (
+        <div style={{ background: 'rgba(20,23,25,0.98)', borderBottom: '1px solid rgba(194,150,74,0.22)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button onClick={() => { setMobileNav(false); onLogin(); }} style={{ background: 'none', color: '#94a3b8', border: '1px solid #3A4045', borderRadius: 6, padding: '10px', fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans,sans-serif', width: '100%' }}>Sign In</button>
+          <button onClick={() => { setMobileNav(false); onSignup(); }} style={{ background: GOLD, color: '#141719', border: 'none', borderRadius: 6, padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans,sans-serif', width: '100%' }}>Get Started</button>
+        </div>
+      )}
 
       {/* Hero */}
       <div
@@ -23532,34 +23648,66 @@ function LandingPage({ onLogin, onSignup }) {
       <div
         style={{
           borderTop: '1px solid #2E3439',
-          padding: '22px 40px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 10,
+          padding: '40px 40px 28px',
         }}
+        className="planrr-landing-header"
       >
-        <div
-          style={{
-            fontFamily: 'Syne,DM Sans,sans-serif',
-            fontSize: 15,
-            fontWeight: 800,
-            letterSpacing: '-0.5px',
-          }}
-        >
-          <span style={{ color: '#f0f4fa' }}>planrr</span>
-          <span style={{ color: GOLD }}>.app</span>
-        </div>
-        <div
-          style={{
-            fontFamily: 'DM Mono,monospace',
-            fontSize: 10,
-            color: '#475569',
-            letterSpacing: '0.1em',
-          }}
-        >
-          Emergency Management Program Platform. EMAP EMS 5-2022 Aligned.
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 32, marginBottom: 32 }}>
+            <div>
+              <div
+                style={{
+                  fontFamily: 'Syne,DM Sans,sans-serif',
+                  fontSize: 18,
+                  fontWeight: 800,
+                  letterSpacing: '-0.5px',
+                  marginBottom: 10,
+                }}
+              >
+                <span style={{ color: '#f0f4fa' }}>planrr</span>
+                <span style={{ color: GOLD }}>.app</span>
+              </div>
+              <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 10, color: '#475569', letterSpacing: '0.08em', maxWidth: 260, lineHeight: 1.6 }}>
+                Emergency Management Program Platform.
+                <br />EMAP EMS 5-2022 Aligned.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 9, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 700 }}>Product</div>
+                {['Features', 'Pricing', 'Security'].map(t => (
+                  <div key={t} style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.color = GOLD}
+                    onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                  >{t}</div>
+                ))}
+              </div>
+              <div>
+                <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 9, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 700 }}>Legal</div>
+                {[
+                  { label: 'Privacy Policy', href: '/privacy' },
+                  { label: 'Terms of Service', href: '/terms' },
+                ].map(t => (
+                  <div key={t.label} style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.color = GOLD}
+                    onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                  >{t.label}</div>
+                ))}
+              </div>
+              <div>
+                <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 9, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 700 }}>Contact</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>hello@planrr.app</div>
+              </div>
+            </div>
+          </div>
+          <div style={{ borderTop: '1px solid #2E3439', paddingTop: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 10, color: '#475569', letterSpacing: '0.08em' }}>
+              &copy; {new Date().getFullYear()} planrr.app. All rights reserved.
+            </div>
+            <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 10, color: '#475569', letterSpacing: '0.08em' }}>
+              Made for emergency managers, by emergency managers.
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -23567,8 +23715,8 @@ function LandingPage({ onLogin, onSignup }) {
 }
 
 /* AUTH */
-var SB_URL = 'https://ltnbvwnhtsaebyslbhil.supabase.co';
-var SB_KEY =
+var SB_URL = process.env.REACT_APP_SUPABASE_URL || 'https://ltnbvwnhtsaebyslbhil.supabase.co';
+var SB_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0bmJ2d25odHNhZWJ5c2xiaGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMTk0NDYsImV4cCI6MjA4OTU5NTQ0Nn0.VrfVyQPiWzVo7VpQJtRyKQgNBtoq3Du-uGCAGsH815c';
 async function sbSignIn(email, pw) {
   const r = await fetch(SB_URL + '/auth/v1/token?grant_type=password', {
@@ -25189,9 +25337,15 @@ function FeedbackModal() {
   );
 }
 
-export default function App() {
+function AppInner() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [data, setData] = useState(null);
-  const [view, setView] = useState('dashboard');
+  const pathView = location.pathname.replace(/^\/app\//, '').replace(/^\//, '') || 'dashboard';
+  const view = VIEW_TITLES[pathView] ? pathView : 'dashboard';
+  const setView = useCallback((v) => {
+    navigate('/app/' + v);
+  }, [navigate]);
   const [onboarding, setOnboarding] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -25249,6 +25403,11 @@ export default function App() {
       return final;
     });
   }, []);
+  // Update document title on view change
+  useEffect(() => {
+    const title = VIEW_TITLES[view] || 'Dashboard';
+    document.title = `${title} | planrr.app`;
+  }, [view]);
   // Global search keyboard shortcut
   useEffect(() => {
     const h = (e) => {
@@ -25301,6 +25460,7 @@ export default function App() {
                 setLoaded(false);
                 setAuthed(true);
                 setAuthMode(null);
+                navigate('/app/dashboard');
               }}
               initialMode={authMode}
             />
@@ -25348,7 +25508,7 @@ export default function App() {
         fontFamily: "'DM Sans',sans-serif",
       }}
     >
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800;9..40,900&family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:${B.bg};}::-webkit-scrollbar-thumb{background:#cdd6da;border-radius:3px;}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes typingDot{0%,60%,100%{transform:translateY(0);opacity:0.4}30%{transform:translateY(-3px);opacity:1}}@media print{#planrr-sidebar{display:none!important}#planrr-topbar{display:none!important}#planrr-main{margin-left:0!important}}@media(max-width:1024px){#planrr-sidebar{position:fixed!important;left:-260px!important;transition:left 0.25s ease!important;z-index:100!important}#planrr-sidebar.open{left:0!important}#planrr-main{margin-left:0!important}.planrr-menu-toggle{display:flex!important}.planrr-sidebar-overlay{display:block!important}}@media(max-width:768px){.planrr-pricing-grid{grid-template-columns:1fr!important}.planrr-features-grid{grid-template-columns:1fr!important}.planrr-stats-strip{grid-template-columns:repeat(2,1fr)!important}.planrr-security-grid{grid-template-columns:1fr!important}.planrr-landing-header{padding:14px 16px!important}.planrr-landing-hero{padding:48px 20px 40px!important}.planrr-landing-section{padding:48px 20px!important}}@media(max-width:480px){.planrr-stats-strip{grid-template-columns:1fr!important}}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800;9..40,900&family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}:focus-visible{outline:2px solid #1BC9C4;outline-offset:2px;border-radius:4px}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:${B.bg};}::-webkit-scrollbar-thumb{background:#cdd6da;border-radius:3px;}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes typingDot{0%,60%,100%{transform:translateY(0);opacity:0.4}30%{transform:translateY(-3px);opacity:1}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@media print{#planrr-sidebar{display:none!important}#planrr-topbar{display:none!important}#planrr-main{margin-left:0!important}}@media(max-width:1024px){#planrr-sidebar{position:fixed!important;left:-260px!important;transition:left 0.25s ease!important;z-index:100!important}#planrr-sidebar.open{left:0!important}#planrr-main{margin-left:0!important}.planrr-menu-toggle{display:flex!important}.planrr-sidebar-overlay{display:block!important}}@media(max-width:768px){.planrr-pricing-grid{grid-template-columns:1fr!important}.planrr-features-grid{grid-template-columns:1fr!important}.planrr-stats-strip{grid-template-columns:repeat(2,1fr)!important}.planrr-security-grid{grid-template-columns:1fr!important}.planrr-landing-header{padding:14px 16px!important}.planrr-landing-hero{padding:48px 20px 40px!important}.planrr-landing-section{padding:48px 20px!important}}@media(max-width:480px){.planrr-stats-strip{grid-template-columns:1fr!important}}`}</style>
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
@@ -25708,5 +25868,16 @@ export default function App() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/app/*" element={<AppInner />} />
+        <Route path="/*" element={<AppInner />} />
+      </Routes>
+    </ErrorBoundary>
   );
 }

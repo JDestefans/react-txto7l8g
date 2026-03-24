@@ -1,0 +1,72 @@
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import { MemoryRouter } from 'react-router-dom';
+import App from '../App';
+
+function renderApp(route = '/') {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <App />
+    </MemoryRouter>
+  );
+}
+
+describe('App', () => {
+  test('renders landing page when not authenticated', () => {
+    renderApp('/');
+    expect(screen.getByText(/Your EM program/i)).toBeInTheDocument();
+  });
+
+  test('renders sign in button on landing page', () => {
+    renderApp('/');
+    const signInButtons = screen.getAllByText(/Sign In/i);
+    expect(signInButtons.length).toBeGreaterThan(0);
+  });
+
+  test('renders Get Started button on landing page', () => {
+    renderApp('/');
+    expect(screen.getByText(/Get Started/i)).toBeInTheDocument();
+  });
+
+  test('renders pricing section with plan tiers', () => {
+    renderApp('/');
+    expect(screen.getAllByText(/Solo Operator/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Small Team/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Full Program/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Enterprise/i).length).toBeGreaterThan(0);
+  });
+
+  test('renders pricing with seat and AI limits', () => {
+    renderApp('/');
+    expect(screen.getByText(/1 user seat included/i)).toBeInTheDocument();
+    expect(screen.getByText(/200 AI calls \/ month/i)).toBeInTheDocument();
+    expect(screen.getByText(/1,000 AI calls \/ month/i)).toBeInTheDocument();
+  });
+
+  test('renders Security & Compliance section', () => {
+    renderApp('/');
+    expect(screen.getByText(/Security & Compliance/i)).toBeInTheDocument();
+    expect(screen.getByText(/HTTPS Everywhere/i)).toBeInTheDocument();
+    expect(screen.getByText(/Encryption at Rest/i)).toBeInTheDocument();
+  });
+
+  test('renders SOC 2 roadmap', () => {
+    renderApp('/');
+    expect(screen.getByText(/SOC 2 Compliance Roadmap/i)).toBeInTheDocument();
+    expect(screen.getByText(/Q2 – Q3 2026/i)).toBeInTheDocument();
+  });
+
+  test('renders footer with legal links', () => {
+    renderApp('/');
+    expect(screen.getByText(/Privacy Policy/i)).toBeInTheDocument();
+    expect(screen.getByText(/Terms of Service/i)).toBeInTheDocument();
+    expect(screen.getByText(/hello@planrr.app/i)).toBeInTheDocument();
+  });
+
+  test('renders features section', () => {
+    renderApp('/');
+    expect(screen.getAllByText(/EMAP Standards/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Smart Priority Queue/i)).toBeInTheDocument();
+  });
+});
