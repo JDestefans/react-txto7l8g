@@ -22482,7 +22482,7 @@ function RecoveryPlanningView({ data, setData }) {
   );
 }
 
-function LandingPage({ onLogin, onSignup, onBuy }) {
+function LandingPage({ onLogin, onSignup, onBuy, onBuyPlan }) {
   const [mobileNav, setMobileNav] = useState(false);
   return (
     <div
@@ -23020,12 +23020,9 @@ function LandingPage({ onLogin, onSignup, onBuy }) {
                 1 FTE or fewer. For the solo EM director wearing every hat.
               </div>
               {[
-                'Full platform access',
-                '1 user seat included',
+                'Every feature included',
+                '1 user seat',
                 '200 AI calls / month',
-                'Recovery planning module',
-                'Document templates',
-                'Evidence export',
                 'Email support',
               ].map((f) => (
                 <div
@@ -23053,7 +23050,7 @@ function LandingPage({ onLogin, onSignup, onBuy }) {
                 </div>
               ))}
               <button
-                onClick={onSignup}
+                onClick={() => onBuyPlan ? onBuyPlan('solo') : onSignup()}
                 style={{
                   width: '100%',
                   marginTop: 16,
@@ -23145,13 +23142,10 @@ function LandingPage({ onLogin, onSignup, onBuy }) {
                 2-5 FTE staff. The backbone of local EM.
               </div>
               {[
-                'Everything in Solo',
+                'Every feature included',
                 'Up to 5 user seats',
                 '1,000 AI calls / month',
-                'Mutual aid resource mapping',
-                'Bulk document intake',
                 'Priority support',
-                'Custom branding',
               ].map((f) => (
                 <div
                   key={f}
@@ -23178,7 +23172,7 @@ function LandingPage({ onLogin, onSignup, onBuy }) {
                 </div>
               ))}
               <button
-                onClick={onSignup}
+                onClick={() => onBuyPlan ? onBuyPlan('small_team') : onSignup()}
                 style={{
                   width: '100%',
                   marginTop: 16,
@@ -23250,11 +23244,9 @@ function LandingPage({ onLogin, onSignup, onBuy }) {
                 6+ FTE. For established programs scaling up.
               </div>
               {[
-                'Everything in Small Team',
+                'Every feature included',
                 'Unlimited user seats',
                 '5,000 AI calls / month',
-                'Advanced analytics',
-                'API access',
                 'Dedicated onboarding',
                 'Phone support',
               ].map((f) => (
@@ -23283,7 +23275,7 @@ function LandingPage({ onLogin, onSignup, onBuy }) {
                 </div>
               ))}
               <button
-                onClick={onSignup}
+                onClick={() => onBuyPlan ? onBuyPlan('full_program') : onSignup()}
                 style={{
                   width: '100%',
                   marginTop: 16,
@@ -23353,14 +23345,12 @@ function LandingPage({ onLogin, onSignup, onBuy }) {
                 Multi-org contractors, state agencies, and regional coalitions.
               </div>
               {[
-                'Multi-organization dashboard',
+                'Every feature included',
                 'Unlimited seats & AI usage',
-                'Cross-jurisdiction reporting',
-                'Centralized admin console',
-                'Volume licensing',
-                'Custom integrations',
+                'Multi-org dashboard',
                 'Dedicated account manager',
                 'SLA guarantees',
+                'Custom integrations',
               ].map((f) => (
                 <div
                   key={f}
@@ -25557,6 +25547,10 @@ function AppInner() {
           onLogin={() => setAuthMode('login')}
           onSignup={() => setAuthMode('signup')}
           onBuy={() => setAuthMode('signup')}
+          onBuyPlan={(planId) => {
+            sessionStorage.setItem('planrr_pending_plan', planId);
+            setAuthMode('signup');
+          }}
         />
         {authMode && (
           <>
@@ -25576,10 +25570,21 @@ function AppInner() {
               animation: 'fadeUp 0.25s ease',
             }}>
               <AuthScreen
-                onAuth={() => {
+                onAuth={async () => {
                   setLoaded(false);
                   setAuthed(true);
                   setAuthMode(null);
+                  const pendingPlan = sessionStorage.getItem('planrr_pending_plan');
+                  if (pendingPlan) {
+                    sessionStorage.removeItem('planrr_pending_plan');
+                    try {
+                      const { createCheckoutSession } = await import('./services/billing');
+                      await createCheckoutSession(pendingPlan);
+                      return;
+                    } catch (e) {
+                      console.warn('Stripe checkout not available:', e.message);
+                    }
+                  }
                   navigate('/app/dashboard');
                 }}
                 initialMode={authMode}
