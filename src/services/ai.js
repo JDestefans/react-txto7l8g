@@ -37,7 +37,7 @@ export async function callAI(system, prompt, onChunk, operation) {
   const op = operation || 'general';
   const tier = getModelTier(op);
   const res = await fetch(
-    SB_URL + '/functions/v1/super-endpoint',
+    SB_URL + '/functions/v1/ai-proxy',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -104,7 +104,7 @@ export async function callAIWithDoc(system, textBefore, fileData, onChunk) {
   }
   const tier = getModelTier('interpret_doc');
   const res = await fetch(
-    SB_URL + '/functions/v1/super-endpoint',
+    SB_URL + '/functions/v1/ai-proxy',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

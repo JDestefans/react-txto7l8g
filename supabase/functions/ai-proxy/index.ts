@@ -10,7 +10,7 @@ const corsHeaders = {
 }
 
 const MODEL_MAP: Record<string, string> = {
-  fast: 'claude-3-5-haiku-20241022',
+  fast: 'claude-haiku-4-5-20251001',
   strong: 'claude-sonnet-4-20250514',
 }
 

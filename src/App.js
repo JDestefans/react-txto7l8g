@@ -805,11 +805,12 @@ function getModelTier(operation) {
 async function callAI(system, prompt, onChunk, operation) {
   const op = operation || 'general';
   const tier = getModelTier(op);
+  const token = getAccessToken();
   const res = await fetch(
-    SB_URL + '/functions/v1/super-endpoint',
+    SB_URL + '/functions/v1/ai-proxy',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (token || SB_KEY) },
       body: JSON.stringify({
         operation: op,
         model_tier: tier,
@@ -871,11 +872,12 @@ async function callAIWithDoc(system, textBefore, fileData, onChunk) {
       });
   }
   const tier = getModelTier('interpret_doc');
+  const token = getAccessToken();
   const res = await fetch(
-    SB_URL + '/functions/v1/super-endpoint',
+    SB_URL + '/functions/v1/ai-proxy',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (token || SB_KEY) },
       body: JSON.stringify({
         operation: 'interpret_doc',
         model_tier: tier,
@@ -13581,11 +13583,12 @@ function ThiraView({ data, setData }) {
         });
       }
 
+      const aiToken = getAccessToken();
       const res = await fetch(
-        SB_URL + '/functions/v1/super-endpoint',
+        SB_URL + '/functions/v1/ai-proxy',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (aiToken || SB_KEY) },
           body: JSON.stringify({
             operation: 'bulk_intake',
             model_tier: 'strong',
@@ -18129,11 +18132,12 @@ function BulkIntake({ data, updateData }) {
             text: `Document:\n${fd.data}\n\n${prompt}`,
           });
         }
+        const aiToken = getAccessToken();
         const res = await fetch(
-          SB_URL + '/functions/v1/super-endpoint',
+          SB_URL + '/functions/v1/ai-proxy',
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (aiToken || SB_KEY) },
             body: JSON.stringify({
               operation: 'bulk_intake',
               model_tier: 'strong',
