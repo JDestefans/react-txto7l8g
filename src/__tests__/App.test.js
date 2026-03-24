@@ -24,9 +24,9 @@ describe('App', () => {
     expect(signInButtons.length).toBeGreaterThan(0);
   });
 
-  test('renders Buy Now button on landing page', () => {
+  test('renders Start Free Trial button on landing page', () => {
     renderApp('/');
-    expect(screen.getAllByText(/Buy Now/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Start Free Trial/i).length).toBeGreaterThan(0);
   });
 
   test('renders pricing section with plan tiers', () => {

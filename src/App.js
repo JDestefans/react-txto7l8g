@@ -1002,6 +1002,12 @@ const PLAN_LIMITS = {
   enterprise: { label: 'Enterprise', seats: Infinity, aiCallsPerMonth: Infinity, price: null },
 };
 
+const STRIPE_BUY_LINKS = {
+  solo: process.env.REACT_APP_STRIPE_BUY_LINK_SOLO || 'https://buy.stripe.com/bJe14odeGdG0cOv43LgrS00',
+  small_team: process.env.REACT_APP_STRIPE_BUY_LINK_SMALL_TEAM || 'https://buy.stripe.com/7sY14o3E659u4hZ9o5grS01',
+  full_program: process.env.REACT_APP_STRIPE_BUY_LINK_FULL_PROGRAM || 'https://buy.stripe.com/8x228s4Ia31m3dV7fXgrS02',
+};
+
 function getPlanLimits(planId) {
   return PLAN_LIMITS[planId] || PLAN_LIMITS.solo;
 }
@@ -22482,7 +22488,7 @@ function RecoveryPlanningView({ data, setData }) {
   );
 }
 
-function LandingPage({ onLogin, onSignup, onBuy, onBuyPlan }) {
+function LandingPage({ onLogin, onSignup, onBuyPlan }) {
   const [mobileNav, setMobileNav] = useState(false);
   return (
     <div
@@ -22569,7 +22575,7 @@ function LandingPage({ onLogin, onSignup, onBuy, onBuyPlan }) {
             Sign In
           </button>
           <button
-            onClick={onBuy || onSignup}
+            onClick={() => onBuyPlan ? onBuyPlan('small_team') : onSignup()}
             style={{
               background: GOLD,
               color: '#141719',
@@ -22582,7 +22588,7 @@ function LandingPage({ onLogin, onSignup, onBuy, onBuyPlan }) {
               fontFamily: 'DM Sans,sans-serif',
             }}
           >
-            Buy Now
+            Start Free Trial
           </button>
         </div>
         <button
@@ -22597,7 +22603,7 @@ function LandingPage({ onLogin, onSignup, onBuy, onBuyPlan }) {
       {mobileNav && (
         <div style={{ background: 'rgba(20,23,25,0.98)', borderBottom: '1px solid rgba(194,150,74,0.22)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <button onClick={() => { setMobileNav(false); onLogin(); }} style={{ background: 'none', color: '#94a3b8', border: '1px solid #3A4045', borderRadius: 6, padding: '10px', fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans,sans-serif', width: '100%' }}>Sign In</button>
-          <button onClick={() => { setMobileNav(false); (onBuy || onSignup)(); }} style={{ background: GOLD, color: '#141719', border: 'none', borderRadius: 6, padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans,sans-serif', width: '100%' }}>Buy Now</button>
+          <button onClick={() => { setMobileNav(false); onBuyPlan ? onBuyPlan('small_team') : onSignup(); }} style={{ background: GOLD, color: '#141719', border: 'none', borderRadius: 6, padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans,sans-serif', width: '100%' }}>Start Free Trial</button>
         </div>
       )}
 
@@ -22669,7 +22675,7 @@ function LandingPage({ onLogin, onSignup, onBuy, onBuyPlan }) {
         </p>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
           <button
-            onClick={onBuy || onSignup}
+            onClick={() => onBuyPlan ? onBuyPlan('small_team') : onSignup()}
             style={{
               background: GOLD,
               color: '#141719',
@@ -23470,7 +23476,7 @@ function LandingPage({ onLogin, onSignup, onBuy, onBuyPlan }) {
           }}
         >
           <button
-            onClick={onBuy || onSignup}
+            onClick={() => onBuyPlan ? onBuyPlan('small_team') : onSignup()}
             style={{
               background: GOLD,
               color: '#141719',
@@ -25548,8 +25554,12 @@ function AppInner() {
           onSignup={() => setAuthMode('signup')}
           onBuy={() => setAuthMode('signup')}
           onBuyPlan={(planId) => {
-            sessionStorage.setItem('planrr_pending_plan', planId);
-            setAuthMode('signup');
+            const link = STRIPE_BUY_LINKS[planId];
+            if (link) {
+              window.location.href = link;
+            } else {
+              setAuthMode('signup');
+            }
           }}
         />
         {authMode && (
