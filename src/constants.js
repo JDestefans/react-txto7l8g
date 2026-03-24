@@ -1,0 +1,96 @@
+/* --- VIEW TITLES (for document.title) ----------------- */
+export const VIEW_TITLES = {
+  dashboard: 'Dashboard',
+  accreditation: 'EMAP Standards',
+  intake: 'Bulk Document Intake',
+  package: 'Accreditation Package Builder',
+  training: 'Training Manager',
+  exercises: 'Exercises & AARs',
+  partners: 'Partner Registry',
+  plans: 'Plans & SOPs',
+  resources: 'Resources',
+  employees: 'Personnel',
+  calendar: 'Program Calendar',
+  reports: 'Compliance Report',
+  assistant: 'AI Assistant',
+  grants: 'Grants & Funding',
+  thira: 'Hazard Analysis',
+  cap: 'Corrective Action Program',
+  activity: 'Activity Log',
+  settings: 'My Program',
+  templates: 'Document Templates',
+  evidence: 'Evidence Export',
+  recovery: 'Recovery Planning',
+  mutualaid: 'Mutual Aid Map',
+  journey: 'Accreditation Journey',
+};
+
+/* --- BRAND (fixed contrast) --------------------------- */
+export const B = {
+  teal: '#1BC9C4',
+  tealDark: '#13A8A4',
+  tealLight: '#E6FAFA',
+  tealBorder: '#9EECEA',
+  bg: '#F2F5F7',
+  card: '#FFFFFF',
+  border: '#E2E8EA',
+  text: '#111827',
+  muted: '#374151',
+  faint: '#6B7280', // - fixed contrast
+  sidebar: '#1C1F22',
+  sidebarMid: '#252A2E',
+  sidebarBorder: '#2E3439',
+  sidebarMuted: '#94A3B8',
+  green: '#10B981',
+  greenLight: '#ECFDF5',
+  greenBorder: '#A7F3D0',
+  amber: '#F59E0B',
+  amberLight: '#FFFBEB',
+  amberBorder: '#FDE68A',
+  red: '#EF4444',
+  redLight: '#FEF2F2',
+  redBorder: '#FECACA',
+  blue: '#3B82F6',
+  blueLight: '#EFF6FF',
+  blueBorder: '#BFDBFE',
+  purple: '#8B5CF6',
+  purpleLight: '#F5F3FF',
+  purpleBorder: '#DDD6FE',
+  indigo: '#6366F1',
+  indigoLight: '#EEF2FF',
+  indigoBorder: '#C7D2FE',
+};
+
+export const ST = {
+  not_started: {
+    label: 'Not Started',
+    color: B.faint,
+    bg: '#F3F6F7',
+    border: B.border,
+    dot: '#C4CED4',
+  },
+  in_progress: {
+    label: 'In Progress',
+    color: B.amber,
+    bg: B.amberLight,
+    border: B.amberBorder,
+    dot: B.amber,
+  },
+  compliant: {
+    label: 'Compliant',
+    color: B.green,
+    bg: B.greenLight,
+    border: B.greenBorder,
+    dot: B.green,
+  },
+  needs_review: {
+    label: 'Needs Review',
+    color: B.red,
+    bg: B.redLight,
+    border: B.redBorder,
+    dot: B.red,
+  },
+};
+
+/* --- WORDMARK + PLACEHOLDER MARK ---------------------- */
+export const GOLD = '#c2964a';
