@@ -13589,12 +13589,17 @@ function ThiraView({ data, setData }) {
           body: JSON.stringify({
             operation: 'bulk_intake',
             model_tier: 'strong',
+            stream: false,
+            system: 'You are a THIRA/SPR hazard extraction expert. Analyze documents and extract hazard data. Return only valid JSON.',
             content,
             max_tokens: 1400,
           }),
         }
       );
-      if (!res.ok) throw new Error('API error');
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(errBody || `API error (${res.status})`);
+      }
       const json = await res.json();
       const parsed = JSON.parse(
         (json.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim()
@@ -18132,12 +18137,17 @@ function BulkIntake({ data, updateData }) {
             body: JSON.stringify({
               operation: 'bulk_intake',
               model_tier: 'strong',
+              stream: false,
+              system: 'You are an EMAP EMS 5-2022 document analyst for PLANRR. Analyze documents and map them to relevant EMAP standards. Return only valid JSON with no markdown formatting.',
               content,
-              max_tokens: 1200,
+              max_tokens: 2000,
             }),
           }
         );
-        if (!res.ok) throw new Error('API error');
+        if (!res.ok) {
+          const errBody = await res.text().catch(() => '');
+          throw new Error(errBody || `API error (${res.status})`);
+        }
         const json = await res.json();
         const parsed = JSON.parse(
           (json.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim()
