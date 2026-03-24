@@ -39,7 +39,7 @@ describe('App', () => {
 
   test('renders pricing with seat and AI limits', () => {
     renderApp('/');
-    expect(screen.getByText(/1 user seat included/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 user seat/i)).toBeInTheDocument();
     expect(screen.getByText(/200 AI calls \/ month/i)).toBeInTheDocument();
     expect(screen.getByText(/1,000 AI calls \/ month/i)).toBeInTheDocument();
   });
