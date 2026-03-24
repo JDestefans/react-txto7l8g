@@ -1,6 +1,8 @@
 import React, { Component } from 'react';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 
 /* --- ERROR BOUNDARY ----------------------------------- */
 class ErrorBoundary extends Component {
@@ -1032,6 +1034,15 @@ function incrementAIUsage(data, updateData) {
   }
 }
 
+async function guardedCallAI(data, updateData, system, prompt, onChunk, operation) {
+  const quota = checkAIQuota(data);
+  if (!quota.allowed) {
+    throw new Error(quota.message);
+  }
+  incrementAIUsage(data, updateData);
+  return callAI(system, prompt, onChunk, operation);
+}
+
 /* --- FILE UTILS --------------------------------------- */
 function readFile(file) {
   return new Promise((resolve, reject) => {
@@ -1275,18 +1286,84 @@ function syncStandardsFromOps(data) {
   }
   return changed ? stds : null;
 }
-async function loadData() {
+function getUserId() {
   try {
-    const r = localStorage.getItem('planrr_v3');
-    return r ? JSON.parse(r) : null;
-  } catch {
-    return null;
-  }
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    if (!s || !s.user) return null;
+    return s.user.id;
+  } catch { return null; }
 }
-async function saveData(d) {
+
+function getLocalKey() {
+  const uid = getUserId();
+  return uid ? `planrr_v3_${uid}` : 'planrr_v3';
+}
+
+function getAccessToken() {
   try {
-    localStorage.setItem('planrr_v3', JSON.stringify(d));
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    return s?.access_token || null;
+  } catch { return null; }
+}
+
+async function loadData() {
+  const localKey = getLocalKey();
+  const token = getAccessToken();
+  if (token) {
+    try {
+      const r = await fetch(SB_URL + '/rest/v1/program_data?select=data&limit=1', {
+        headers: {
+          apikey: SB_KEY,
+          Authorization: 'Bearer ' + token,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (r.ok) {
+        const rows = await r.json();
+        if (rows.length > 0 && rows[0].data) {
+          localStorage.setItem(localKey, JSON.stringify(rows[0].data));
+          return rows[0].data;
+        }
+      }
+    } catch {}
+  }
+  try {
+    const r = localStorage.getItem(localKey);
+    if (r) return JSON.parse(r);
+    const legacy = localStorage.getItem('planrr_v3');
+    if (legacy) {
+      const parsed = JSON.parse(legacy);
+      localStorage.setItem(localKey, legacy);
+      return parsed;
+    }
+    return null;
+  } catch { return null; }
+}
+
+let _saveQueued = false;
+async function saveData(d) {
+  const localKey = getLocalKey();
+  try {
+    localStorage.setItem(localKey, JSON.stringify(d));
   } catch {}
+  const token = getAccessToken();
+  if (!token || _saveQueued) return;
+  _saveQueued = true;
+  setTimeout(async () => {
+    _saveQueued = false;
+    try {
+      await fetch(SB_URL + '/rest/v1/program_data', {
+        method: 'POST',
+        headers: {
+          apikey: SB_KEY,
+          Authorization: 'Bearer ' + token,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({ data: d }),
+      });
+    } catch {}
+  }, 2000);
 }
 
 /* --- STATUS HELPERS ----------------------------------- */
@@ -23688,10 +23765,10 @@ function LandingPage({ onLogin, onSignup }) {
                   { label: 'Privacy Policy', href: '/privacy' },
                   { label: 'Terms of Service', href: '/terms' },
                 ].map(t => (
-                  <div key={t.label} style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, cursor: 'pointer' }}
+                  <a key={t.label} href={t.href} style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 8, cursor: 'pointer', textDecoration: 'none' }}
                     onMouseEnter={e => e.currentTarget.style.color = GOLD}
                     onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
-                  >{t.label}</div>
+                  >{t.label}</a>
                 ))}
               </div>
               <div>
@@ -23767,12 +23844,39 @@ async function sbReset(email) {
   if (d.error) throw new Error(d.error.message || 'Failed');
   return d;
 }
+async function sbRefreshToken() {
+  try {
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    if (!s || !s.refresh_token) return false;
+    const r = await fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SB_KEY },
+      body: JSON.stringify({ refresh_token: s.refresh_token }),
+    });
+    if (!r.ok) return false;
+    const d = await r.json();
+    if (d.error || !d.access_token) return false;
+    localStorage.setItem('sb_session', JSON.stringify({ ...s, ...d }));
+    return true;
+  } catch { return false; }
+}
+
+function getTokenExpiry() {
+  try {
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    if (!s || !s.access_token) return 0;
+    const p = JSON.parse(atob(s.access_token.split('.')[1]));
+    return (p.exp || 0) * 1000;
+  } catch { return 0; }
+}
+
 function isLoggedIn() {
   try {
     const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
     if (!s || !s.access_token) return false;
     const p = JSON.parse(atob(s.access_token.split('.')[1]));
     if (p.exp * 1000 < Date.now()) {
+      if (s.refresh_token) return 'needs_refresh';
       localStorage.removeItem('sb_session');
       return false;
     }
@@ -25349,10 +25453,43 @@ function AppInner() {
   const [onboarding, setOnboarding] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [authed, setAuthed] = useState(isLoggedIn());
+  const [authed, setAuthed] = useState(() => {
+    const status = isLoggedIn();
+    return status === true || status === 'needs_refresh';
+  });
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [firstRun, setFirstRun] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const saveTimer = useRef(null);
+  const refreshTimer = useRef(null);
+
+  useEffect(() => {
+    if (!authed) return;
+    const scheduleRefresh = () => {
+      clearTimeout(refreshTimer.current);
+      const exp = getTokenExpiry();
+      const msUntilRefresh = Math.max((exp - Date.now()) - 60000, 5000);
+      refreshTimer.current = setTimeout(async () => {
+        const ok = await sbRefreshToken();
+        if (ok) {
+          scheduleRefresh();
+        } else {
+          setSessionExpired(true);
+        }
+      }, msUntilRefresh);
+    };
+    const init = async () => {
+      const status = isLoggedIn();
+      if (status === 'needs_refresh') {
+        const ok = await sbRefreshToken();
+        if (!ok) { setAuthed(false); return; }
+      }
+      scheduleRefresh();
+    };
+    init();
+    return () => clearTimeout(refreshTimer.current);
+  }, [authed]);
+
   useEffect(() => {
     if (!authed) {
       setLoaded(true);
@@ -25497,7 +25634,8 @@ function AppInner() {
         </div>
       </div>
     );
-  // onboarding handled in signup flow
+  if (onboarding)
+    return <Onboarding onComplete={handleOnboard} />;
   const notifications = buildNotifications(data);
   return (
     <div
@@ -25771,6 +25909,22 @@ function AppInner() {
             Sign out
           </button>
         </div>
+        {sessionExpired && (
+          <div style={{
+            background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8,
+            padding: '10px 20px', margin: '8px 32px 0', display: 'flex',
+            alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          }}>
+            <span style={{ fontSize: 13, color: '#92400e' }}>
+              Your session has expired. Please sign in again to continue syncing your data.
+            </span>
+            <button onClick={() => { sbSignOut(); }} style={{
+              background: GOLD, color: '#141719', border: 'none', borderRadius: 6,
+              padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}>Sign In Again</button>
+          </div>
+        )}
         <div
           style={{
             animation: 'fadeUp 0.3s ease',
@@ -25875,6 +26029,8 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Routes>
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
         <Route path="/app/*" element={<AppInner />} />
         <Route path="/*" element={<AppInner />} />
       </Routes>
