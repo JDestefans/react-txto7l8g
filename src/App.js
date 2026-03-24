@@ -24075,7 +24075,9 @@ function AuthScreen({ onAuth, initialMode, onClose }) {
     setLoading(true);
     try {
       await sbSignUp(fe, fp, fo.trim(), fn.trim(), fj, fs);
-      setOk('Account created! You can now sign in.');
+      await sbSignIn(fe, fp);
+      onAuth();
+      return;
     } catch (x) {
       setErr(x.message);
     }
@@ -24258,19 +24260,11 @@ function AuthScreen({ onAuth, initialMode, onClose }) {
                   letterSpacing: '-0.5px',
                 }}
               >
-                Start your program
+                Start your free trial
               </div>
-              <div style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>
-                Create your PLANRR account
+              <div style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>
+                14 days free. Cancel anytime.
               </div>
-              <label style={lS}>Full name</label>
-              <input
-                type="text"
-                value={fn}
-                onChange={(e) => setFn(e.target.value)}
-                placeholder="Jane Smith"
-                style={iS}
-              />
               <label style={lS}>Work email</label>
               <input
                 type="email"
@@ -24289,101 +24283,6 @@ function AuthScreen({ onAuth, initialMode, onClose }) {
                 style={iS}
                 required
               />
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '0 12px',
-                }}
-              >
-                <div>
-                  <label style={lS}>Jurisdiction type</label>
-                  <select
-                    value={fj}
-                    onChange={(e) => setFj(e.target.value)}
-                    style={{ ...iS, marginBottom: 12 }}
-                  >
-                    <option value="">Select type...</option>
-                    <option>County</option>
-                    <option>Municipal</option>
-                    <option>State</option>
-                    <option>Tribal</option>
-                    <option>Territory</option>
-                    <option>University / College</option>
-                    <option>Hospital / Healthcare</option>
-                    <option>Private Sector</option>
-                    <option>Federal Agency</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={lS}>State</label>
-                  <select
-                    value={fs}
-                    onChange={(e) => setFs(e.target.value)}
-                    style={{ ...iS, marginBottom: 12 }}
-                  >
-                    <option value="">Select state...</option>
-                    {[
-                      'AL',
-                      'AK',
-                      'AZ',
-                      'AR',
-                      'CA',
-                      'CO',
-                      'CT',
-                      'DE',
-                      'FL',
-                      'GA',
-                      'HI',
-                      'ID',
-                      'IL',
-                      'IN',
-                      'IA',
-                      'KS',
-                      'KY',
-                      'LA',
-                      'ME',
-                      'MD',
-                      'MA',
-                      'MI',
-                      'MN',
-                      'MS',
-                      'MO',
-                      'MT',
-                      'NE',
-                      'NV',
-                      'NH',
-                      'NJ',
-                      'NM',
-                      'NY',
-                      'NC',
-                      'ND',
-                      'OH',
-                      'OK',
-                      'OR',
-                      'PA',
-                      'RI',
-                      'SC',
-                      'SD',
-                      'TN',
-                      'TX',
-                      'UT',
-                      'VT',
-                      'VA',
-                      'WA',
-                      'WV',
-                      'WI',
-                      'WY',
-                      'DC',
-                      'PR',
-                      'GU',
-                      'VI',
-                    ].map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
               <label style={lS}>Password</label>
               <input
                 type="password"
@@ -24419,7 +24318,7 @@ function AuthScreen({ onAuth, initialMode, onClose }) {
                     '0 4px 14px rgba(27,201,196,0.3)';
                 }}
               >
-                {loading ? 'Creating...' : 'Create Account'}
+                {loading ? 'Setting up...' : 'Start Free Trial'}
               </button>
               <div
                 style={{ fontSize: 12, color: '#64748b', textAlign: 'center' }}
