@@ -4,6 +4,7 @@ import { useNavigate, useLocation, Routes, Route, Navigate, Link } from 'react-r
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import SharedReport from './pages/SharedReport';
+import Founder from './pages/Founder';
 import { STARTER_PACKS, applyStarterPack } from './data/starterPacks';
 import { downloadICal } from './services/calendar';
 import { buildShareURL } from './services/shareReport';
@@ -1340,7 +1341,9 @@ async function loadData() {
           return rows[0].data;
         }
       }
-    } catch {}
+    } catch (e) {
+      console.warn('planrr: cloud load failed, using local', e.message);
+    }
   }
   try {
     const r = localStorage.getItem(localKey);
@@ -1362,12 +1365,13 @@ async function saveData(d) {
     localStorage.setItem(localKey, JSON.stringify(d));
   } catch {}
   const token = getAccessToken();
-  if (!token || _saveQueued) return;
+  const userId = getUserId();
+  if (!token || !userId || _saveQueued) return;
   _saveQueued = true;
   setTimeout(async () => {
     _saveQueued = false;
     try {
-      await fetch(SB_URL + '/rest/v1/program_data', {
+      const r = await fetch(SB_URL + '/rest/v1/program_data', {
         method: 'POST',
         headers: {
           apikey: SB_KEY,
@@ -1375,9 +1379,12 @@ async function saveData(d) {
           'Content-Type': 'application/json',
           Prefer: 'resolution=merge-duplicates',
         },
-        body: JSON.stringify({ data: d }),
+        body: JSON.stringify({ user_id: userId, data: d }),
       });
-    } catch {}
+      if (!r.ok) console.warn('planrr: save to cloud failed', r.status);
+    } catch (e) {
+      console.warn('planrr: save to cloud error', e.message);
+    }
   }, 2000);
 }
 
@@ -13624,10 +13631,15 @@ function ThiraView({ data, setData }) {
         const errBody = await res.text().catch(() => '');
         throw new Error(errBody || `API error (${res.status})`);
       }
-      const json = await res.json();
-      const parsed = JSON.parse(
-        (json.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim()
-      );
+      const rawText = await res.text();
+      let json;
+      try { json = JSON.parse(rawText); } catch { throw new Error('Invalid AI response'); }
+      const aiText = (json.content?.[0]?.text || '{}').replace(/```json\s?|```/g, '').trim();
+      let parsed;
+      try { parsed = JSON.parse(aiText); } catch {
+        const m = aiText.match(/\{[\s\S]*\}/);
+        parsed = m ? JSON.parse(m[0]) : {};
+      }
       const extracted = parsed.hazards || [];
 
       if (extracted.length === 0) {
@@ -18162,9 +18174,9 @@ function BulkIntake({ data, updateData }) {
               operation: 'bulk_intake',
               model_tier: 'strong',
               stream: false,
-              system: 'You are an EMAP EMS 5-2022 document analyst for PLANRR. Analyze documents and map them to relevant EMAP standards. Return only valid JSON with no markdown formatting.',
+              system: 'You are an EMAP EMS 5-2022 document analyst for PLANRR. Analyze documents and map them to relevant EMAP standards. Return ONLY a valid JSON object with no markdown, no code fences, no explanation. Format: {"docType":"description","mappings":[{"stdId":"4.5.1","confidence":85,"status":"in_progress","reason":"explanation"}]}',
               content,
-              max_tokens: 2000,
+              max_tokens: 4000,
             }),
           }
         );
@@ -18172,10 +18184,18 @@ function BulkIntake({ data, updateData }) {
           const errBody = await res.text().catch(() => '');
           throw new Error(errBody || `API error (${res.status})`);
         }
-        const json = await res.json();
-        const parsed = JSON.parse(
-          (json.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim()
-        );
+        const rawText = await res.text();
+        let json;
+        try { json = JSON.parse(rawText); } catch {
+          throw new Error('Invalid response from AI: ' + rawText.slice(0, 100));
+        }
+        const aiText = json.content?.[0]?.text || '{}';
+        const cleaned = aiText.replace(/```json\s?|```/g, '').trim();
+        let parsed;
+        try { parsed = JSON.parse(cleaned); } catch {
+          const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+          parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { docType: 'Document', mappings: [] };
+        }
         const mappings = (parsed.mappings || []).filter(
           (m) => m.stdId && ALL_STANDARDS.find((s) => s.id === m.stdId)
         );
@@ -22769,8 +22789,10 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
           }}
         >
           planrr.app is the all-in-one platform for emergency management
-          programs that need to operate at a high standard - not just when an
-          assessor is coming, but 365 days a year.
+          programs that need to operate at a high standard 365 days a year.
+          Built to be a force multiplier for understaffed shops — know exactly
+          what to work on next, automate compliance tracking, and stretch every
+          dollar of your program budget.
         </p>
         <p
           style={{
@@ -22840,7 +22862,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
           ['73', 'EMAP Standards Tracked'],
           ['32', 'FEMA Core Capabilities'],
           ['6', 'AI Document Templates'],
-          ['100%', 'Program In A Box'],
+          ['100%', 'End-to-End EM System'],
         ].map(([n, l]) => (
           <div
             key={l}
@@ -23023,6 +23045,41 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Force Multiplier */}
+      <div style={{ borderTop: '1px solid rgba(194,150,74,0.22)', background: '#1C1F22' }}>
+        <div className="planrr-landing-section" style={{ maxWidth: 1100, margin: '0 auto', padding: '72px 40px' }}>
+          <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 10, color: GOLD, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 20, height: 1, background: GOLD }} />
+            Why planrr
+          </div>
+          <h2 style={{ fontFamily: 'Syne,DM Sans,sans-serif', fontSize: 'clamp(24px,3vw,36px)', fontWeight: 700, letterSpacing: '-1px', marginBottom: 12 }}>
+            One platform. <span style={{ color: GOLD }}>The work of five.</span>
+          </h2>
+          <p style={{ color: '#94a3b8', fontSize: 15, fontWeight: 300, maxWidth: 560, lineHeight: 1.75, marginBottom: 48 }}>
+            Over 50% of local EM agencies have one or fewer full-time staff.
+            planrr replaces the spreadsheets, shared drives, and sticky notes
+            with a system that tells you exactly what to do next — and does
+            half the work for you.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 2 }} className="planrr-features-grid">
+            {[
+              ['Know What\'s Next', 'AI-prioritized task queue tells you the highest-impact action for your program today. No more guessing what to work on.', 'Stop Guessing'],
+              ['Cut Consultant Costs', 'AI drafts your AARs, compliance rationale, grant narratives, and THIRA documents. Work that used to cost $5,000+ in consulting fees, done in minutes.', 'Save Thousands'],
+              ['Always Assessment-Ready', 'Your compliance picture builds automatically as you work. When the assessor calls, you\'re already prepared — not scrambling.', 'No Fire Drills'],
+              ['One Person, Full Program', 'Training, exercises, plans, partners, grants, standards — all connected. Update one module and the rest updates automatically.', 'Force Multiplier'],
+              ['Export-Ready Evidence', 'One-click evidence packages for EMAP assessors. Every document, training record, and AAR bundled per standard.', 'Assessment Day'],
+              ['Protect Your Investment', 'Small agencies invest heavily in their programs. planrr makes sure nothing falls through the cracks — expiring MOUs, overdue reviews, lapsing credentials.', 'Never Miss'],
+            ].map(([t, d, tag]) => (
+              <div key={t} style={{ background: '#1C1F22', border: '1px solid #2E3439', padding: '28px 24px' }}>
+                <div style={{ fontFamily: 'Syne,DM Sans,sans-serif', fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{t}</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.65, marginBottom: 14, fontWeight: 300 }}>{d}</div>
+                <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 9, color: GOLD, border: '1px solid rgba(194,150,74,0.22)', padding: '2px 8px', display: 'inline-block', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tag}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -23905,7 +23962,11 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
                 >Terms of Service</Link>
               </div>
               <div>
-                <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 9, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 700 }}>Contact</div>
+                <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 9, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 700 }}>Company</div>
+                <Link to="/founder" style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 8, textDecoration: 'none' }}
+                  onMouseEnter={e => e.currentTarget.style.color = GOLD}
+                  onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                >Founder</Link>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>hello@planrr.app</div>
               </div>
             </div>
@@ -26082,6 +26143,7 @@ export default function App() {
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/report" element={<SharedReport />} />
+        <Route path="/founder" element={<Founder />} />
         <Route path="/app/*" element={<AppInner />} />
         <Route path="/*" element={<AppInner />} />
       </Routes>
