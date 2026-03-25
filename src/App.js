@@ -25614,6 +25614,7 @@ function AppInner() {
   }, [navigate]);
   const [onboarding, setOnboarding] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [subStatus, setSubStatus] = useState(null); // null=loading, 'active'|'trialing'|'none'
   const [searchOpen, setSearchOpen] = useState(false);
   const [authed, setAuthed] = useState(() => {
     const status = isLoggedIn();
@@ -25666,6 +25667,27 @@ function AppInner() {
     if (!authed) {
       setLoaded(true);
       return;
+    }
+    const token = getAccessToken();
+    if (token) {
+      fetch(SB_URL + '/rest/v1/subscriptions?select=status,trial_end,current_period_end&limit=1', {
+        headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      }).then(r => r.ok ? r.json() : []).then(rows => {
+        if (rows.length > 0) {
+          const s = rows[0];
+          if (s.status === 'active' || s.status === 'trialing') {
+            setSubStatus(s.status);
+          } else if (s.status === 'past_due' || s.status === 'canceled') {
+            setSubStatus('expired');
+          } else {
+            setSubStatus(s.status || 'none');
+          }
+        } else {
+          setSubStatus('none');
+        }
+      }).catch(() => setSubStatus('none'));
+    } else {
+      setSubStatus('none');
     }
     loadData().then((d) => {
       if (d) {
@@ -25858,6 +25880,56 @@ function AppInner() {
     );
   if (onboarding)
     return <Onboarding onComplete={handleOnboard} />;
+  if (subStatus === 'none' || subStatus === 'expired') {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: B.sidebar, flexDirection: 'column', gap: 16,
+        fontFamily: "'DM Sans',sans-serif", padding: 20,
+      }}>
+        <BrainIcon size={40} gradient strokeWidth={1.2} />
+        <Wordmark dark size="lg" />
+        <div style={{ maxWidth: 400, textAlign: 'center', marginTop: 8 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#f0f4fa', marginBottom: 8 }}>
+            {subStatus === 'expired' ? 'Your subscription has ended' : 'Choose a plan to get started'}
+          </div>
+          <div style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7, marginBottom: 24 }}>
+            {subStatus === 'expired'
+              ? 'Your subscription is no longer active. Resubscribe to continue using planrr.app. Your data is safe and waiting.'
+              : 'Start your 14-day free trial to access all features. No credit card required upfront — cancel anytime.'}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { label: 'Solo Operator — $79/mo', plan: 'solo' },
+              { label: 'Small Team — $149/mo', plan: 'small_team' },
+              { label: 'Full Program — $199/mo', plan: 'full_program' },
+            ].map(p => (
+              <button key={p.plan} onClick={() => {
+                const link = STRIPE_BUY_LINKS[p.plan];
+                if (link) {
+                  try {
+                    const s = JSON.parse(localStorage.getItem('sb_session') || '{}');
+                    const email = s?.user?.email || '';
+                    window.location.href = email ? `${link}?prefilled_email=${encodeURIComponent(email)}` : link;
+                  } catch { window.location.href = link; }
+                }
+              }} style={{
+                background: p.plan === 'small_team' ? GOLD : 'rgba(255,255,255,0.06)',
+                color: p.plan === 'small_team' ? '#141719' : '#f0f4fa',
+                border: p.plan === 'small_team' ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 10, padding: '14px 20px', fontSize: 14, fontWeight: 700,
+                cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s',
+              }}>{p.label}{p.plan === 'small_team' ? ' — Most Popular' : ''}</button>
+            ))}
+          </div>
+          <button onClick={sbSignOut} style={{
+            background: 'none', border: 'none', color: '#64748b', fontSize: 12,
+            cursor: 'pointer', marginTop: 16, padding: '4px 8px',
+          }}>Sign out</button>
+        </div>
+      </div>
+    );
+  }
   const checkoutSuccess = new URLSearchParams(window.location.search).get('checkout') === 'success';
   const notifications = buildNotifications(data);
   return (
