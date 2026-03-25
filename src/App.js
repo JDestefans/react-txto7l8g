@@ -10158,7 +10158,7 @@ function ResourcesView({ data, setData }) {
 /* -------------------------------------------------------
    SIDEBAR
 ------------------------------------------------------- */
-function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
+function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapsed, onToggleCollapse }) {
   const nav = [
     {
       group: '',
@@ -10234,7 +10234,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
       role="navigation"
       aria-label="Main navigation"
       style={{
-        width: 244,
+        width: collapsed ? 64 : 244,
         background: B.sidebar,
         display: 'flex',
         flexDirection: 'column',
@@ -10243,12 +10243,15 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
         left: 0,
         height: '100vh',
         zIndex: 40,
+        transition: 'width 0.2s ease',
+        overflow: 'hidden',
       }}
     >
       <div
         style={{
-          padding: '20px 18px 16px',
+          padding: collapsed ? '16px 12px' : '20px 18px 16px',
           borderBottom: `1px solid ${B.sidebarBorder}`,
+          transition: 'padding 0.2s ease',
         }}
       >
         <div
@@ -10256,7 +10259,8 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
             display: 'flex',
             alignItems: 'center',
             gap: 11,
-            marginBottom: 14,
+            marginBottom: collapsed ? 0 : 14,
+            justifyContent: collapsed ? 'center' : 'flex-start',
           }}
         >
           <div
@@ -10273,9 +10277,9 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
           >
             <BrainIcon size={22} color={B.teal} strokeWidth={1.3} />
           </div>
-          <Wordmark dark size="sm" />
+          {!collapsed && <Wordmark dark size="sm" />}
         </div>
-        <div
+        {!collapsed && <div
           onClick={onEditOrg}
           style={{
             background: B.sidebarMid,
@@ -10366,12 +10370,12 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
               {overall.not_started} todo
             </span>
           </div>
-        </div>
+        </div>}
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: collapsed ? '8px 4px' : '8px 0' }}>
         {nav.map((g, gi) => (
           <div key={g.group || 'top'}>
-            {g.group && (
+            {g.group && !collapsed && (
               <div
                 style={{
                   padding: '14px 18px 5px',
@@ -10396,22 +10400,27 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
                 />
               </div>
             )}
+            {g.group && collapsed && gi > 0 && (
+              <div style={{ height: 1, background: B.sidebarBorder, margin: '6px 8px', opacity: 0.4 }} />
+            )}
             {g.items.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setView(item.id)}
+                title={collapsed ? item.label : undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 9,
-                  width: 'calc(100% - 16px)',
-                  margin: '1px 8px',
-                  padding: '8px 12px',
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  gap: collapsed ? 0 : 9,
+                  width: collapsed ? 'calc(100% - 8px)' : 'calc(100% - 16px)',
+                  margin: collapsed ? '1px 4px' : '1px 8px',
+                  padding: collapsed ? '10px 0' : '8px 12px',
                   borderRadius: 6,
                   background:
                     view === item.id ? 'rgba(27,201,196,0.08)' : 'none',
                   border: 'none',
-                  borderLeft: view === item.id ? `3px solid ${B.teal}` : '3px solid transparent',
+                  borderLeft: collapsed ? 'none' : (view === item.id ? `3px solid ${B.teal}` : '3px solid transparent'),
                   color:
                     view === item.id
                       ? B.teal
@@ -10453,8 +10462,8 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
                     {item.icon}
                   </span>
                 )}
-                <span style={{ flex: 1 }}>{item.label}</span>
-                {item.ai && view !== item.id && (
+                {!collapsed && <span style={{ flex: 1 }}>{item.label}</span>}
+                {!collapsed && item.ai && view !== item.id && (
                   <span
                     style={{
                       fontSize: 8,
@@ -10479,13 +10488,13 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
         const used = getAIUsageCount();
         const pctUsed = plan.aiCallsPerMonth === Infinity ? 0 : Math.min(100, Math.round((used / plan.aiCallsPerMonth) * 100));
         return (
-          <div style={{ padding: '10px 18px', borderTop: `1px solid ${B.sidebarBorder}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ padding: collapsed ? '8px 10px' : '10px 18px', borderTop: `1px solid ${B.sidebarBorder}` }} title={`AI: ${used}/${plan.aiCallsPerMonth === Infinity ? '∞' : plan.aiCallsPerMonth}`}>
+            {!collapsed && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
               <span style={{ fontSize: 9, color: '#4A5568', textTransform: 'uppercase', letterSpacing: '0.1em' }}>AI Usage</span>
               <span style={{ fontSize: 9, color: pctUsed > 80 ? '#f59e0b' : '#4A5568', fontWeight: 600 }}>
                 {plan.aiCallsPerMonth === Infinity ? `${used} calls` : `${used} / ${plan.aiCallsPerMonth}`}
               </span>
-            </div>
+            </div>}
             {plan.aiCallsPerMonth !== Infinity && (
               <div style={{ height: 3, background: '#2E3439', borderRadius: 2, overflow: 'hidden' }}>
                 <div style={{
@@ -10500,19 +10509,27 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
       })()}
       <div
         style={{
-          padding: '10px 18px',
+          padding: collapsed ? '10px 8px' : '10px 18px',
           borderTop: `1px solid ${B.sidebarBorder}`,
           display: 'flex',
           alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'space-between',
           gap: 7,
         }}
       >
-        <BrainIcon size={12} color={'#4A5568'} strokeWidth={1} />
-        <span
-          style={{ fontSize: 9, color: '#4A5568', letterSpacing: '0.06em' }}
-        >
-          PLANRR · EMAP EMS 5-2022
-        </span>
+        {!collapsed && <>
+          <BrainIcon size={12} color={'#4A5568'} strokeWidth={1} />
+          <span style={{ fontSize: 9, color: '#4A5568', letterSpacing: '0.06em', flex: 1 }}>PLANRR</span>
+        </>}
+        {onToggleCollapse && (
+          <button onClick={onToggleCollapse} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} style={{
+            background: 'none', border: 'none', color: '#4A5568', cursor: 'pointer', fontSize: 14,
+            padding: '4px', borderRadius: 4, transition: 'color 0.15s',
+          }}
+            onMouseEnter={e => e.currentTarget.style.color = B.teal}
+            onMouseLeave={e => e.currentTarget.style.color = '#4A5568'}
+          >{collapsed ? '»' : '«'}</button>
+        )}
       </div>
     </aside>
   );
@@ -25508,6 +25525,16 @@ function AppInner() {
   const [sessionExpired, setSessionExpired] = useState(false);
   const [firstRun, setFirstRun] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('planrr_sidebar_collapsed') === '1'; } catch { return false; }
+  });
+  const toggleCollapse = () => {
+    setSidebarCollapsed(p => {
+      const next = !p;
+      try { localStorage.setItem('planrr_sidebar_collapsed', next ? '1' : '0'); } catch {}
+      return next;
+    });
+  };
   const saveTimer = useRef(null);
   const refreshTimer = useRef(null);
 
@@ -25760,13 +25787,15 @@ function AppInner() {
           className="planrr-sidebar-overlay"
         />
       )}
-      <div id="planrr-sidebar" className={sidebarOpen ? 'open' : ''}>
+      <div id="planrr-sidebar" className={sidebarOpen ? 'open' : ''} style={sidebarCollapsed ? { width: 64 } : undefined}>
         <Sidebar
           view={view}
           setView={(v) => { setView(v); setSidebarOpen(false); }}
           data={data}
           notifCount={notifications.length}
           orgName={data.orgName}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={toggleCollapse}
           onEditOrg={() => {
             const n = prompt('Organization name:', data.orgName);
             if (n) updateData((p) => ({ ...p, orgName: n }));
@@ -25776,12 +25805,13 @@ function AppInner() {
       <div
         id="planrr-main"
         style={{
-          marginLeft: 244,
+          marginLeft: sidebarCollapsed ? 64 : 244,
           flex: 1,
           minHeight: '100vh',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'stretch',
+          transition: 'margin-left 0.2s ease',
         }}
       >
         <div
