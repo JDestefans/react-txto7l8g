@@ -1340,7 +1340,9 @@ async function loadData() {
           return rows[0].data;
         }
       }
-    } catch {}
+    } catch (e) {
+      console.warn('planrr: cloud load failed, using local', e.message);
+    }
   }
   try {
     const r = localStorage.getItem(localKey);
@@ -1362,12 +1364,13 @@ async function saveData(d) {
     localStorage.setItem(localKey, JSON.stringify(d));
   } catch {}
   const token = getAccessToken();
-  if (!token || _saveQueued) return;
+  const userId = getUserId();
+  if (!token || !userId || _saveQueued) return;
   _saveQueued = true;
   setTimeout(async () => {
     _saveQueued = false;
     try {
-      await fetch(SB_URL + '/rest/v1/program_data', {
+      const r = await fetch(SB_URL + '/rest/v1/program_data', {
         method: 'POST',
         headers: {
           apikey: SB_KEY,
@@ -1375,9 +1378,12 @@ async function saveData(d) {
           'Content-Type': 'application/json',
           Prefer: 'resolution=merge-duplicates',
         },
-        body: JSON.stringify({ data: d }),
+        body: JSON.stringify({ user_id: userId, data: d }),
       });
-    } catch {}
+      if (!r.ok) console.warn('planrr: save to cloud failed', r.status);
+    } catch (e) {
+      console.warn('planrr: save to cloud error', e.message);
+    }
   }, 2000);
 }
 
