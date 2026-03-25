@@ -16580,7 +16580,21 @@ function SettingsView({ data, updateData }) {
   );
 }
 
+const DASHBOARD_WIDGETS = {
+  compliance: { label: 'EMAP Compliance', default: true },
+  alerts: { label: 'Alerts & Notifications', default: true },
+  smartQueue: { label: 'Priority Queue', default: true },
+  modules: { label: 'Module Summary Cards', default: true },
+  readiness: { label: 'Program Readiness Checklist', default: false },
+  accredTimeline: { label: 'Time to Accreditation', default: false },
+  nims: { label: 'FEMA/NIMS Alignment', default: false },
+  grantAlignment: { label: 'Grant-EMAP Alignment', default: false },
+};
+
 function Dashboard({ data, setView, orgName, updateData }) {
+  const widgets = data.dashboardWidgets || Object.fromEntries(Object.entries(DASHBOARD_WIDGETS).map(([k, v]) => [k, v.default]));
+  const showWidget = (id) => widgets[id] !== false;
+  const [showWidgetSettings, setShowWidgetSettings] = useState(false);
   const { training, exercises, partners, plans, resources } = data;
   const overall = useMemo(
     () => overallStats(data.standards || {}),
@@ -16981,23 +16995,43 @@ function Dashboard({ data, setView, orgName, updateData }) {
 
   return (
     <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 1120 }}>
-      <div style={{ marginBottom: 22 }}>
-        <h1
-          style={{
-            fontSize: 24,
-            fontWeight: 800,
-            color: B.text,
-            letterSpacing: '-0.4px',
-          }}
-        >
-          {orgName || 'Your Program'}
-        </h1>
-        <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          EMAP EMS 5-2022 - {data.jurisdiction || ''}
-          {data.jurisdiction && data.state ? '  -  ' : ''}
-          {data.state || ''}
-        </p>
+      <div style={{ marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: B.text, letterSpacing: '-0.4px' }}>
+            {orgName || 'Your Program'}
+          </h1>
+          <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
+            EMAP EMS 5-2022 {data.jurisdiction ? `· ${data.jurisdiction}` : ''} {data.state ? `· ${data.state}` : ''}
+          </p>
+        </div>
+        <button onClick={() => setShowWidgetSettings(p => !p)} style={{
+          background: 'none', border: `1px solid ${B.border}`, borderRadius: 8,
+          padding: '6px 12px', cursor: 'pointer', fontSize: 11, color: B.faint,
+          fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 5,
+        }}>
+          ◧ Customize
+        </button>
       </div>
+      {showWidgetSettings && (
+        <Card style={{ marginBottom: 16, padding: '16px 20px' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: B.text, marginBottom: 12 }}>Dashboard Widgets</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            {Object.entries(DASHBOARD_WIDGETS).map(([id, w]) => (
+              <label key={id} style={{
+                display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: B.muted,
+                cursor: 'pointer', padding: '6px 8px', borderRadius: 6,
+                background: showWidget(id) ? B.tealLight : '#f8f9fa',
+                border: `1px solid ${showWidget(id) ? B.tealBorder : B.border}`,
+              }}>
+                <input type="checkbox" checked={showWidget(id)} onChange={() => {
+                  updateData({ dashboardWidgets: { ...widgets, [id]: !showWidget(id) } });
+                }} style={{ accentColor: B.teal }} />
+                {w.label}
+              </label>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {(plans || []).length === 0 && (exercises || []).length === 0 && updateData && (
         <div style={{
@@ -17036,16 +17070,15 @@ function Dashboard({ data, setView, orgName, updateData }) {
         </div>
       )}
 
-      <div
+      {(showWidget('compliance') || showWidget('alerts') || showWidget('readiness')) && <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '200px 1fr 280px',
+          gridTemplateColumns: showWidget('compliance') && showWidget('readiness') ? '200px 1fr 280px' : showWidget('compliance') ? '200px 1fr' : '1fr',
           gap: 16,
           marginBottom: 20,
         }}
       >
-        {/* EMAP donut */}
-        <Card
+        {showWidget('compliance') && <Card
           style={{
             display: 'flex',
             flexDirection: 'column',
@@ -17116,8 +17149,8 @@ function Dashboard({ data, setView, orgName, updateData }) {
           </div>
         </Card>
 
-        {/* Notifications */}
-        <div>
+        }
+        {showWidget('alerts') && <div>
           {notifications.length === 0 ? (
             <Card
               style={{
@@ -17235,8 +17268,8 @@ function Dashboard({ data, setView, orgName, updateData }) {
           )}
         </div>
 
-        {/* Readiness checklist */}
-        <Card
+        }
+        {showWidget('readiness') && <Card
           style={{
             background: `linear-gradient(135deg,${B.sidebar}f8,${B.sidebar})`,
             borderColor: B.sidebarBorder,
@@ -17372,20 +17405,19 @@ function Dashboard({ data, setView, orgName, updateData }) {
             {checkDone}/{checklist.length} items complete - click any to jump
             there
           </div>
-        </Card>
-      </div>
+        </Card>}
+      </div>}
 
-      {/* NEW: Next Up Smart Queue + Time-to-Accreditation + FEMA/NIMS Badge */}
-      <div
+      {/* Next Up Smart Queue + Time-to-Accreditation + FEMA/NIMS Badge */}
+      {(showWidget('smartQueue') || showWidget('accredTimeline') || showWidget('nims')) && <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 280px 220px',
+          gridTemplateColumns: showWidget('accredTimeline') && showWidget('nims') ? '1fr 280px 220px' : showWidget('accredTimeline') || showWidget('nims') ? '1fr 280px' : '1fr',
           gap: 14,
           marginBottom: 16,
         }}
       >
-        {/* NEXT UP SMART QUEUE */}
-        <Card style={{ padding: '16px 18px' }}>
+        {showWidget('smartQueue') && <Card style={{ padding: '16px 18px' }}>
           <div
             style={{
               display: 'flex',
@@ -17515,10 +17547,9 @@ function Dashboard({ data, setView, orgName, updateData }) {
               ))}
             </div>
           )}
-        </Card>
+        </Card>}
 
-        {/* TIME-TO-ACCREDITATION ESTIMATOR */}
-        <Card
+        {showWidget('accredTimeline') && <Card
           style={{
             background: `linear-gradient(135deg,${B.sidebar}f8,${B.sidebar})`,
             borderColor: B.sidebarBorder,
@@ -17613,9 +17644,9 @@ function Dashboard({ data, setView, orgName, updateData }) {
               credibility.
             </div>
           </div>
-        </Card>
+        </Card>}
 
-        {/* FEMA/NIMS ALIGNMENT BADGE */}
+        {showWidget('nims') &&
         <Card
           style={{
             padding: '16px 18px',
@@ -17717,11 +17748,11 @@ function Dashboard({ data, setView, orgName, updateData }) {
           >
             ICS/NIMS (4.6) + Training (4.10) + Comms (4.8)
           </div>
-        </Card>
-      </div>
+        </Card>}
+      </div>}
 
-      {/* NEW: Grant-EMAP Alignment (only show if grants exist) */}
-      {grantAlignments.length > 0 && (
+      {/* Grant-EMAP Alignment */}
+      {showWidget('grantAlignment') && grantAlignments.length > 0 && (
         <Card style={{ marginBottom: 16, padding: '16px 18px' }}>
           <div
             style={{
@@ -17813,7 +17844,7 @@ function Dashboard({ data, setView, orgName, updateData }) {
       )}
 
       {/* Module cards */}
-      <div
+      {showWidget('modules') && <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3,1fr)',
@@ -17892,7 +17923,7 @@ function Dashboard({ data, setView, orgName, updateData }) {
             </div>
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* EMAP section progress + recent activity */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
