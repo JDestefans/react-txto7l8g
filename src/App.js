@@ -3050,21 +3050,28 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose, onAddCapItem }) {
         (st.notes ? st.notes + '\n\n-\n\n' : '') + aiData[aiMode]
       );
       if (aiMode === 'action' && onAddCapItem) {
-        const lines = aiData[aiMode].split('\n').filter(l => l.match(/^\d+[\.\)]\s/));
-        lines.forEach(line => {
-          const text = line.replace(/^\d+[\.\)]\s*/, '').trim();
-          if (text.length > 5) {
-            onAddCapItem({
-              id: uid(),
-              item: text,
-              source: `EMAP ${std.id}`,
-              stdRef: std.id,
-              priority: 'medium',
-              status: 'open',
-              closed: false,
-              addedAt: Date.now(),
-            });
-          }
+        const lines = aiData[aiMode].split('\n').filter(l =>
+          l.match(/^\s*(\d+[\.\):]|\-|\•|\*)\s/)
+        );
+        const items = lines.map(line =>
+          line.replace(/^\s*(\d+[\.\):]|\-|\•|\*)\s*/, '')
+            .replace(/\*\*/g, '').trim()
+        ).filter(t => t.length > 10);
+        if (items.length === 0) {
+          const sentences = aiData[aiMode].split(/[.!]\s/).filter(s => s.length > 20).slice(0, 8);
+          items.push(...sentences.map(s => s.trim()));
+        }
+        items.forEach(text => {
+          onAddCapItem({
+            id: uid(),
+            item: text.slice(0, 200),
+            source: `EMAP ${std.id}`,
+            stdRef: std.id,
+            priority: 'medium',
+            status: 'open',
+            closed: false,
+            addedAt: Date.now(),
+          });
         });
       }
       setAdopted(true);
