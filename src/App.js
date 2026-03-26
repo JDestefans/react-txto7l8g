@@ -188,6 +188,25 @@ const BrainIcon = ({ size = 28, color = B.teal, strokeWidth = 1.2 }) => (
     <path d="M32 30 L58 30 C64 30 68 33 68 36.5 C68 40 64 43 58 43 L32 43 Z" fill={B.sidebar} />
   </svg>
 );
+const BrainIcon = ({ size = 28, color = B.teal, strokeWidth = 1.2, gradient = false }) => {
+  const id = 'pg' + Math.random().toString(36).slice(2, 6);
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      {gradient && (
+        <defs>
+          <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={B.teal} />
+            <stop offset="100%" stopColor={GOLD} />
+          </linearGradient>
+        </defs>
+      )}
+      <rect x="1.5" y="1.5" width="29" height="29" rx="6" stroke={gradient ? `url(#${id})` : color} strokeWidth={strokeWidth} fill="none" />
+      <g transform="translate(5.995,23) scale(0.017,-0.017)">
+        <path d="M302 165V340H801Q831 340 851.5 349.5Q872 359 872 390Q872 422 851.5 431.0Q831 440 801 440H318V0H68V640H762Q837 640 902.5 629.5Q968 619 1017.0 592.0Q1066 565 1094.0 516.0Q1122 467 1122 390Q1122 313 1094.0 268.0Q1066 223 1017.0 201.0Q968 179 902.5 172.0Q837 165 762 165Z" fill={gradient ? `url(#${id})` : color} />
+      </g>
+    </svg>
+  );
+};
 
 const Wordmark = ({ dark = false, size = 'md' }) => {
   const sizes = {
