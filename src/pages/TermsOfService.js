@@ -42,7 +42,7 @@ export default function TermsOfService() {
           <p>planrr.app is a program management tool and does not replace professional emergency management expertise. Compliance determinations, accreditation decisions, and operational readiness assessments remain the responsibility of the user organization. The platform is provided "as is" without warranties of any kind.</p>
 
           <h2 style={{ color: '#f0f4fa', fontSize: 18, fontWeight: 700, marginTop: 32, marginBottom: 12 }}>8. Contact</h2>
-          <p>For questions about these terms, contact us at <span style={{ color: GOLD }}>hello@planrr.app</span>.</p>
+          <p>For questions about these terms, contact us at <span style={{ color: GOLD }}>helloplanrr.app@gmail.com</span>.</p>
         </div>
       </div>
     </div>

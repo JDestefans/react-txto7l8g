@@ -109,7 +109,7 @@ export default function Founder() {
             <span style={{ color: GOLD }}>.app</span>
           </div>
           <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 10, color: '#475569' }}>
-            hello@planrr.app
+            helloplanrr.app@gmail.com
           </div>
         </div>
       </div>

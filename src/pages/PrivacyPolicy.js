@@ -36,10 +36,10 @@ export default function PrivacyPolicy() {
           <p>We retain your data for as long as your account is active. You can export your data at any time using the JSON export feature. Upon account deletion, your data will be removed within 30 days.</p>
 
           <h2 style={{ color: '#f0f4fa', fontSize: 18, fontWeight: 700, marginTop: 32, marginBottom: 12 }}>6. Your Rights</h2>
-          <p>You have the right to access, correct, export, and delete your personal data. Contact us at hello@planrr.app for any privacy-related requests.</p>
+          <p>You have the right to access, correct, export, and delete your personal data. Contact us at helloplanrr.app@gmail.com for any privacy-related requests.</p>
 
           <h2 style={{ color: '#f0f4fa', fontSize: 18, fontWeight: 700, marginTop: 32, marginBottom: 12 }}>7. Contact</h2>
-          <p>For questions about this privacy policy, contact us at <span style={{ color: GOLD }}>hello@planrr.app</span>.</p>
+          <p>For questions about this privacy policy, contact us at <span style={{ color: GOLD }}>helloplanrr.app@gmail.com</span>.</p>
         </div>
       </div>
     </div>

@@ -61,7 +61,7 @@ describe('App', () => {
     renderApp('/');
     expect(screen.getByText(/Privacy Policy/i)).toBeInTheDocument();
     expect(screen.getByText(/Terms of Service/i)).toBeInTheDocument();
-    expect(screen.getByText(/hello@planrr.app/i)).toBeInTheDocument();
+    expect(screen.getByText(/helloplanrr.app@gmail.com/i)).toBeInTheDocument();
   });
 
   test('renders features section', () => {
