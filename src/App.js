@@ -5,6 +5,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import SharedReport from './pages/SharedReport';
 import Founder from './pages/Founder';
+import FAQ from './pages/FAQ';
 import { STARTER_PACKS, applyStarterPack } from './data/starterPacks';
 import { downloadICal } from './services/calendar';
 import { buildShareURL } from './services/shareReport';
@@ -24048,8 +24049,11 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
             <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 9, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 700 }}>Product</div>
-                {['Features', 'Pricing', 'Security'].map(t => (
-                  <div key={t} style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, cursor: 'pointer' }}
+                {[['Features', null], ['Pricing', null], ['Security', null], ['FAQ', '/faq']].map(([t, href]) => (
+                  href ? <Link key={t} to={href} style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 8, cursor: 'pointer', textDecoration: 'none' }}
+                    onMouseEnter={e => e.currentTarget.style.color = GOLD}
+                    onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                  >{t}</Link> : <div key={t} style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, cursor: 'pointer' }}
                     onMouseEnter={e => e.currentTarget.style.color = GOLD}
                     onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
                   >{t}</div>
@@ -26361,6 +26365,7 @@ export default function App() {
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/report" element={<SharedReport />} />
         <Route path="/founder" element={<Founder />} />
+        <Route path="/faq" element={<FAQ />} />
         <Route path="/app/*" element={<AppInner />} />
         <Route path="/*" element={<AppInner />} />
       </Routes>
