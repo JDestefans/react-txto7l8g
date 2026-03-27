@@ -10,6 +10,7 @@ import { STARTER_PACKS, applyStarterPack } from './data/starterPacks';
 import { downloadICal } from './services/calendar';
 import { buildShareURL } from './services/shareReport';
 import { buildGrantNarrativePrompt } from './services/grantHelper';
+import SAGE from './components/SAGE';
 // pdfExtract loaded dynamically to avoid Jest import.meta issues
 
 /* --- ERROR BOUNDARY ----------------------------------- */
@@ -180,25 +181,14 @@ function ViewSkeleton() {
   );
 }
 
-const BrainIcon = ({ size = 28, color = B.teal, strokeWidth = 1.2, gradient = false }) => {
-  const id = 'pg' + Math.random().toString(36).slice(2, 6);
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      {gradient && (
-        <defs>
-          <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={B.teal} />
-            <stop offset="100%" stopColor={GOLD} />
-          </linearGradient>
-        </defs>
-      )}
-      <rect x="1.5" y="1.5" width="29" height="29" rx="6" stroke={gradient ? `url(#${id})` : color} strokeWidth={strokeWidth} fill="none" />
-      <g transform="translate(5.995,23) scale(0.017,-0.017)">
-        <path d="M302 165V340H801Q831 340 851.5 349.5Q872 359 872 390Q872 422 851.5 431.0Q831 440 801 440H318V0H68V640H762Q837 640 902.5 629.5Q968 619 1017.0 592.0Q1066 565 1094.0 516.0Q1122 467 1122 390Q1122 313 1094.0 268.0Q1066 223 1017.0 201.0Q968 179 902.5 172.0Q837 165 762 165Z" fill={gradient ? `url(#${id})` : color} />
-      </g>
-    </svg>
-  );
-};
+const BrainIcon = ({ size = 28, color = B.teal, strokeWidth = 1.2 }) => (
+  <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+    <rect width="100" height="100" rx="18" fill={B.sidebar} />
+    <rect width="100" height="100" rx="18" fill="none" stroke={color} strokeWidth={strokeWidth * 3} />
+    <path d="M20 75 L20 20 L62 20 C73 20 80 28 80 38 C80 48 73 56 62 56 L32 56 L32 75 Z" fill={color} />
+    <path d="M32 30 L58 30 C64 30 68 33 68 36.5 C68 40 64 43 58 43 L32 43 Z" fill={B.sidebar} />
+  </svg>
+);
 
 const Wordmark = ({ dark = false, size = 'md' }) => {
   const sizes = {
@@ -3416,11 +3406,12 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose, onAddCapItem }) {
                 ['interpret', '- Interpret'],
                 ['evidence', '- Suggest Evidence'],
                 ['action', '- Build Action Plan'],
+                ['partner', '🤝 Guided Review'],
               ].map(([mode, lbl]) => (
                 <button
                   key={mode}
-                  onClick={() => runAi(mode)}
-                  disabled={aiLoading[mode]}
+                  onClick={() => mode === 'partner' ? setAiMode('partner') : runAi(mode)}
+                  disabled={mode !== 'partner' && aiLoading[mode]}
                   style={{
                     padding: '6px 13px',
                     borderRadius: 7,
@@ -3441,7 +3432,24 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose, onAddCapItem }) {
                 </button>
               ))}
             </div>
-            {aiMode && (
+            {aiMode === 'partner' && (
+              <div style={{ marginTop: 12 }}>
+                <SAGE
+                  title={`Standard ${std.id} Review`}
+                  icon="✓"
+                  systemPrompt={`You are an EMAP accreditation expert reviewing Standard ${std.id}: "${std.text}". Guide the EM director through understanding what this standard requires, what evidence they need, and how to build compliance. Ask about their current practices, documentation, and gaps. Help them develop a specific action plan.`}
+                  orgContext={`Organization: ${data?.orgName || 'Unknown'}. Standard ${std.id} current status: ${st.status}. Notes: ${st.notes || 'none'}. Documents: ${(st.docs || []).length} attached.`}
+                  initialMessage={`Let's review **Standard ${std.id}** together.\n\n"${std.text}"\n\nYour current status is **${ST[st.status]?.label || 'Not Started'}**. Can you tell me what your organization currently does to address this standard? What documentation or processes do you have in place?`}
+                  completeLabel="Generate Compliance Summary"
+                  onComplete={(result) => {
+                    update('notes', (st.notes ? st.notes + '\n\n---\n\n' : '') + result);
+                    setAiMode(null);
+                  }}
+                  onClose={() => setAiMode(null)}
+                />
+              </div>
+            )}
+            {aiMode && aiMode !== 'partner' && (
               <>
                 <AiBlock
                   content={aiData[aiMode]}
@@ -4855,16 +4863,34 @@ function ExerciseDetail({ ex, onUpdate, onClose, isIncident }) {
                         : 'Add state for state-specific guidance'}
                     </div>
                   </div>
-                  <Btn
-                    label={
-                      aarDraftLoading ? '- Drafting...' : 'Generate AAR Draft'
-                    }
-                    onClick={genAARDraft}
-                    loading={aarDraftLoading}
-                    primary
-                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Btn
+                      label={aarDraftLoading ? '- Drafting...' : 'Quick Generate'}
+                      onClick={genAARDraft}
+                      loading={aarDraftLoading}
+                      primary
+                    />
+                    <Btn
+                      label="🤝 Build AAR Together"
+                      onClick={() => u('aarPartnerOpen', true)}
+                    />
+                  </div>
                 </div>
-                {!ex.aarDraft && !aarDraftLoading && (
+                {ex.aarPartnerOpen && (
+                  <div style={{ marginBottom: 16 }}>
+                    <SAGE
+                      title="AAR Builder"
+                      icon="📝"
+                      systemPrompt={`You are an HSEEP-certified exercise evaluator building an After-Action Report. Guide the EM director through a structured AAR conversation covering: exercise design summary, analysis of capabilities against objectives, strengths observed, areas for improvement (AFIs), and corrective action items. Each AFI should be tied to a specific EMAP standard when possible.`}
+                      orgContext={`Exercise: ${ex.name} (${ex.type}). Date: ${ex.date || 'TBD'}. Objectives: ${ex.objectives || 'Not set'}. Scenario: ${ex.scenario || 'Not set'}. Participants: ${ex.participants || 'Not set'}. Strengths noted: ${(ex.strengths || []).join(', ') || 'None yet'}. AFIs: ${(ex.afis || []).join(', ') || 'None yet'}.`}
+                      initialMessage={`Let's build the AAR for **${ex.name}** together.\n\nI'll walk you through each HSEEP section. Let's start — can you describe what happened during the exercise? What was the overall flow and how did things go?`}
+                      completeLabel="Generate Final AAR"
+                      onComplete={(result) => { u('aarDraft', result); u('aarPartnerOpen', false); }}
+                      onClose={() => u('aarPartnerOpen', false)}
+                    />
+                  </div>
+                )}
+                {!ex.aarDraft && !aarDraftLoading && !ex.aarPartnerOpen && (
                   <div style={{ fontSize: 12, color: B.faint }}>
                     Fill in Overview and Objectives/Participants tabs first,
                     then generate your HSEEP-compliant AAR draft here. AI will
@@ -12942,6 +12968,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
 function GrantTracker({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [grantPartnerOpen, setGrantPartnerOpen] = useState(false);
   const [form, setForm] = useState({
     name: '',
     type: 'EMPG',
@@ -13022,7 +13049,7 @@ function GrantTracker({ data, setData }) {
         <CoachBanner moduleId="grants" />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Btn label="+ Add Grant" onClick={() => setShowForm(true)} primary />
-          <Btn label="AI: Generate EMPG Narrative" onClick={async () => {
+          <Btn label="AI: Quick EMPG Narrative" onClick={async () => {
             const prompt = buildGrantNarrativePrompt(data, 'empg');
             let result = '';
             try {
@@ -13036,8 +13063,30 @@ function GrantTracker({ data, setData }) {
               alert(e.message || 'Error generating narrative');
             }
           }} />
+          <Btn label="🤝 Build Grant Narrative" onClick={() => setGrantPartnerOpen(true)} />
         </div>
       </div>
+      {grantPartnerOpen && (
+        <div style={{ marginBottom: 16 }}>
+          <SAGE
+            title="Grant Narrative Builder"
+            icon="💰"
+            systemPrompt="You are a grant writing specialist for emergency management programs, experienced with EMPG, HSGP, BRIC, and HMGP applications. Guide the EM director through building a compelling grant narrative by asking about their program needs, current capabilities, proposed activities, budget justification, and performance measures. Tie everything to EMAP standards and FEMA core capabilities."
+            orgContext={`Organization: ${data.orgName || 'Unknown'}. State: ${data.state || 'Unknown'}. Jurisdiction: ${data.jurisdiction || 'Unknown'}. EMAP compliance: ${Object.values(data.standards || {}).filter(s => s.status === 'compliant').length}/73. Active grants: ${(data.grants || []).filter(g => g.status === 'active').length}. Personnel: ${(data.employees || []).length}. Exercises: ${(data.exercises || []).length}. Training records: ${(data.training || []).length}.`}
+            initialMessage={`Let's build your grant narrative together. I'll help you craft a compelling application.\n\nFirst — which grant program are you applying for? (EMPG, HSGP/SHSP, BRIC, HMGP, or other?) And what's the primary need you're trying to address?`}
+            completeLabel="Generate Grant Narrative"
+            onComplete={(result) => {
+              const blob = new Blob([result], { type: 'text/plain' });
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = `Grant_Narrative_${(data.orgName || 'draft').replace(/\s/g, '_')}.txt`;
+              a.click();
+              setGrantPartnerOpen(false);
+            }}
+            onClose={() => setGrantPartnerOpen(false)}
+          />
+        </div>
+      )}
       {grants.length > 0 && (
         <div
           style={{
@@ -13765,7 +13814,7 @@ function ThiraView({ data, setData }) {
               : ''}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Btn
             label="- AI Analysis"
             onClick={() => {
@@ -13773,6 +13822,10 @@ function ThiraView({ data, setData }) {
               runAi();
             }}
             loading={aiLoad}
+          />
+          <Btn
+            label="🤝 Guided THIRA Build"
+            onClick={() => setTab('partner')}
           />
           <Btn label="+ Add Hazard" onClick={() => setShowForm(true)} primary />
         </div>
@@ -14746,6 +14799,21 @@ function ThiraView({ data, setData }) {
             </div>
           )}
         </div>
+      )}
+      {tab === 'partner' && (
+        <SAGE
+          title="THIRA/SPR Builder"
+          icon="🎯"
+          systemPrompt="You are a FEMA CPG 201-certified hazard analyst helping build a THIRA/SPR. Guide the EM director through identifying threats and hazards for their jurisdiction, assessing probability and magnitude, identifying core capabilities at risk, setting capability targets, and planning the Stakeholder Preparedness Review. Ask about local geography, climate, infrastructure, demographics, and recent incident history."
+          orgContext={`Organization: ${data.orgName || 'Unknown'}. State: ${data.state || 'Unknown'}. Jurisdiction: ${data.jurisdiction || 'Unknown'}. Current hazards: ${(data.thira?.hazards || []).map(h => h.name).join(', ') || 'None profiled yet'}.`}
+          initialMessage={`Let's build your THIRA/SPR together. I'll help you identify and assess the threats and hazards specific to your jurisdiction.\n\nFirst — tell me about your community. What type of area are you? (urban, suburban, rural, coastal, etc.) And what's the rough population you serve?`}
+          completeLabel="Generate THIRA/SPR Document"
+          onComplete={(result) => {
+            setGenDoc(result);
+            setTab('generate');
+          }}
+          onClose={() => setTab('hazards')}
+        />
       )}
     </div>
   );
@@ -21274,6 +21342,7 @@ function DocTemplatesView({ data, orgName }) {
   const [selected, setSelected] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState({});
+  const [partnerOpen, setPartnerOpen] = useState(null);
   const ctx = `Organization: "${orgName || 'My Agency'}". Jurisdiction: ${
     data.jurisdiction || 'Unknown'
   }. State: ${data.state || 'Unknown'}. THIRA Hazards: ${
@@ -21402,13 +21471,17 @@ function DocTemplatesView({ data, orgName }) {
                 Sections: {selected.sections.join(' - ')}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <Btn
-                label={generating ? 'Generating...' : 'Generate with AI'}
+                label={generating ? 'Generating...' : 'Quick Generate'}
                 onClick={() => generate(selected)}
                 primary
                 loading={generating}
                 disabled={generating}
+              />
+              <Btn
+                label="🤝 Build with AI Partner"
+                onClick={() => setPartnerOpen(selected)}
               />
               {generated[selected.id] && (
                 <Btn
@@ -21460,6 +21533,22 @@ function DocTemplatesView({ data, orgName }) {
             </div>
           )}
         </Card>
+      )}
+      {partnerOpen && (
+        <div style={{ marginTop: 20 }}>
+          <SAGE
+            title={`${partnerOpen.name} Builder`}
+            icon="📋"
+            systemPrompt={`You are an expert emergency management document writer specializing in ${partnerOpen.name} development. Guide the EM director through building this document by asking targeted questions about their program, jurisdiction, capabilities, and needs. Cover these sections: ${partnerOpen.sections.join(', ')}.`}
+            orgContext={ctx}
+            initialMessage={`Let's build your **${partnerOpen.name}** together. I'll walk you through each section and ask questions specific to your program.\n\nFirst, let me confirm — your organization is ${orgName || 'your agency'}. Is that correct, and can you tell me briefly about your jurisdiction and the community you serve?`}
+            completeLabel={`Generate ${partnerOpen.name}`}
+            onComplete={(result) => {
+              setGenerated(p => ({ ...p, [partnerOpen.id]: result }));
+            }}
+            onClose={() => setPartnerOpen(null)}
+          />
+        </div>
       )}
     </div>
   );
@@ -25970,7 +26059,7 @@ function AppInner() {
         fontFamily: "'DM Sans',sans-serif",
       }}
     >
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800;9..40,900&family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}:focus-visible{outline:2px solid #1BC9C4;outline-offset:2px;border-radius:4px}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:${B.bg};}::-webkit-scrollbar-thumb{background:#cdd6da;border-radius:3px;}#planrr-sidebar ::-webkit-scrollbar{width:4px;}#planrr-sidebar ::-webkit-scrollbar-track{background:transparent;}#planrr-sidebar ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px;}#planrr-sidebar ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2);}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes typingDot{0%,60%,100%{transform:translateY(0);opacity:0.4}30%{transform:translateY(-3px);opacity:1}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@media print{#planrr-sidebar{display:none!important}#planrr-topbar{display:none!important}#planrr-main{margin-left:0!important}}@media(max-width:1024px){#planrr-sidebar{position:fixed!important;left:-260px!important;transition:left 0.25s ease!important;z-index:100!important}#planrr-sidebar.open{left:0!important}#planrr-main{margin-left:0!important}.planrr-menu-toggle{display:flex!important}.planrr-sidebar-overlay{display:block!important}}@media(max-width:768px){.planrr-pricing-grid{grid-template-columns:1fr!important}.planrr-features-grid{grid-template-columns:1fr!important}.planrr-stats-strip{grid-template-columns:repeat(2,1fr)!important}.planrr-security-grid{grid-template-columns:1fr!important}.planrr-landing-header{padding:14px 16px!important}.planrr-landing-hero{padding:48px 20px 40px!important}.planrr-landing-section{padding:48px 20px!important}}@media(max-width:480px){.planrr-stats-strip{grid-template-columns:1fr!important}}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800;9..40,900&family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=Oxanium:wght@700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0;}:focus-visible{outline:2px solid #1BC9C4;outline-offset:2px;border-radius:4px}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:${B.bg};}::-webkit-scrollbar-thumb{background:#cdd6da;border-radius:3px;}#planrr-sidebar ::-webkit-scrollbar{width:4px;}#planrr-sidebar ::-webkit-scrollbar-track{background:transparent;}#planrr-sidebar ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px;}#planrr-sidebar ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2);}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes typingDot{0%,60%,100%{transform:translateY(0);opacity:0.4}30%{transform:translateY(-3px);opacity:1}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@media print{#planrr-sidebar{display:none!important}#planrr-topbar{display:none!important}#planrr-main{margin-left:0!important}}@media(max-width:1024px){#planrr-sidebar{position:fixed!important;left:-260px!important;transition:left 0.25s ease!important;z-index:100!important}#planrr-sidebar.open{left:0!important}#planrr-main{margin-left:0!important}.planrr-menu-toggle{display:flex!important}.planrr-sidebar-overlay{display:block!important}}@media(max-width:768px){.planrr-pricing-grid{grid-template-columns:1fr!important}.planrr-features-grid{grid-template-columns:1fr!important}.planrr-stats-strip{grid-template-columns:repeat(2,1fr)!important}.planrr-security-grid{grid-template-columns:1fr!important}.planrr-landing-header{padding:14px 16px!important}.planrr-landing-hero{padding:48px 20px 40px!important}.planrr-landing-section{padding:48px 20px!important}}@media(max-width:480px){.planrr-stats-strip{grid-template-columns:1fr!important}}`}</style>
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
