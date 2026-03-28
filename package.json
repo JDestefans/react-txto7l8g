@@ -17,6 +17,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.0",
     "@testing-library/react": "^14.2.0",
+    "playwright": "^1.58.2",
     "react-scripts": "5.0.1"
   },
   "browserslist": {
