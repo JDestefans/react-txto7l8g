@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 const GOLD = '#C49A3C';
 const TEAL = '#3ECFCF';
 
+const DATA_NODES_BG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='20' cy='20' r='1.5' fill='rgba(194,150,74,0.08)'/%3E%3Ccircle cx='60' cy='10' r='1' fill='rgba(194,150,74,0.06)'/%3E%3Ccircle cx='100' cy='30' r='1.5' fill='rgba(194,150,74,0.08)'/%3E%3Ccircle cx='40' cy='60' r='1' fill='rgba(194,150,74,0.06)'/%3E%3Ccircle cx='80' cy='50' r='1.5' fill='rgba(194,150,74,0.08)'/%3E%3Ccircle cx='10' cy='90' r='1' fill='rgba(194,150,74,0.06)'/%3E%3Ccircle cx='60' cy='100' r='1.5' fill='rgba(194,150,74,0.08)'/%3E%3Ccircle cx='100' cy='80' r='1' fill='rgba(194,150,74,0.06)'/%3E%3Ccircle cx='110' cy='110' r='1.5' fill='rgba(194,150,74,0.07)'/%3E%3Cline x1='20' y1='20' x2='60' y2='10' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='60' y1='10' x2='100' y2='30' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='20' y1='20' x2='40' y2='60' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='40' y1='60' x2='80' y2='50' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='100' y1='30' x2='80' y2='50' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='40' y1='60' x2='10' y2='90' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='10' y1='90' x2='60' y2='100' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='80' y1='50' x2='100' y2='80' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='60' y1='100' x2='100' y2='80' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='100' y1='80' x2='110' y2='110' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='60' y1='100' x2='110' y2='110' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3C/svg%3E")`;
+
 const FAQ_SECTIONS = [
   {
     id: 'what-is',
@@ -256,7 +258,7 @@ export default function FAQ() {
   }, []);
 
   return (
-    <div style={{ fontFamily: "'DM Sans',sans-serif", background: '#111111', color: '#fff', minHeight: '100vh' }}>
+    <div style={{ fontFamily: "'DM Sans',sans-serif", background: '#111111', color: '#fff', minHeight: '100vh', backgroundImage: DATA_NODES_BG }}>
       <style>{`
         .pf-callout{background:#1e1e1e;border-left:3px solid ${TEAL};padding:12px 16px;margin:12px 0;font-size:13px}
         .pf-callout.gold{border-left-color:${GOLD}}
@@ -271,7 +273,7 @@ export default function FAQ() {
       <div style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(17,17,17,0.97)', borderBottom: '1px solid rgba(196,154,60,0.26)', backdropFilter: 'blur(14px)' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '14px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: '-0.5px' }}>
+            <span style={{ fontFamily: "'Oxanium',sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: '-0.5px' }}>
               <span style={{ color: '#fff' }}>planrr</span><span style={{ color: GOLD }}>.app</span>
             </span>
           </Link>
@@ -358,7 +360,7 @@ export default function FAQ() {
 
       {/* Footer */}
       <div style={{ borderTop: '1px solid #2e2e2e', padding: '22px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, maxWidth: 1200, margin: '0 auto' }}>
-        <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 800, letterSpacing: '-0.5px' }}>
+        <div style={{ fontFamily: "'Oxanium',sans-serif", fontSize: 14, fontWeight: 800, letterSpacing: '-0.5px' }}>
           <span style={{ color: '#fff' }}>planrr</span><span style={{ color: GOLD }}>.app</span>
         </div>
         <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 9, color: '#484848', letterSpacing: '0.07em' }}>

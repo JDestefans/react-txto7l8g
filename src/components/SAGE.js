@@ -4,7 +4,7 @@ const TEAL = '#3ECFCF';
 const GOLD = '#C49A3C';
 
 /*
-  AIPartner — Conversational AI planning partner
+  SAGE — Conversational AI planning partner
   
   Props:
     title        - e.g. "EOP Builder", "AAR Builder"
@@ -81,7 +81,7 @@ export default function SAGE({ title, icon, systemPrompt, orgContext, initialMes
     try {
       let r = '';
       setMessages(p => [...p, { role: 'assistant', content: '' }]);
-      const sys = `${systemPrompt}\n\nORGANIZATION CONTEXT:\n${orgContext}\n\nINSTRUCTIONS: You are a collaborative AI planning partner. Ask focused questions one at a time. Build on their answers. When you have enough information for a section, summarize what you've captured and move to the next topic. Be conversational but professional. Keep responses concise. Do not generate the full document yet — that happens when the user clicks "Generate."`;
+      const sys = `${systemPrompt}\n\nORGANIZATION CONTEXT:\n${orgContext}\n\nINSTRUCTIONS: You are SAGE (Situational Assessment & Guidance Engine), a collaborative AI planning partner. Ask focused questions one at a time. Build on their answers. When you have enough information for a section, summarize what you've captured and move to the next topic. Be conversational but professional. Keep responses concise. Do not generate the full document yet — that happens when the user clicks "Generate."`;
       await callAIStream(sys,
         buildTranscript() + '\nEM Director: ' + msg + '\nSAGE:',
         (chunk) => {

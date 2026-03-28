@@ -207,7 +207,7 @@ const Wordmark = ({ dark = false, size = 'md' }) => {
           letterSpacing: '-0.5px',
           color: base,
           lineHeight: 1,
-          fontFamily: "'Syne','DM Sans',sans-serif",
+          fontFamily: "'Oxanium','DM Sans',sans-serif",
         }}
       >
         planrr
@@ -219,7 +219,7 @@ const Wordmark = ({ dark = false, size = 'md' }) => {
           letterSpacing: '-0.5px',
           color: GOLD,
           lineHeight: 1,
-          fontFamily: "'Syne','DM Sans',sans-serif",
+          fontFamily: "'Oxanium','DM Sans',sans-serif",
         }}
       >
         .app
@@ -22832,6 +22832,14 @@ function RecoveryPlanningView({ data, setData }) {
 
 function LandingPage({ onLogin, onSignup, onBuyPlan }) {
   const [mobileNav, setMobileNav] = useState(false);
+  const platformRef = useRef(null);
+  const pillarsRef = useRef(null);
+  const pricingRef = useRef(null);
+  const securityRef = useRef(null);
+  const scrollToSection = useCallback((ref) => {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setMobileNav(false);
+  }, []);
   return (
     <div
       style={{
@@ -22842,7 +22850,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
         backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='20' cy='20' r='1.5' fill='rgba(194,150,74,0.08)'/%3E%3Ccircle cx='60' cy='10' r='1' fill='rgba(194,150,74,0.06)'/%3E%3Ccircle cx='100' cy='30' r='1.5' fill='rgba(194,150,74,0.08)'/%3E%3Ccircle cx='40' cy='60' r='1' fill='rgba(194,150,74,0.06)'/%3E%3Ccircle cx='80' cy='50' r='1.5' fill='rgba(194,150,74,0.08)'/%3E%3Ccircle cx='10' cy='90' r='1' fill='rgba(194,150,74,0.06)'/%3E%3Ccircle cx='60' cy='100' r='1.5' fill='rgba(194,150,74,0.08)'/%3E%3Ccircle cx='100' cy='80' r='1' fill='rgba(194,150,74,0.06)'/%3E%3Ccircle cx='110' cy='110' r='1.5' fill='rgba(194,150,74,0.07)'/%3E%3Cline x1='20' y1='20' x2='60' y2='10' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='60' y1='10' x2='100' y2='30' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='20' y1='20' x2='40' y2='60' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='40' y1='60' x2='80' y2='50' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='100' y1='30' x2='80' y2='50' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='40' y1='60' x2='10' y2='90' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='10' y1='90' x2='60' y2='100' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='80' y1='50' x2='100' y2='80' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='60' y1='100' x2='100' y2='80' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='100' y1='80' x2='110' y2='110' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3Cline x1='60' y1='100' x2='110' y2='110' stroke='rgba(194,150,74,0.04)' stroke-width='0.5'/%3E%3C/svg%3E")`,
       }}
     >
-      <style>{`@media(max-width:768px){.planrr-pricing-grid{grid-template-columns:1fr!important}.planrr-features-grid{grid-template-columns:1fr!important}.planrr-stats-strip{grid-template-columns:repeat(2,1fr)!important}.planrr-security-grid{grid-template-columns:1fr!important}.planrr-landing-header{padding:14px 16px!important}.planrr-landing-hero{padding:48px 20px 40px!important}.planrr-landing-section{padding:48px 20px!important}.planrr-header-actions{display:none!important}.planrr-mobile-menu-btn{display:flex!important}}@media(max-width:480px){.planrr-stats-strip{grid-template-columns:1fr!important}}`}</style>
+      <style>{`@media(max-width:768px){.planrr-pricing-grid{grid-template-columns:1fr!important}.planrr-features-grid{grid-template-columns:1fr!important}.planrr-stats-strip{grid-template-columns:repeat(2,1fr)!important}.planrr-security-grid{grid-template-columns:1fr!important}.planrr-landing-header{padding:14px 16px!important}.planrr-landing-hero{padding:48px 20px 40px!important}.planrr-landing-section{padding:48px 20px!important}.planrr-header-actions{display:none!important}.planrr-mobile-menu-btn{display:flex!important}.planrr-quick-nav{padding:10px 16px!important;overflow:auto!important}}@media(max-width:480px){.planrr-stats-strip{grid-template-columns:1fr!important}}`}</style>
       {/* Header */}
       <div
         className="planrr-landing-header"
@@ -22862,7 +22870,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div
             style={{
-              fontFamily: 'Syne,DM Sans,sans-serif',
+              fontFamily: 'Oxanium,DM Sans,sans-serif',
               fontSize: 20,
               fontWeight: 800,
               letterSpacing: '-0.5px',
@@ -22944,8 +22952,45 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
         <div style={{ background: 'rgba(20,23,25,0.98)', borderBottom: '1px solid rgba(194,150,74,0.22)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <button onClick={() => { setMobileNav(false); onLogin(); }} style={{ background: 'none', color: '#94a3b8', border: '1px solid #3A4045', borderRadius: 6, padding: '10px', fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans,sans-serif', width: '100%' }}>Sign In</button>
           <button onClick={() => { setMobileNav(false); onBuyPlan ? onBuyPlan('small_team') : onSignup(); }} style={{ background: GOLD, color: '#141719', border: 'none', borderRadius: 6, padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans,sans-serif', width: '100%' }}>Start Free Trial</button>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8, marginTop: 6 }}>
+            <button onClick={() => scrollToSection(platformRef)} style={{ background: 'none', color: '#94a3b8', border: '1px solid #3A4045', borderRadius: 6, padding: '8px', fontSize: 11, cursor: 'pointer', fontFamily: 'DM Mono,monospace', letterSpacing: '0.06em' }}>Platform</button>
+            <button onClick={() => scrollToSection(pillarsRef)} style={{ background: 'none', color: '#94a3b8', border: '1px solid #3A4045', borderRadius: 6, padding: '8px', fontSize: 11, cursor: 'pointer', fontFamily: 'DM Mono,monospace', letterSpacing: '0.06em' }}>Pillars</button>
+            <button onClick={() => scrollToSection(pricingRef)} style={{ background: 'none', color: '#94a3b8', border: '1px solid #3A4045', borderRadius: 6, padding: '8px', fontSize: 11, cursor: 'pointer', fontFamily: 'DM Mono,monospace', letterSpacing: '0.06em' }}>Pricing</button>
+            <button onClick={() => scrollToSection(securityRef)} style={{ background: 'none', color: '#94a3b8', border: '1px solid #3A4045', borderRadius: 6, padding: '8px', fontSize: 11, cursor: 'pointer', fontFamily: 'DM Mono,monospace', letterSpacing: '0.06em' }}>Security</button>
+            <button onClick={() => { setMobileNav(false); window.location.href = '/faq'; }} style={{ gridColumn: 'span 2', background: 'none', color: GOLD, border: '1px solid rgba(194,150,74,0.22)', borderRadius: 6, padding: '8px', fontSize: 11, cursor: 'pointer', fontFamily: 'DM Mono,monospace', letterSpacing: '0.06em' }}>FAQ</button>
+          </div>
         </div>
       )}
+      <div className="planrr-quick-nav" style={{ borderBottom: '1px solid rgba(194,150,74,0.16)', padding: '10px 40px', background: 'rgba(20,23,25,0.88)', backdropFilter: 'blur(8px)' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            ['Platform', () => scrollToSection(platformRef)],
+            ['Operational Pillars', () => scrollToSection(pillarsRef)],
+            ['Pricing', () => scrollToSection(pricingRef)],
+            ['Security', () => scrollToSection(securityRef)],
+            ['FAQ', () => { window.location.href = '/faq'; }],
+          ].map(([label, onClick]) => (
+            <button
+              key={label}
+              onClick={onClick}
+              style={{
+                background: 'rgba(194,150,74,0.08)',
+                color: '#94a3b8',
+                border: '1px solid rgba(194,150,74,0.18)',
+                borderRadius: 999,
+                padding: '6px 12px',
+                fontFamily: 'DM Mono,monospace',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Hero */}
       <div
@@ -22988,32 +23033,32 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
           style={{
             fontSize: 17,
             color: '#94a3b8',
-            maxWidth: 560,
+            maxWidth: 620,
             lineHeight: 1.75,
             marginBottom: 14,
             fontWeight: 300,
           }}
         >
-          planrr.app is the all-in-one platform for emergency management
-          programs that need to operate at a high standard 365 days a year.
-          Built to be a force multiplier for understaffed shops — know exactly
-          what to work on next, automate compliance tracking, and stretch every
-          dollar of your program budget.
+          planrr.app is the operational system for adaptive-capacity emergency
+          management programs. SAGE is your collaborative AI partner across
+          templates, AARs, THIRA, grants, and EMAP standards so your team can
+          move faster without losing rigor.
         </p>
         <p
           style={{
             fontFamily: 'DM Mono,monospace',
             fontSize: 11,
             color: '#475569',
-            maxWidth: 560,
+            maxWidth: 640,
             lineHeight: 1.7,
             marginBottom: 40,
             borderLeft: '2px solid rgba(194,150,74,0.22)',
             paddingLeft: 14,
           }}
         >
-          Over 50% of local EM agencies have one or fewer full-time permanent
-          staff. planrr.app was built for them.
+          Built for shops with one or two full-time staff that still need to
+          sustain operations, reduce staleness, and stay assessment-ready year
+          round.
         </p>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
           <button
@@ -23106,7 +23151,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
       </div>
 
       {/* Features */}
-      <div className="planrr-landing-section" style={{ maxWidth: 1100, margin: '0 auto', padding: '72px 40px' }}>
+      <div ref={platformRef} className="planrr-landing-section" style={{ maxWidth: 1100, margin: '0 auto', padding: '72px 40px' }}>
         <div
           style={{
             fontFamily: 'DM Mono,monospace',
@@ -23141,14 +23186,14 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
             color: '#94a3b8',
             fontSize: 15,
             fontWeight: 300,
-            maxWidth: 560,
+            maxWidth: 640,
             lineHeight: 1.75,
             marginBottom: 48,
           }}
         >
-          Built around EMAP EMS 5-2022, HSEEP, and CPG 201. Every module talks
-          to every other module. Your compliance picture builds automatically as
-          you work.
+          Built around EMAP EMS 5-2022, HSEEP, and CPG 201. SAGE works as a
+          collaborative planning partner while each module feeds the others, so
+          your compliance picture and operational readiness improve together.
         </p>
         <div
           className="planrr-features-grid"
@@ -23254,34 +23299,30 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
         </div>
       </div>
 
-      {/* Force Multiplier */}
-      <div style={{ borderTop: '1px solid rgba(194,150,74,0.22)', background: '#1C1F22' }}>
+      {/* Operational Pillars */}
+      <div ref={pillarsRef} style={{ borderTop: '1px solid rgba(194,150,74,0.22)', background: '#1C1F22' }}>
         <div className="planrr-landing-section" style={{ maxWidth: 1100, margin: '0 auto', padding: '72px 40px' }}>
           <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 10, color: GOLD, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 20, height: 1, background: GOLD }} />
-            Why planrr
+            Four Operational Pillars
           </div>
           <h2 style={{ fontFamily: 'Syne,DM Sans,sans-serif', fontSize: 'clamp(24px,3vw,36px)', fontWeight: 700, letterSpacing: '-1px', marginBottom: 12 }}>
-            One platform. <span style={{ color: GOLD }}>The work of five.</span>
+            Daily operations that sustain <span style={{ color: GOLD }}>adaptive capacity.</span>
           </h2>
-          <p style={{ color: '#94a3b8', fontSize: 15, fontWeight: 300, maxWidth: 560, lineHeight: 1.75, marginBottom: 48 }}>
-            Over 50% of local EM agencies have one or fewer full-time staff.
-            planrr replaces the spreadsheets, shared drives, and sticky notes
-            with a system that tells you exactly what to do next — and does
-            half the work for you.
+          <p style={{ color: '#94a3b8', fontSize: 15, fontWeight: 300, maxWidth: 700, lineHeight: 1.75, marginBottom: 48 }}>
+            planrr keeps your program resilient through four connected loops: detect staleness early,
+            structure COOP data, close the AAR loop, and continuously rebalance priorities with SAGE.
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 2 }} className="planrr-features-grid">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 2 }} className="planrr-features-grid">
             {[
-              ['Know What\'s Next', 'AI-prioritized task queue tells you the highest-impact action for your program today. No more guessing what to work on.', 'Stop Guessing'],
-              ['Cut Consultant Costs', 'AI drafts your AARs, compliance rationale, grant narratives, and THIRA documents. Work that used to cost $5,000+ in consulting fees, done in minutes.', 'Save Thousands'],
-              ['Always Assessment-Ready', 'Your compliance picture builds automatically as you work. When the assessor calls, you\'re already prepared — not scrambling.', 'No Fire Drills'],
-              ['One Person, Full Program', 'Training, exercises, plans, partners, grants, standards — all connected. Update one module and the rest updates automatically.', 'Force Multiplier'],
-              ['Export-Ready Evidence', 'One-click evidence packages for EMAP assessors. Every document, training record, and AAR bundled per standard.', 'Assessment Day'],
-              ['Protect Your Investment', 'Small agencies invest heavily in their programs. planrr makes sure nothing falls through the cracks — expiring MOUs, overdue reviews, lapsing credentials.', 'Never Miss'],
+              ['Staleness Detection', 'Continuously flags aging plans, expiring agreements, and overdue reviews before they become readiness failures.', 'Continuity Guardrail'],
+              ['COOP Structured Data', 'Turns COOP assumptions, dependencies, and recovery priorities into structured records linked to standards and tasks.', 'COOP Ready'],
+              ['AAR Loop', 'Connects exercise observations to corrective actions, owners, and due dates so lessons learned become lessons applied.', 'Improvement Engine'],
+              ['Enhanced Priority Queue', 'Weights urgency, compliance impact, and operational risk so SAGE surfaces the highest-value action for today.', 'Decision Support'],
             ].map(([t, d, tag]) => (
               <div key={t} style={{ background: '#1C1F22', border: '1px solid #2E3439', padding: '28px 24px' }}>
-                <div style={{ fontFamily: 'Syne,DM Sans,sans-serif', fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{t}</div>
-                <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.65, marginBottom: 14, fontWeight: 300 }}>{d}</div>
+                <div style={{ fontFamily: 'Syne,DM Sans,sans-serif', fontSize: 17, fontWeight: 700, marginBottom: 8 }}>{t}</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.7, marginBottom: 14, fontWeight: 300 }}>{d}</div>
                 <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 9, color: GOLD, border: '1px solid rgba(194,150,74,0.22)', padding: '2px 8px', display: 'inline-block', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tag}</div>
               </div>
             ))}
@@ -23291,6 +23332,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
 
       {/* Pricing */}
       <div
+        ref={pricingRef}
         style={{
           borderTop: '1px solid #2E3439',
           borderBottom: '1px solid #2E3439',
@@ -23835,14 +23877,14 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
             fontSize: 15,
             fontWeight: 300,
             marginBottom: 32,
-            maxWidth: 480,
+            maxWidth: 560,
             margin: '0 auto 32px',
             lineHeight: 1.7,
           }}
         >
-          planrr.app is in early access. Join the founding cohort and be among
-          the first EM programs to bring real structure and daily readiness to
-          how they operate.
+          Bring SAGE into your daily workflow and run a collaborative,
+          standards-aligned program that improves readiness every week — not
+          just right before an assessment.
         </p>
         <div
           style={{
@@ -23903,6 +23945,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
 
       {/* Security & Compliance */}
       <div
+        ref={securityRef}
         style={{
           borderTop: '1px solid #2E3439',
           background: 'rgba(28,31,34,0.85)',
@@ -24131,7 +24174,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
             <div>
               <div
                 style={{
-                  fontFamily: 'Syne,DM Sans,sans-serif',
+                  fontFamily: 'Oxanium,DM Sans,sans-serif',
                   fontSize: 18,
                   fontWeight: 800,
                   letterSpacing: '-0.5px',
