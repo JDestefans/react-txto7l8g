@@ -22855,9 +22855,6 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
       <div
         className="planrr-landing-header"
         style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 50,
           borderBottom: '1px solid rgba(194,150,74,0.22)',
           padding: '14px 40px',
           display: 'flex',
@@ -22868,17 +22865,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div
-            style={{
-              fontFamily: 'Oxanium,DM Sans,sans-serif',
-              fontSize: 20,
-              fontWeight: 800,
-              letterSpacing: '-0.5px',
-            }}
-          >
-            <span style={{ color: '#f0f4fa' }}>planrr</span>
-            <span style={{ color: GOLD }}>.app</span>
-          </div>
+          <Wordmark dark size="md" />
           <div
             style={{
               fontFamily: 'DM Mono,monospace',
@@ -22989,6 +22976,12 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
               {label}
             </button>
           ))}
+        </div>
+      </div>
+      <div style={{ borderBottom: '1px solid rgba(194,150,74,0.12)', background: 'rgba(20,23,25,0.7)', padding: '10px 40px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', fontFamily: 'DM Mono,monospace', fontSize: 10, color: '#94a3b8', letterSpacing: '0.04em', lineHeight: 1.7 }}>
+          We replaced spreadsheet archaeology with a system that actually answers "what should we do next?".
+          <span style={{ color: GOLD }}> Less chaos, fewer fire drills, and no 2AM copy-paste marathons before assessment week.</span>
         </div>
       </div>
 
@@ -24174,15 +24167,10 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
             <div>
               <div
                 style={{
-                  fontFamily: 'Oxanium,DM Sans,sans-serif',
-                  fontSize: 18,
-                  fontWeight: 800,
-                  letterSpacing: '-0.5px',
                   marginBottom: 10,
                 }}
               >
-                <span style={{ color: '#f0f4fa' }}>planrr</span>
-                <span style={{ color: GOLD }}>.app</span>
+                <Wordmark dark size="md" />
               </div>
               <div style={{ fontFamily: 'DM Mono,monospace', fontSize: 10, color: '#475569', letterSpacing: '0.08em', maxWidth: 260, lineHeight: 1.6 }}>
                 Emergency Management Program Platform.
