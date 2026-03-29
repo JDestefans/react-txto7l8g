@@ -10213,6 +10213,65 @@ function ResourcesView({ data, setData }) {
    SIDEBAR
 ------------------------------------------------------- */
 function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapsed, onToggleCollapse }) {
+  const sidebarCanvasRef = useRef(null);
+  const sidebarAnimRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = sidebarCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let W, H, nodes;
+    const resize = () => {
+      W = canvas.width = canvas.offsetWidth;
+      H = canvas.height = canvas.offsetHeight;
+      const count = Math.max(18, Math.floor((W * H) / 4200));
+      nodes = Array.from({ length: count }, () => ({
+        x: Math.random() * W, y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.18, vy: (Math.random() - 0.5) * 0.18,
+        r: Math.random() * 1.2 + 0.5,
+        gold: Math.random() < 0.1,
+      }));
+    };
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      const MAX = 80;
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dx = nodes[i].x - nodes[j].x;
+          const dy = nodes[i].y - nodes[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < MAX) {
+            ctx.strokeStyle = `rgba(62,207,207,${(1 - dist / MAX) * 0.09})`;
+            ctx.lineWidth = 0.3;
+            ctx.beginPath();
+            ctx.moveTo(nodes[i].x, nodes[i].y);
+            ctx.lineTo(nodes[j].x, nodes[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+      nodes.forEach(n => {
+        ctx.fillStyle = n.gold
+          ? 'rgba(196,154,60,0.18)'
+          : 'rgba(62,207,207,0.15)';
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        ctx.fill();
+        n.x += n.vx; n.y += n.vy;
+        if (n.x < 0 || n.x > W) n.vx *= -1;
+        if (n.y < 0 || n.y > H) n.vy *= -1;
+      });
+      sidebarAnimRef.current = requestAnimationFrame(draw);
+    };
+    resize();
+    draw();
+    window.addEventListener('resize', resize);
+    return () => {
+      cancelAnimationFrame(sidebarAnimRef.current);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
   const nav = [
     {
       group: '',
@@ -10290,7 +10349,6 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapse
       style={{
         width: collapsed ? 64 : 244,
         background: B.sidebar,
-        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,0.02)'/%3E%3Ccircle cx='60' cy='10' r='0.8' fill='rgba(255,255,255,0.015)'/%3E%3Ccircle cx='100' cy='30' r='1' fill='rgba(255,255,255,0.02)'/%3E%3Ccircle cx='40' cy='60' r='0.8' fill='rgba(255,255,255,0.015)'/%3E%3Ccircle cx='80' cy='50' r='1' fill='rgba(255,255,255,0.02)'/%3E%3Ccircle cx='10' cy='90' r='0.8' fill='rgba(255,255,255,0.015)'/%3E%3Ccircle cx='60' cy='100' r='1' fill='rgba(255,255,255,0.02)'/%3E%3Ccircle cx='100' cy='80' r='0.8' fill='rgba(255,255,255,0.015)'/%3E%3Ccircle cx='110' cy='110' r='1' fill='rgba(255,255,255,0.02)'/%3E%3Cline x1='20' y1='20' x2='60' y2='10' stroke='rgba(255,255,255,0.015)' stroke-width='0.5'/%3E%3Cline x1='60' y1='10' x2='100' y2='30' stroke='rgba(255,255,255,0.015)' stroke-width='0.5'/%3E%3Cline x1='20' y1='20' x2='40' y2='60' stroke='rgba(255,255,255,0.015)' stroke-width='0.5'/%3E%3Cline x1='40' y1='60' x2='80' y2='50' stroke='rgba(255,255,255,0.015)' stroke-width='0.5'/%3E%3Cline x1='100' y1='30' x2='80' y2='50' stroke='rgba(255,255,255,0.015)' stroke-width='0.5'/%3E%3Cline x1='40' y1='60' x2='10' y2='90' stroke='rgba(255,255,255,0.015)' stroke-width='0.5'/%3E%3Cline x1='10' y1='90' x2='60' y2='100' stroke='rgba(255,255,255,0.015)' stroke-width='0.5'/%3E%3Cline x1='80' y1='50' x2='100' y2='80' stroke='rgba(255,255,255,0.015)' stroke-width='0.5'/%3E%3Cline x1='60' y1='100' x2='100' y2='80' stroke='rgba(255,255,255,0.015)' stroke-width='0.5'/%3E%3Cline x1='100' y1='80' x2='110' y2='110' stroke='rgba(255,255,255,0.015)' stroke-width='0.5'/%3E%3C/svg%3E")`,
         display: 'flex',
         flexDirection: 'column',
         position: 'fixed',
@@ -10302,6 +10360,22 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapse
         overflow: 'hidden',
       }}
     >
+      {/* Live node network canvas */}
+      <canvas
+        ref={sidebarCanvasRef}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 0,
+          opacity: collapsed ? 0.4 : 0.7,
+          transition: 'opacity 0.2s ease',
+        }}
+      />
+      {/* All sidebar content sits above canvas */}
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div
         style={{
           padding: collapsed ? '16px 12px' : '20px 18px 16px',
@@ -10586,6 +10660,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapse
           >{collapsed ? '»' : '«'}</button>
         )}
       </div>
+      </div>{/* /z-index wrapper */}
     </aside>
   );
 }
@@ -23097,7 +23172,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
             maxWidth: 600, lineHeight: 1.78,
             marginBottom: 14, fontWeight: 300,
           }}>
-            planrr.app is the operational system for emergency management programs. SAGE — your AI program partner — works across standards, AARs, hazard analysis, grants, and plans so your team moves faster without losing rigor.
+            planrr.app is the all-in-one platform for emergency management programs that need to operate at a high standard — 365 days a year. SAGE, your AI program partner, monitors everything so you know exactly what to work on next.
           </p>
 
           <p className="planrr-hero-fade-3" style={{
@@ -23202,6 +23277,137 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
         </div>
 
         {/* ── PLATFORM / FEATURES ── */}
+        {/* ── THE CALL-OUT STRIP ── */}
+        <div style={{
+          borderTop: '1px solid rgba(239,68,68,0.15)',
+          borderBottom: '1px solid rgba(239,68,68,0.1)',
+          background: 'rgba(10,10,10,0.85)',
+          position: 'relative', zIndex: 2,
+        }}>
+          <div style={{ maxWidth: 1100, margin: '0 auto', padding: '64px 40px' }}>
+            <div style={{
+              fontFamily: "'DM Mono',monospace", fontSize: 10,
+              color: '#EF4444', letterSpacing: '0.2em', textTransform: 'uppercase',
+              marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              <div style={{ width: 20, height: 1, background: '#EF4444' }} />
+              Let's be honest
+            </div>
+            <h2 style={{
+              fontFamily: "'Syne','DM Sans',sans-serif",
+              fontSize: 'clamp(22px,2.8vw,36px)',
+              fontWeight: 800, letterSpacing: '-1.5px',
+              marginBottom: 8, color: '#f0f4fa', lineHeight: 1.05,
+            }}>
+              Every EM program says they learn from every incident.
+            </h2>
+            <p style={{
+              fontFamily: "'DM Mono',monospace", fontSize: 11,
+              color: '#475569', letterSpacing: '0.04em', lineHeight: 1.7,
+              marginBottom: 44, maxWidth: 640,
+            }}>
+              Almost none of them close the loop. The findings sit in a folder. The same gaps show up in the next AAR. This is not a people problem. It's a system problem.
+            </p>
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 3,
+            }} className="planrr-security-grid">
+              {[
+                {
+                  num: '✕', tag: 'The AAR gap',
+                  title: 'You filed the AAR.',
+                  body: 'You didn\'t action the findings. The same gap shows up in the next one. And the one after that.',
+                  sub: 'No mechanism connects finding → standard → corrective action → resolution.',
+                },
+                {
+                  num: '✕', tag: 'The training lie',
+                  title: '"Our staff is trained."',
+                  body: 'Last documented training: 22 months ago. 4 new staff hired since. 0 tabletops completed on the current EOP version.',
+                  sub: 'Saying it happened once is not the same as it being current.',
+                },
+                {
+                  num: '✕', tag: 'The succession gap',
+                  title: 'Your COOP succession line.',
+                  body: 'It references 2 positions that no longer exist. If your EM director is unavailable today, there is no clear line of authority.',
+                  sub: 'SAGE finds this. Every week. Before the incident does.',
+                },
+              ].map(({ num, tag, title, body, sub }) => (
+                <div key={tag} style={{
+                  background: 'rgba(239,68,68,0.04)',
+                  border: '1px solid rgba(239,68,68,0.18)',
+                  borderLeft: '3px solid #EF4444',
+                  padding: '24px 22px',
+                  position: 'relative',
+                }}>
+                  <div style={{
+                    fontFamily: "'DM Mono',monospace", fontSize: 8,
+                    color: '#EF4444', letterSpacing: '0.14em',
+                    textTransform: 'uppercase', marginBottom: 12,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    <span style={{
+                      width: 16, height: 16, borderRadius: '50%',
+                      background: 'rgba(239,68,68,0.12)',
+                      border: '1px solid rgba(239,68,68,0.3)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 9, flexShrink: 0,
+                    }}>{num}</span>
+                    {tag}
+                  </div>
+                  <div style={{
+                    fontFamily: "'Syne','DM Sans',sans-serif",
+                    fontSize: 16, fontWeight: 700,
+                    color: '#f0f4fa', marginBottom: 10, lineHeight: 1.2,
+                  }}>{title}</div>
+                  <div style={{
+                    fontSize: 13, color: '#8A9BB0',
+                    lineHeight: 1.65, marginBottom: 12, fontWeight: 300,
+                  }}>{body}</div>
+                  <div style={{
+                    fontFamily: "'DM Mono',monospace", fontSize: 10,
+                    color: TEAL, letterSpacing: '0.06em', lineHeight: 1.6,
+                  }}>{sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── ARGONNE STAT ── */}
+        <div style={{
+          borderBottom: '1px solid rgba(196,154,60,0.12)',
+          background: 'rgba(19,14,2,0.6)',
+          padding: '22px 40px',
+          position: 'relative', zIndex: 2,
+        }}>
+          <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+            <div style={{ width: 3, height: 40, background: GOLD, flexShrink: 0, borderRadius: 2 }} />
+            <div>
+              <div style={{
+                fontFamily: "'DM Mono',monospace", fontSize: 11,
+                color: '#8A9BB0', letterSpacing: '0.04em', lineHeight: 1.7,
+                fontStyle: 'italic',
+              }}>
+                "Over 50% of local EM agencies have one or fewer full-time permanent staff."
+              </div>
+              <div style={{
+                fontFamily: "'DM Mono',monospace", fontSize: 9,
+                color: '#475569', letterSpacing: '0.1em', marginTop: 4,
+              }}>
+                Argonne National Laboratory · 1,689 agencies surveyed · July 2025
+              </div>
+            </div>
+            <div style={{ marginLeft: 'auto' }}>
+              <div style={{
+                fontFamily: "'DM Mono',monospace", fontSize: 9,
+                color: GOLD, letterSpacing: '0.14em', textTransform: 'uppercase',
+                border: '1px solid rgba(196,154,60,0.25)',
+                background: 'rgba(196,154,60,0.06)',
+                padding: '5px 12px',
+              }}>planrr.app is built for this reality</div>
+            </div>
+          </div>
+        </div>
+
         <div ref={platformRef} className="planrr-landing-section" style={{ maxWidth: 1100, margin: '0 auto', padding: '80px 40px', position: 'relative', zIndex: 2 }}>
           <div style={{
             fontFamily: "'DM Mono',monospace", fontSize: 10, color: GOLD,
@@ -23223,22 +23429,22 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
             color: '#8A9BB0', fontSize: 15, fontWeight: 300,
             maxWidth: 640, lineHeight: 1.78, marginBottom: 52,
           }}>
-            Built around EMAP EMS 5-2022, HSEEP, and CPG 201. SAGE works as a collaborative planning partner while each module feeds the others — your compliance picture and operational readiness improve together.
+            Every module talks to every other module. An exercise finding becomes a compliance gap. A lapsed MOU surfaces in your priority queue. Your program picture builds as you work — not separately from it.
           </p>
           <div
             className="planrr-features-grid"
             style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 3 }}
           >
             {[
-              ['EMAP Standards', 'Track all 73 EMS 5-2022 standards. Upload evidence, write rationale, get AI interpretation. Your compliance picture updates in real time.', 'Accreditation Core'],
-              ['Smart Priority Queue', 'One prioritized list of what to work on today. Expiring MOUs, overdue reviews, credential alerts, and missing plans — sorted by urgency and EMAP impact.', 'Dashboard'],
-              ['Exercises & AARs', 'Full HSEEP workflow with AI-generated After-Action Reports. Corrective actions auto-populate your CAP dashboard.', 'HSEEP Aligned'],
-              ['Document Templates', 'AI-generated templates pre-filled with your program data. Strategic plans, COOP, resource management, communications, training, and exercise plans.', 'AI-Powered'],
-              ['Recovery Planning', 'Dedicated recovery module with short, intermediate, and long-term phases. Built around EMAP 4.5.4 and the Argonne study findings.', 'EMAP 4.5.4'],
-              ['Evidence Export', 'One-click evidence packages for your assessors. All docs, training records, AARs, and notes bundled per standard. Assessment-ready.', 'Accreditation'],
-              ['Mutual Aid Mapping', 'Map which partners share which resources. Coverage matrix shows gaps. Built for jurisdictions that share resources to stay independent.', 'EMAP 4.7'],
-              ['FEMA/NIMS Alignment', 'Secondary compliance badge tracking ICS, NIMS, and interoperability standards. Show FEMA alignment alongside your EMAP progress.', 'ICS/NIMS'],
-              ['Grant-EMAP Tracker', 'See which active grants tie to which EMAP standards. Flag when compliance gaps might jeopardize funding eligibility.', 'EMAP 3.4'],
+              ['EMAP Standards', 'All 73 standards. Not a checklist — a live picture of where your program actually stands. Every status change, every piece of evidence, every gap. Real time.', 'Accreditation Core'],
+              ['Smart Priority Queue', 'Stop asking what to work on next. SAGE already knows. Expiring MOUs, overdue reviews, lapsed credentials, missing plans — ranked by what matters most right now.', 'Dashboard'],
+              ['Exercises & AARs', 'You ran the tabletop. Now what? Every finding gets an owner, a due date, and a direct link to the standard it reveals. The AAR isn\'t done when it\'s filed. It\'s done when the gap is closed.', 'HSEEP Aligned'],
+              ['Document Templates', 'SAGE writes the first draft — pre-filled with your program data. COOP, strategic plan, training plan, comms plan. You edit. You approve. You move on.', 'AI-Powered'],
+              ['Recovery Planning', 'Most programs write their recovery plan once and file it. This module treats recovery as what it is: a living discipline with phases, owners, and dependencies that change when your community changes.', 'EMAP 4.5.4'],
+              ['Evidence Export', 'The assessor email lands. You don\'t scramble. One click, and every standard has its evidence bundle — docs, training records, AARs, notes — ready to hand over.', 'Accreditation'],
+              ['Mutual Aid Mapping', 'You have MOUs. Do you know who actually covers what? The coverage matrix shows the gaps before a real event asks the question for you.', 'EMAP 4.7'],
+              ['FEMA/NIMS Alignment', 'Your EMAP progress and your FEMA alignment tracked in the same place. Show leadership the full picture — not just one credential in isolation.', 'ICS/NIMS'],
+              ['Grant-EMAP Tracker', 'Your grant report says training was completed. Your training records say otherwise. This module keeps those two things from diverging — and flags when a compliance gap might cost you funding.', 'EMAP 3.4'],
             ].map(([t, d, tag]) => (
               <div
                 key={t}
@@ -23285,35 +23491,166 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
               fontSize: 'clamp(24px,3vw,40px)',
               fontWeight: 800, letterSpacing: '-1.5px', marginBottom: 12,
             }}>
-              Daily operations that sustain{' '}
-              <span style={{ color: GOLD }}>adaptive capacity.</span>
+              The four things that quietly<br />
+              <span style={{ color: GOLD }}>fail without a system.</span>
             </h2>
             <p style={{
               color: '#8A9BB0', fontSize: 15, fontWeight: 300,
               maxWidth: 700, lineHeight: 1.78, marginBottom: 52,
             }}>
-              planrr keeps your program ready through four connected loops: detect staleness early, structure COOP data, close the AAR loop, and continuously rebalance priorities with SAGE.
+              Not because anyone made a bad decision. Because there was no system watching. These four gaps accumulate in silence — and they all show up in the same place: the after-action report.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 3 }} className="planrr-features-grid">
               {[
-                ['Staleness Detection', 'Continuously flags aging plans, expiring agreements, and overdue reviews before they become readiness failures.', 'Continuity Guardrail', GOLD],
-                ['COOP Structured Data', 'Turns COOP assumptions, dependencies, and recovery priorities into structured records linked to standards and tasks.', 'COOP Ready', TEAL],
-                ['AAR Loop', 'Connects observations to corrective actions, owners, and due dates so lessons learned become lessons applied.', 'Improvement Engine', GOLD],
-                ['Enhanced Priority Queue', 'Weights urgency, compliance impact, and operational risk so SAGE surfaces the highest-value action for today.', 'Decision Support', TEAL],
-              ].map(([t, d, tag, accentColor]) => (
+                [
+                  'Staleness Detection',
+                  'Your EOP was last reviewed 18 months ago. Your alternate EOC hasn\'t been verified since the previous director. Your MOU partner changed their emergency coordinator and nobody updated the file. SAGE notices before you have to.',
+                  'The thing that expires unnoticed',
+                  GOLD,
+                ],
+                [
+                  'COOP Structured Data',
+                  'Your COOP succession line references two positions that no longer exist. If your EM director is unavailable today, who\'s in charge? planrr turns your COOP from a filed document into a maintained record — with actual people, actual contacts, actual depth.',
+                  'The succession gap',
+                  TEAL,
+                ],
+                [
+                  'AAR Loop',
+                  'The comms gap showed up in three consecutive AARs. It\'s still open. The AAR isn\'t the end of the improvement cycle — it\'s the beginning. planrr connects every finding to an owner, a standard, and a due date. The loop closes when the gap does.',
+                  'The finding that never closes',
+                  GOLD,
+                ],
+                [
+                  'Enhanced Priority Queue',
+                  'You have 73 standards, 14 open corrective actions, 3 MOUs expiring in 60 days, and a training record that\'s 16 months stale. SAGE surfaces what needs attention today — not next quarter, not during the next assessment sprint. Today.',
+                  'The thing SAGE handles',
+                  TEAL,
+                ],
+              ].map(([t, d, sub, accentColor]) => (
                 <div key={t} className="planrr-card" style={{ ...cardBase }}>
                   <div style={{ ...tealAccent, background: accentColor }} />
-                  <div style={{ fontFamily: "'Syne','DM Sans',sans-serif", fontSize: 17, fontWeight: 700, marginBottom: 8, paddingLeft: 10 }}>{t}</div>
-                  <div style={{ fontSize: 13, color: '#8A9BB0', lineHeight: 1.7, marginBottom: 16, fontWeight: 300, paddingLeft: 10 }}>{d}</div>
+                  <div style={{ fontFamily: "'Syne','DM Sans',sans-serif", fontSize: 17, fontWeight: 700, marginBottom: 6, paddingLeft: 10 }}>{t}</div>
                   <div style={{
                     fontFamily: "'DM Mono',monospace", fontSize: 9,
-                    color: accentColor,
-                    border: `1px solid ${accentColor}44`,
-                    background: `${accentColor}0d`,
-                    padding: '2px 9px', display: 'inline-block',
-                    letterSpacing: '0.12em', textTransform: 'uppercase',
-                    marginLeft: 10,
-                  }}>{tag}</div>
+                    color: accentColor, letterSpacing: '0.1em', textTransform: 'uppercase',
+                    paddingLeft: 10, marginBottom: 10, opacity: 0.8,
+                  }}>{sub}</div>
+                  <div style={{ fontSize: 13, color: '#8A9BB0', lineHeight: 1.7, marginBottom: 16, fontWeight: 300, paddingLeft: 10 }}>{d}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── $79/MONTH VS. ── */}
+        <div style={{
+          borderTop: '1px solid rgba(196,154,60,0.18)',
+          background: 'rgba(13,13,13,0.75)',
+          position: 'relative', zIndex: 2,
+        }}>
+          <div style={{ maxWidth: 1100, margin: '0 auto', padding: '72px 40px' }}>
+            <div style={{
+              fontFamily: "'DM Mono',monospace", fontSize: 10, color: GOLD,
+              letterSpacing: '0.2em', textTransform: 'uppercase',
+              marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              <div style={{ width: 20, height: 1, background: GOLD }} />
+              The math
+            </div>
+            <h2 style={{
+              fontFamily: "'Syne','DM Sans',sans-serif",
+              fontSize: 'clamp(22px,2.8vw,36px)',
+              fontWeight: 800, letterSpacing: '-1.5px',
+              marginBottom: 44, lineHeight: 1.05,
+            }}>
+              $79/month vs.{' '}
+              <span style={{ color: GOLD }}>what you're already paying.</span>
+            </h2>
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 3,
+            }} className="planrr-security-grid">
+              {[
+                {
+                  cost: '$79/mo',
+                  costSub: 'planrr.app Solo Operator',
+                  vs: 'One hour',
+                  vsSub: 'of an EM consultant',
+                  vsDetail: '$150–300/hr to find the same gaps SAGE finds every day. Automatically. Continuously.',
+                  color: GOLD,
+                },
+                {
+                  cost: '$79/mo',
+                  costSub: 'Full platform + SAGE',
+                  vs: 'The AAR finding',
+                  vsSub: 'that became an incident outcome',
+                  vsDetail: 'The comms gap. The succession gap. The training lapse. The cost of a gap that finds you first has no dollar figure.',
+                  color: '#EF4444',
+                },
+                {
+                  cost: '$79/mo',
+                  costSub: 'Every feature. No gating.',
+                  vs: 'The budget meeting',
+                  vsSub: 'where you justify your existence',
+                  vsDetail: 'planrr.app\'s leadership dashboard gives you real data to put in front of commissioners and executives. Make the program visible.',
+                  color: TEAL,
+                },
+              ].map(({ cost, costSub, vs, vsSub, vsDetail, color }) => (
+                <div key={vs} style={{
+                  background: 'rgba(14,14,14,0.9)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  borderLeft: `3px solid ${color}`,
+                  padding: '28px 24px',
+                }}>
+                  {/* planrr side */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{
+                      fontFamily: "'DM Mono',monospace", fontSize: 8,
+                      color: color, letterSpacing: '0.14em',
+                      textTransform: 'uppercase', marginBottom: 8,
+                    }}>planrr.app</div>
+                    <div style={{
+                      fontFamily: "'Syne','DM Sans',sans-serif",
+                      fontSize: 36, fontWeight: 800, letterSpacing: '-1.5px',
+                      color: '#f0f4fa', lineHeight: 1, marginBottom: 4,
+                    }}>{cost}</div>
+                    <div style={{
+                      fontFamily: "'DM Mono',monospace", fontSize: 10,
+                      color: '#475569', letterSpacing: '0.06em',
+                    }}>{costSub}</div>
+                  </div>
+                  {/* vs divider */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20,
+                  }}>
+                    <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+                    <span style={{
+                      fontFamily: "'Syne','DM Sans',sans-serif",
+                      fontSize: 13, fontWeight: 800, color: '#2a2a2a',
+                    }}>vs.</span>
+                    <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+                  </div>
+                  {/* alternative side */}
+                  <div>
+                    <div style={{
+                      fontFamily: "'DM Mono',monospace", fontSize: 8,
+                      color: '#475569', letterSpacing: '0.14em',
+                      textTransform: 'uppercase', marginBottom: 8,
+                    }}>the alternative</div>
+                    <div style={{
+                      fontFamily: "'Syne','DM Sans',sans-serif",
+                      fontSize: 17, fontWeight: 700,
+                      color: '#f0f4fa', lineHeight: 1.2, marginBottom: 6,
+                    }}>{vs}</div>
+                    <div style={{
+                      fontSize: 12, color: '#475569',
+                      fontFamily: "'DM Mono',monospace",
+                      letterSpacing: '0.04em', marginBottom: 12,
+                    }}>{vsSub}</div>
+                    <div style={{
+                      fontSize: 13, color: '#8A9BB0',
+                      lineHeight: 1.65, fontWeight: 300,
+                    }}>{vsDetail}</div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -23518,7 +23855,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
           background: 'rgba(13,13,13,0.88)',
           borderTop: '1px solid rgba(196,154,60,0.22)',
           borderBottom: '1px solid rgba(196,154,60,0.22)',
-          padding: '72px 40px', textAlign: 'center',
+          padding: '80px 40px', textAlign: 'center',
           position: 'relative', zIndex: 2,
         }}>
           <div style={{
@@ -23528,25 +23865,41 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
             justifyContent: 'center', gap: 12,
           }}>
             <div style={{ width: 16, height: 1, background: TEAL }} />
-            The Bottom Line
+            Organizational resilience isn't a value. It's a practice.
             <div style={{ width: 16, height: 1, background: TEAL }} />
           </div>
           <h2 style={{
             fontFamily: "'Syne','DM Sans',sans-serif",
-            fontSize: 'clamp(28px,4vw,48px)',
-            fontWeight: 800, letterSpacing: '-2px',
-            marginBottom: 14, lineHeight: 1.04,
+            fontSize: 'clamp(28px,4vw,52px)',
+            fontWeight: 800, letterSpacing: '-2.5px',
+            marginBottom: 14, lineHeight: 1.02,
           }}>
-            The plan won't survive first contact.<br />
-            <span style={{ color: GOLD }}>Your organization will.</span>
+            Adapt or don't.<br />
+            <span style={{ color: GOLD }}>The incident won't wait.</span>
           </h2>
           <p style={{
             color: '#8A9BB0', fontSize: 15, fontWeight: 300,
-            marginBottom: 36, maxWidth: 520, margin: '0 auto 36px',
+            marginBottom: 36, maxWidth: 540, margin: '0 auto 36px',
             lineHeight: 1.78,
           }}>
-            Bring SAGE into your daily workflow and run a program that improves readiness every week — not just right before an assessment.
+            Organizations that learn, adapt, and build institutional resilience don't need the plan to be perfect. They need the people, the systems, and the muscle memory to respond when it isn't.
           </p>
+          {/* The gap statement */}
+          <div style={{
+            maxWidth: 580, margin: '0 auto 40px',
+            background: 'rgba(19,14,2,0.88)',
+            border: '1px solid rgba(196,154,60,0.35)',
+            borderLeft: '4px solid ' + GOLD,
+            padding: '16px 22px',
+            textAlign: 'left',
+          }}>
+            <div style={{
+              fontFamily: "'DM Mono',monospace", fontSize: 10,
+              color: '#475569', letterSpacing: '0.08em', lineHeight: 1.7,
+            }}>
+              "Organizations will say they learn from every incident. SAGE will show you whether they do. The gap between claiming organizational learning and actually doing it is measurable — it lives in your AAR findings, your training records, your succession line."
+            </div>
+          </div>
           <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button
               onClick={() => onBuyPlan ? onBuyPlan('small_team') : onSignup()}
@@ -23602,16 +23955,16 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
               <span style={{ color: GOLD }}>sensitive data.</span>
             </h2>
             <p style={{ color: '#8A9BB0', fontSize: 15, fontWeight: 300, maxWidth: 560, lineHeight: 1.78, marginBottom: 52 }}>
-              Emergency management data demands serious protection. We treat security as a first-class requirement, not an afterthought.
+              Your program data has operational security implications. Plans, succession lines, facility locations, resource inventories. We treat it that way.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 3 }} className="planrr-security-grid">
               {[
-                ['HTTPS Everywhere', 'All data in transit is encrypted via TLS 1.2+. No exceptions.'],
-                ['Encryption at Rest', 'All stored data is encrypted at rest via cloud provider-managed keys (AES-256).'],
-                ['Authenticated Access', 'Every API call requires valid auth tokens. Org-scoped access ensures data isolation between agencies.'],
-                ['Activity Logs', 'Complete audit trail of user actions. Know who changed what, and when.'],
-                ['Automated Backups', 'Continuous database backups with point-in-time recovery. Your program data is never at risk.'],
-                ['Secure Infrastructure', 'Hosted on SOC 2-certified cloud infrastructure with network isolation, DDoS protection, and 24/7 monitoring.'],
+                ['HTTPS Everywhere', 'Every request, every response, every file transfer. TLS 1.2+ with no exceptions. Your data doesn\'t travel unprotected.'],
+                ['Encryption at Rest', 'AES-256 on everything stored. If someone got to the database, they\'d get noise. Your program data stays yours.'],
+                ['Authenticated Access', 'Every API call requires a valid token. Org-scoped access means your program data is yours alone — no other agency sees it.'],
+                ['Activity Logs', 'Who changed what, and when. Full audit trail. Because accountability matters in EM programs — including the software running them.'],
+                ['Automated Backups', 'Continuous backups with point-in-time recovery. The program your team spent years building doesn\'t disappear because of a server issue.'],
+                ['Secure Infrastructure', 'SOC 2-certified cloud infrastructure. Network isolation, DDoS protection, 24/7 monitoring. Built for organizations that can\'t afford downtime.'],
               ].map(([t, d]) => (
                 <div key={t} className="planrr-card" style={{ ...cardBase }}>
                   <div style={{ ...tealAccent, background: TEAL }} />
