@@ -1,1041 +1,931 @@
-import React, { Component } from 'react';
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useNavigate, useLocation, Routes, Route, Navigate, Link } from 'react-router-dom';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsOfService from './pages/TermsOfService';
-import SharedReport from './pages/SharedReport';
-import Founder from './pages/Founder';
-import FAQ from './pages/FAQ';
-import { STARTER_PACKS, applyStarterPack } from './data/starterPacks';
-import { downloadICal } from './services/calendar';
-import { buildShareURL } from './services/shareReport';
-import { buildGrantNarrativePrompt } from './services/grantHelper';
-import SAGE from './components/SAGE';
-// pdfExtract loaded dynamically to avoid Jest import.meta issues
+/**
+ * PLANRR.APP — COMPLETE DESIGN OVERHAUL
+ * ─────────────────────────────────────────────────────────────────────────────
+ * This file contains:
+ *   1. DESIGN_TOKENS   — unified token system (colors, typography, spacing)
+ *   2. GLOBAL_CSS      — drop-in <style> tag for in-app continuity
+ *   3. LandingPage     — rebuilt landing page with premium typography
+ *   4. AuthScreen      — fixed modal (no jank animation)
+ *   5. AppShell CSS    — in-app topbar / sidebar refinements
+ * ─────────────────────────────────────────────────────────────────────────────
+ * FONTS USED:
+ *   - Syne              → wordmarks, hero headlines (same as marketing)
+ *   - DM Mono           → labels, tags, monospace accents
+ *   - DM Sans           → body, UI text (same as current app)
+ *   - Oxanium           → "planrr.app" wordmark (Bold)
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
 
-/* --- ERROR BOUNDARY ----------------------------------- */
-class ErrorBoundary extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          height: '100vh', background: '#1C1F22', flexDirection: 'column', gap: 16,
-          fontFamily: "'DM Sans',sans-serif",
-        }}>
-          <div style={{ fontSize: 48 }}>⚠</div>
-          <div style={{ color: '#f0f4fa', fontSize: 20, fontWeight: 700 }}>Something went wrong</div>
-          <div style={{ color: '#94a3b8', fontSize: 14, maxWidth: 400, textAlign: 'center', lineHeight: 1.6 }}>
-            An unexpected error occurred. Please reload the page to continue.
-          </div>
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              marginTop: 8, background: GOLD, color: '#141719', border: 'none',
-              padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 700, cursor: 'pointer',
-            }}
-          >
-            Reload Page
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
+import { useState, useEffect, useRef, useCallback } from "react";
+
+// ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
+const T = {
+  // Brand palette
+  teal:        "#3ECFCF",
+  tealDark:    "#2BAEAE",
+  tealLight:   "rgba(62,207,207,0.08)",
+  gold:        "#C49A3C",
+  goldLight:   "rgba(196,154,60,0.08)",
+  goldBright:  "#D4AA5A",
+
+  // Darks (in-app)
+  sidebar:     "#1A1F2E",
+  sidebarMid:  "#242B3D",
+  sidebarBdr:  "#2A3550",
+  sidebarMute: "#64748B",
+
+  // Lights (in-app)
+  bg:          "#F2F5F7",
+  card:        "#FFFFFF",
+  border:      "#E2E8EA",
+  text:        "#111827",
+  muted:       "#374151",
+  faint:       "#6B7280",
+
+  // Semantic
+  green:  "#22C55E",
+  amber:  "#F59E0B",
+  red:    "#EF4444",
+  blue:   "#3B82F6",
+  purple: "#8B5CF6",
+
+  // Landing (dark theme)
+  land_bg:     "#0E0E0E",
+  land_surface:"rgba(20,20,20,0.96)",
+  land_border: "rgba(196,154,60,0.18)",
+  land_text:   "#F0F4FA",
+  land_muted:  "#8A9BB0",
+  land_faint:  "#475569",
+  land_dim:    "#2E3439",
+};
+
+// ─── GLOBAL CSS PATCH (inject into app's <head>) ──────────────────────────────
+export const GLOBAL_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Syne:wght@700;800;900&family=Oxanium:wght@700;800&display=swap');
+
+:root {
+  --teal:       #3ECFCF;
+  --teal-dark:  #2BAEAE;
+  --gold:       #C49A3C;
+  --gold-light: rgba(196,154,60,0.08);
+  --border:     #E2E8EA;
+  --text:       #111827;
+  --muted:      #374151;
+  --faint:      #6B7280;
+  --card:       #FFFFFF;
+  --sidebar:    #1A1F2E;
+
+  /* Typography */
+  --font-body:    'DM Sans', sans-serif;
+  --font-display: 'Syne', 'DM Sans', sans-serif;
+  --font-mono:    'DM Mono', monospace;
+  --font-mark:    'Oxanium', 'DM Sans', sans-serif;
+
+  /* Spacing scale */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px;
+  --space-4: 16px; --space-5: 20px; --space-6: 24px;
+  --space-8: 32px; --space-10: 40px; --space-12: 48px;
+
+  /* Radius */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 18px;
+
+  /* Transitions */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur: 0.18s;
 }
 
-/* --- VIEW TITLES (for document.title) ----------------- */
-const VIEW_TITLES = {
-  dashboard: 'Dashboard',
-  accreditation: 'EMAP Standards',
-  intake: 'Bulk Document Intake',
-  package: 'Accreditation Package Builder',
-  training: 'Training Manager',
-  exercises: 'Exercises & AARs',
-  partners: 'Partner Registry',
-  plans: 'Plans & SOPs',
-  resources: 'Resources',
-  employees: 'Personnel',
-  calendar: 'Program Calendar',
-  reports: 'Compliance Report',
-  assistant: 'AI Assistant',
-  grants: 'Grants & Funding',
-  thira: 'Hazard Analysis',
-  cap: 'Corrective Action Program',
-  activity: 'Activity Log',
-  settings: 'My Program',
-  templates: 'Document Templates',
-  evidence: 'Evidence Export',
-  recovery: 'Recovery Planning',
-  mutualaid: 'Mutual Aid Map',
-  journey: 'Accreditation Journey',
-};
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-body); }
 
-/* --- BRAND (fixed contrast) --------------------------- */
-const B = {
-  teal: '#3ECFCF',
-  tealDark: '#2BAEAE',
-  tealLight: '#E6FAFA',
-  tealBorder: 'rgba(62,207,207,0.28)',
-  bg: '#F2F5F7',
-  card: '#FFFFFF',
-  border: '#E2E8EA',
-  text: '#111827',
-  muted: '#374151',
-  faint: '#6B7280',
-  sidebar: '#1A1F2E',
-  sidebarMid: '#242B3D',
-  sidebarBorder: '#2A3550',
-  sidebarMuted: '#94A3B8',
-  green: '#22C55E',
-  greenLight: '#ECFDF5',
-  greenBorder: '#A7F3D0',
-  amber: '#F59E0B',
-  amberLight: '#FFFBEB',
-  amberBorder: '#FDE68A',
-  red: '#EF4444',
-  redLight: '#FEF2F2',
-  redBorder: '#FECACA',
-  blue: '#3B82F6',
-  blueLight: '#EFF6FF',
-  blueBorder: '#BFDBFE',
-  purple: '#8B5CF6',
-  purpleLight: '#F5F3FF',
-  purpleBorder: '#DDD6FE',
-  indigo: '#6366F1',
-  indigoLight: '#EEF2FF',
-  indigoBorder: '#C7D2FE',
-};
+/* ─── WORDMARK ─── */
+.planrr-wordmark {
+  font-family: var(--font-mark);
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  line-height: 1;
+}
+.planrr-wordmark .dot-app { color: var(--gold); }
 
-const ST = {
-  not_started: {
-    label: 'Not Started',
-    color: B.faint,
-    bg: '#F3F6F7',
-    border: B.border,
-    dot: '#C4CED4',
-  },
-  in_progress: {
-    label: 'In Progress',
-    color: B.amber,
-    bg: B.amberLight,
-    border: B.amberBorder,
-    dot: B.amber,
-  },
-  compliant: {
-    label: 'Compliant',
-    color: B.green,
-    bg: B.greenLight,
-    border: B.greenBorder,
-    dot: B.green,
-  },
-  needs_review: {
-    label: 'Needs Review',
-    color: B.red,
-    bg: B.redLight,
-    border: B.redBorder,
-    dot: B.red,
-  },
-};
+/* ─── HEADLINE STYLE ─── */
+.planrr-headline {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -2px;
+  line-height: 1.02;
+}
 
-/* --- WORDMARK + PLACEHOLDER MARK ---------------------- */
-const GOLD = '#C49A3C';
+/* ─── MONO LABEL ─── */
+.planrr-mono-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
 
-/* --- LOADING SKELETON --------------------------------- */
-function Skeleton({ width, height = 14, style }) {
-  return (
+/* ─── IN-APP TOPBAR REFINEMENTS ─── */
+#planrr-topbar {
+  background: rgba(242, 245, 247, 0.94) !important;
+  backdrop-filter: blur(16px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.4) !important;
+  border-bottom: 1px solid rgba(226,232,234,0.7) !important;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+}
+
+/* ─── IN-APP SIDEBAR REFINEMENTS ─── */
+#planrr-sidebar {
+  background: linear-gradient(180deg, #1A1F2E 0%, #161B28 100%) !important;
+}
+#planrr-sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 120% 60% at 50% 0%, rgba(62,207,207,0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── CARD REFINEMENTS ─── */
+.planrr-card-elevated {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.04),
+    0 4px 16px rgba(0,0,0,0.03),
+    inset 0 1px 0 rgba(255,255,255,0.8);
+  transition: box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.planrr-card-elevated:hover {
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.06),
+    0 8px 24px rgba(0,0,0,0.06);
+  border-color: rgba(62,207,207,0.25);
+}
+
+/* ─── BUTTON REFINEMENTS ─── */
+.planrr-btn-primary {
+  background: var(--teal) !important;
+  box-shadow: 0 2px 8px rgba(62,207,207,0.25), inset 0 1px 0 rgba(255,255,255,0.15) !important;
+  transition: all var(--dur) var(--ease) !important;
+}
+.planrr-btn-primary:hover {
+  background: var(--teal-dark) !important;
+  box-shadow: 0 4px 16px rgba(62,207,207,0.35), inset 0 1px 0 rgba(255,255,255,0.15) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* ─── INPUT FOCUS GLOW ─── */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--teal) !important;
+  box-shadow: 0 0 0 3px rgba(62,207,207,0.12) !important;
+}
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
+
+/* ─── STATUS PILLS REFINEMENT ─── */
+.planrr-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+  border-width: 1px; border-style: solid;
+  transition: opacity var(--dur) var(--ease);
+}
+
+/* ─── LANDING PAGE ANIMATIONS ─── */
+@keyframes lp-fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes lp-fade-in {
+  from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes lp-scan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(200vh); }
+}
+@keyframes lp-pulse-border {
+  0%, 100% { border-color: rgba(196,154,60,0.18); }
+  50%       { border-color: rgba(196,154,60,0.45); }
+}
+@keyframes lp-node-drift {
+  0%,100% { transform: translate(0,0); }
+  33%      { transform: translate(3px, -5px); }
+  66%      { transform: translate(-4px, 3px); }
+}
+@keyframes auth-in {
+  from { opacity: 0; transform: translate(-50%, -46%); }
+  to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+@keyframes spinner {
+  from { transform: rotate(0deg); } to { transform: rotate(360deg); }
+}
+`;
+
+// ─── LANDING PAGE ──────────────────────────────────────────────────────────────
+export function LandingPageV2({ onLogin, onSignup, onBuyPlan }) {
+  const canvasRef = useRef(null);
+  const animRef   = useRef(null);
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
+
+  const sectionPlatform = useRef(null);
+  const sectionPillars  = useRef(null);
+  const sectionPricing  = useRef(null);
+  const sectionSecurity = useRef(null);
+
+  const scrollTo = useCallback((ref) => {
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setMobileNav(false);
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 16);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Node network canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let W, H, nodes;
+
+    const resize = () => {
+      W = canvas.width  = canvas.offsetWidth;
+      H = canvas.height = canvas.offsetHeight;
+      const count = Math.max(20, Math.floor((W * H) / 10000));
+      nodes = Array.from({ length: count }, () => ({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.28,
+        vy: (Math.random() - 0.5) * 0.28,
+        r: Math.random() * 1.4 + 0.5,
+        gold: Math.random() < 0.1,
+      }));
+    };
+
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      const MAX = 110;
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dx = nodes[i].x - nodes[j].x;
+          const dy = nodes[i].y - nodes[j].y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < MAX) {
+            ctx.strokeStyle = `rgba(62,207,207,${(1 - d / MAX) * 0.10})`;
+            ctx.lineWidth = 0.4;
+            ctx.beginPath();
+            ctx.moveTo(nodes[i].x, nodes[i].y);
+            ctx.lineTo(nodes[j].x, nodes[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+      nodes.forEach((n) => {
+        ctx.fillStyle = n.gold
+          ? "rgba(196,154,60,0.22)"
+          : "rgba(62,207,207,0.18)";
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        ctx.fill();
+        n.x += n.vx; n.y += n.vy;
+        if (n.x < 0 || n.x > W) n.vx *= -1;
+        if (n.y < 0 || n.y > H) n.vy *= -1;
+      });
+      animRef.current = requestAnimationFrame(draw);
+    };
+
+    resize();
+    draw();
+    window.addEventListener("resize", resize);
+    return () => {
+      cancelAnimationFrame(animRef.current);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+
+  // ── Shared styles ──
+  const s = {
+    page: {
+      fontFamily: "'DM Sans', sans-serif",
+      background: T.land_bg,
+      color: T.land_text,
+      minHeight: "100vh",
+      overflowX: "hidden",
+      position: "relative",
+    },
+    canvas: {
+      position: "fixed",
+      inset: 0,
+      width: "100%",
+      height: "100%",
+      pointerEvents: "none",
+      zIndex: 0,
+      opacity: 0.8,
+    },
+    overlay: {
+      position: "fixed",
+      inset: 0,
+      background:
+        "linear-gradient(180deg,rgba(14,14,14,0.6) 0%,rgba(14,14,14,0.4) 40%,rgba(14,14,14,0.6) 100%)",
+      pointerEvents: "none",
+      zIndex: 1,
+    },
+    content: { position: "relative", zIndex: 2 },
+    // Nav
+    nav: {
+      position: "sticky",
+      top: 0,
+      zIndex: 50,
+      padding: "0 clamp(20px,4vw,52px)",
+      height: 58,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      background: scrolled
+        ? "rgba(10,10,10,0.97)"
+        : "rgba(14,14,14,0.88)",
+      backdropFilter: "blur(18px) saturate(1.3)",
+      borderBottom: `1px solid ${scrolled
+        ? "rgba(196,154,60,0.28)"
+        : "rgba(196,154,60,0.14)"}`,
+      boxShadow: scrolled
+        ? "0 1px 20px rgba(0,0,0,0.4)"
+        : "none",
+      transition: "all 0.25s ease",
+    },
+    navLogo: {
+      display: "flex",
+      alignItems: "center",
+      gap: 11,
+    },
+    navLinks: {
+      display: "flex",
+      alignItems: "center",
+      gap: 2,
+    },
+    navLink: {
+      background: "none",
+      border: "none",
+      fontFamily: "'DM Mono', monospace",
+      fontSize: 10,
+      color: "#64748B",
+      letterSpacing: "0.14em",
+      textTransform: "uppercase",
+      cursor: "pointer",
+      padding: "6px 12px",
+      transition: "color 0.15s",
+      borderRadius: 4,
+    },
+    navDivider: {
+      width: 1,
+      height: 20,
+      background: "rgba(255,255,255,0.08)",
+      margin: "0 10px",
+    },
+    // Sections
+    section: {
+      maxWidth: 1120,
+      margin: "0 auto",
+      padding: "84px clamp(20px,4vw,52px)",
+    },
+    sectionLabel: {
+      fontFamily: "'DM Mono', monospace",
+      fontSize: 10,
+      letterSpacing: "0.22em",
+      textTransform: "uppercase",
+      marginBottom: 14,
+      display: "flex",
+      alignItems: "center",
+      gap: 14,
+    },
+    sectionLabelLine: {
+      width: 24,
+      height: 1,
+    },
+    // Hero
+    heroTitle: {
+      fontFamily: "'Syne', 'DM Sans', sans-serif",
+      fontWeight: 800,
+      fontSize: "clamp(40px,5.5vw,72px)",
+      lineHeight: 1.02,
+      letterSpacing: "-2.5px",
+      marginBottom: 24,
+    },
+    // Gold accent text
+    gold: { color: T.gold },
+    teal: { color: T.teal },
+    // CTAs
+    ctaPrimary: {
+      background: T.gold,
+      color: "#111",
+      border: "none",
+      padding: "14px 34px",
+      fontFamily: "'Syne', 'DM Sans', sans-serif",
+      fontSize: 13,
+      fontWeight: 700,
+      letterSpacing: "0.1em",
+      textTransform: "uppercase",
+      cursor: "pointer",
+      borderRadius: 3,
+      transition: "all 0.18s ease",
+      boxShadow: "0 2px 12px rgba(196,154,60,0.25)",
+    },
+    ctaGhost: {
+      border: "1px solid rgba(196,154,60,0.3)",
+      color: T.gold,
+      background: "rgba(196,154,60,0.05)",
+      padding: "13px 28px",
+      fontFamily: "'DM Mono', monospace",
+      fontSize: 11,
+      letterSpacing: "0.12em",
+      textTransform: "uppercase",
+      cursor: "pointer",
+      borderRadius: 3,
+      transition: "all 0.18s ease",
+    },
+    ctaTeal: {
+      background: "transparent",
+      color: T.teal,
+      border: "1px solid rgba(62,207,207,0.3)",
+      padding: "11px 20px",
+      fontFamily: "'DM Sans', sans-serif",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      borderRadius: 3,
+      width: "100%",
+      transition: "background 0.15s",
+    },
+    // Cards
+    darkCard: {
+      background: "rgba(16,16,16,0.9)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      padding: "26px 22px",
+      position: "relative",
+      overflow: "hidden",
+      transition: "border-color 0.2s, transform 0.2s",
+    },
+    darkCardAccentTeal: {
+      position: "absolute",
+      left: 0, top: 0, bottom: 0,
+      width: 3,
+      background: T.teal,
+    },
+    darkCardAccentGold: {
+      position: "absolute",
+      left: 0, top: 0, bottom: 0,
+      width: 3,
+      background: T.gold,
+    },
+    darkCardTitle: {
+      fontFamily: "'Syne', 'DM Sans', sans-serif",
+      fontSize: 15,
+      fontWeight: 700,
+      marginBottom: 8,
+      paddingLeft: 12,
+    },
+    darkCardBody: {
+      fontSize: 13,
+      color: T.land_muted,
+      lineHeight: 1.72,
+      fontWeight: 300,
+      paddingLeft: 12,
+    },
+    darkCardTag: {
+      fontFamily: "'DM Mono', monospace",
+      fontSize: 9,
+      color: T.teal,
+      border: "1px solid rgba(62,207,207,0.22)",
+      background: "rgba(62,207,207,0.05)",
+      padding: "2px 10px",
+      display: "inline-block",
+      letterSpacing: "0.14em",
+      textTransform: "uppercase",
+      marginLeft: 12,
+      marginTop: 12,
+    },
+  };
+
+  const navLinkHover = (e) => {
+    e.currentTarget.style.color = T.gold;
+  };
+  const navLinkLeave = (e) => {
+    e.currentTarget.style.color = T.land_faint;
+  };
+  const ctaPrimaryHover = (e) => {
+    e.currentTarget.style.background = T.goldBright;
+    e.currentTarget.style.transform = "translateY(-2px)";
+    e.currentTarget.style.boxShadow = "0 6px 24px rgba(196,154,60,0.4)";
+  };
+  const ctaPrimaryLeave = (e) => {
+    e.currentTarget.style.background = T.gold;
+    e.currentTarget.style.transform = "translateY(0)";
+    e.currentTarget.style.boxShadow = "0 2px 12px rgba(196,154,60,0.25)";
+  };
+  const ctaGhostHover = (e) => {
+    e.currentTarget.style.background = "rgba(196,154,60,0.1)";
+  };
+  const ctaGhostLeave = (e) => {
+    e.currentTarget.style.background = "rgba(196,154,60,0.05)";
+  };
+  const darkCardHover = (e) => {
+    e.currentTarget.style.borderColor = "rgba(62,207,207,0.3)";
+    e.currentTarget.style.transform = "translateY(-2px)";
+  };
+  const darkCardLeave = (e) => {
+    e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+    e.currentTarget.style.transform = "translateY(0)";
+  };
+
+  // ── Wordmark component ──
+  const Wordmark = ({ size = 20 }) => (
     <div style={{
-      width: width || '100%', height, borderRadius: 6,
-      background: `linear-gradient(90deg, ${B.border} 25%, #e8ecee 50%, ${B.border} 75%)`,
-      backgroundSize: '200% 100%',
-      animation: 'shimmer 1.5s ease infinite',
-      ...style,
-    }} />
-  );
-}
-
-function ViewSkeleton() {
-  return (
-    <div style={{ padding: '28px clamp(24px,3vw,48px)', animation: 'fadeIn 0.3s ease' }}>
-      <Skeleton width={220} height={20} style={{ marginBottom: 24 }} />
-      <Skeleton width="60%" height={14} style={{ marginBottom: 12 }} />
-      <Skeleton width="80%" height={14} style={{ marginBottom: 12 }} />
-      <Skeleton width="45%" height={14} style={{ marginBottom: 32 }} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
-        {[1,2,3].map(i => (
-          <div key={i} style={{ background: B.card, border: `1px solid ${B.border}`, borderRadius: 12, padding: 20 }}>
-            <Skeleton width={100} height={12} style={{ marginBottom: 12 }} />
-            <Skeleton height={28} style={{ marginBottom: 8 }} />
-            <Skeleton width="60%" height={10} />
-          </div>
-        ))}
-      </div>
+      display: "flex",
+      alignItems: "baseline",
+      lineHeight: 1,
+      fontFamily: "'Oxanium','DM Sans',sans-serif",
+      fontWeight: 800,
+      letterSpacing: "-0.4px",
+    }}>
+      <span style={{ fontSize: size, color: "#F0F4FA" }}>planrr</span>
+      <span style={{ fontSize: size, color: T.gold }}>.app</span>
     </div>
   );
-}
 
-const BrainIcon = ({ size = 28, color = B.teal, strokeWidth = 1.2, bgColor }) => {
-  const bg = bgColor || B.sidebar;
-  return (
+  const BrainIcon = ({ size = 28 }) => (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      <rect width="100" height="100" rx="18" fill={bg} />
-      <rect width="100" height="100" rx="18" fill="none" stroke={color} strokeWidth={strokeWidth * 3} />
-      {/* P icon: short stem, wide bowl at TOP, thin slot cutout */}
-      <path d="M20 78 L20 20 L66 20 C80 20 86 30 86 40 C86 50 80 58 66 58 L32 58 L32 78 Z" fill={color} />
-      <path d="M32 30 L58 30 C64 30 68 34 68 38 C68 42 64 46 58 46 L32 46 Z" fill={bg} />
+      <rect width="100" height="100" rx="18" fill={T.sidebar} />
+      <rect width="100" height="100" rx="18" fill="none" stroke={T.teal} strokeWidth="3.5" />
+      <path d="M20 78 L20 20 L66 20 C80 20 86 30 86 40 C86 50 80 58 66 58 L32 58 L32 78 Z" fill={T.teal} />
+      <path d="M32 30 L58 30 C64 30 68 34 68 38 C68 42 64 46 58 46 L32 46 Z" fill={T.sidebar} />
     </svg>
   );
-};
 
-const Wordmark = ({ dark = false, size = 'md' }) => {
-  const sizes = {
-    sm: { main: 16, sub: 7 },
-    md: { main: 20, sub: 8 },
-    lg: { main: 30, sub: 10 },
-  };
-  const s = sizes[size] || sizes.md;
-  const base = dark ? '#f0f4fa' : B.text;
+  // Features grid data
+  const features = [
+    ["EMAP Standards", "All 73 standards tracked live. Not a checklist — a real-time picture of where your program stands. Every change, every evidence upload, every gap surfaced automatically.", "Accreditation Core"],
+    ["SAGE Priority Queue", "Stop asking what to work on next. SAGE already knows. Expiring MOUs, overdue AARs, lapsed credentials — ranked by urgency, surfaced every session.", "AI Intelligence"],
+    ["Exercises & AARs", "Every AAR finding gets an owner, a due date, and a direct link to the standard it reveals. The loop closes when the gap does — not when the report is filed.", "HSEEP Aligned"],
+    ["Document Templates", "SAGE writes the first draft pre-filled with your program data. COOP, strategic plan, comms plan. You edit. You approve. You move on.", "AI-Powered"],
+    ["Evidence Export", "One click and every standard has its bundle — docs, training records, AARs, rationale. Ready the moment the assessor email lands.", "Accreditation-Ready"],
+    ["Grant-EMAP Tracker", "Your grant report says training was completed. Your records say otherwise. This module keeps those two things from diverging — and flags when a gap might cost you funding.", "EMAP 3.4"],
+    ["Recovery Planning", "Most programs file their recovery plan once. This module treats recovery as a living discipline — phases, owners, dependencies that change as your community does.", "EMAP 4.5.4"],
+    ["Mutual Aid Mapping", "You have MOUs. Do you know who covers what? The coverage matrix shows resource gaps before a real event asks the question for you.", "EMAP 4.7"],
+    ["FEMA/NIMS Alignment", "EMAP progress and FEMA alignment in one place. Give leadership the full picture, not one credential in isolation.", "ICS/NIMS"],
+  ];
+
+  const pillars = [
+    ["Staleness Detection", "Your EOP was last reviewed 18 months ago. Your alternate EOC hasn't been verified since the previous director. Your MOU partner changed their coordinator and nobody updated the file. SAGE notices before you have to.", T.gold],
+    ["COOP Structured Data", "Your succession line references two positions that no longer exist. If your EM director is unavailable today, who's in charge? planrr turns your COOP from a filed document into a maintained record with actual people and actual depth.", T.teal],
+    ["AAR Loop", "The comms gap showed up in three consecutive AARs. It's still open. planrr connects every finding to an owner, a standard, and a due date. The loop closes when the gap does.", T.gold],
+    ["Enhanced Priority Queue", "You have 73 standards, 14 open corrective actions, 3 MOUs expiring in 60 days, and a training record that's 16 months stale. SAGE surfaces what needs attention today — not next quarter.", T.teal],
+  ];
+
+  const pricingPlans = [
+    { tier: "Solo Operator", price: "$79", period: "/mo", desc: "1 FTE or fewer. For the solo EM director wearing every hat.", features: ["Every feature included", "1 user seat", "200 AI calls / month", "Email support"], plan: "solo", featured: false },
+    { tier: "Small Team",    price: "$149", period: "/mo", desc: "2–5 FTE staff. The backbone of local EM.", features: ["Every feature included", "Up to 5 user seats", "1,000 AI calls / month", "Priority support"], plan: "small_team", featured: true },
+    { tier: "Full Program",  price: "$199", period: "/mo", desc: "6+ FTE. For established programs scaling up.", features: ["Every feature included", "Unlimited user seats", "5,000 AI calls / month", "Dedicated onboarding", "Phone support"], plan: "full_program", featured: false },
+    { tier: "Enterprise",    price: "Custom", period: "", desc: "Multi-org, state agencies, regional coalitions.", features: ["Everything + multi-org dashboard", "Unlimited seats & AI usage", "Dedicated account manager", "SLA guarantees", "Custom integrations"], plan: "enterprise", featured: false },
+  ];
+
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', lineHeight: 1 }}>
-      <span
-        style={{
-          fontSize: s.main,
-          fontWeight: 800,
-          letterSpacing: '-0.5px',
-          color: base,
-          lineHeight: 1,
-          fontFamily: "'Oxanium','DM Sans',sans-serif",
-        }}
-      >
-        planrr
-      </span>
-      <span
-        style={{
-          fontSize: s.main,
-          fontWeight: 800,
-          letterSpacing: '-0.5px',
-          color: GOLD,
-          lineHeight: 1,
-          fontFamily: "'Oxanium','DM Sans',sans-serif",
-        }}
-      >
-        .app
-      </span>
-    </div>
-  );
-};
+    <div style={s.page}>
+      {/* Injected CSS */}
+      <style>{GLOBAL_CSS}{`
+        .lp-fade-0 { animation: lp-fade-up 0.7s ease both; }
+        .lp-fade-1 { animation: lp-fade-up 0.7s 0.1s ease both; }
+        .lp-fade-2 { animation: lp-fade-up 0.7s 0.2s ease both; }
+        .lp-fade-3 { animation: lp-fade-up 0.7s 0.32s ease both; }
+        .lp-fade-4 { animation: lp-fade-up 0.7s 0.44s ease both; }
+        .lp-fade-5 { animation: lp-fade-up 0.7s 0.56s ease both; }
+        .hover-card:hover { border-color: rgba(62,207,207,0.32) !important; transform: translateY(-2px); }
+        .hover-card-gold:hover { border-color: rgba(196,154,60,0.4) !important; transform: translateY(-2px); }
+        @media(max-width:900px) {
+          .lp-3col { grid-template-columns: 1fr 1fr !important; }
+          .lp-4col { grid-template-columns: 1fr 1fr !important; }
+          .lp-pricing { grid-template-columns: 1fr 1fr !important; }
+          .lp-stats  { grid-template-columns: repeat(2,1fr) !important; }
+        }
+        @media(max-width:600px) {
+          .lp-3col { grid-template-columns: 1fr !important; }
+          .lp-4col { grid-template-columns: 1fr !important; }
+          .lp-pricing { grid-template-columns: 1fr !important; }
+          .lp-stats   { grid-template-columns: 1fr 1fr !important; }
+          .lp-hero-btns { flex-direction: column !important; }
+          .lp-hide-mobile { display: none !important; }
+          .lp-nav-actions { gap: 6px !important; }
+        }
+      `}</style>
 
-/* --- ALL 73 STANDARDS --------------------------------- */
-const CHAPTERS = [
-  {
-    id: 'ch3',
-    num: '3',
-    title: 'Emergency Management Program',
-    color: B.blue,
-    sections: [
-      {
-        id: '3.1',
-        title: 'Program Administration & Evaluation',
-        standards: [
-          {
-            id: '3.1.1',
-            text: 'Multi-year Strategic Plan with stakeholder input: vision statement, mission/goals/objectives/milestones, implementation method, and evaluation/revision maintenance process.',
-          },
-        ],
-      },
-      {
-        id: '3.2',
-        title: 'Coordination',
-        standards: [
-          {
-            id: '3.2.1',
-            text: 'Designated emergency management agency, department, or office with authority to administer the Emergency Management Program.',
-          },
-          {
-            id: '3.2.2',
-            text: 'Designated individual empowered with authority to execute the Emergency Management Program.',
-          },
-        ],
-      },
-      {
-        id: '3.3',
-        title: 'Advisory Committee',
-        standards: [
-          {
-            id: '3.3.1',
-            text: 'Process utilizing advisory committee(s) providing stakeholder input in preparation, implementation, evaluation, and revision of the Program.',
-          },
-          {
-            id: '3.3.2',
-            text: 'Advisory committee(s) meets with a frequency determined by the Program to provide regular input.',
-          },
-        ],
-      },
-      {
-        id: '3.4',
-        title: 'Administration & Finance',
-        standards: [
-          {
-            id: '3.4.1',
-            text: 'Administrative and financial procedures for use before, during, and after an emergency/disaster.',
-          },
-          {
-            id: '3.4.2',
-            text: 'Procedures providing ability to request, receive, manage, and apply funds in emergency situations.',
-          },
-          {
-            id: '3.4.3',
-            text: 'Maintenance process for procedures in 3.4.1 and 3.4.2 including method and schedule for evaluation and revision.',
-          },
-        ],
-      },
-      {
-        id: '3.5',
-        title: 'Laws & Authorities',
-        standards: [
-          {
-            id: '3.5.1',
-            text: "Program's authorities and responsibilities established and executed per statutes, regulations, directives, or policies.",
-          },
-          {
-            id: '3.5.2',
-            text: 'Process for identifying and addressing proposed legislative and regulatory changes.',
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'ch4',
-    num: '4',
-    title: 'Program Elements',
-    color: B.teal,
-    sections: [
-      {
-        id: '4.1',
-        title: 'Hazard ID & Risk Assessment',
-        standards: [
-          {
-            id: '4.1.1',
-            text: 'Identifies natural and human-caused hazards using multiple sources; assesses risk/vulnerability of people, property, environment, and its own operations.',
-          },
-          {
-            id: '4.1.2',
-            text: 'Consequence analysis covering public, responders, continuity of operations, property/facilities/infrastructure, environment, economic condition, and public confidence.',
-          },
-          {
-            id: '4.1.3',
-            text: 'Maintenance process for HIRA and Consequence Analysis including method and schedule for evaluation and revision.',
-          },
-        ],
-      },
-      {
-        id: '4.2',
-        title: 'Hazard Mitigation',
-        standards: [
-          {
-            id: '4.2.1',
-            text: 'Mitigation plan based on identified hazards with formal stakeholder planning; includes short/long-term strategies, actions, goals, and objectives.',
-          },
-          {
-            id: '4.2.2',
-            text: 'Documents project ranking based on greatest opportunity for loss reduction and how mitigation actions contribute to overall risk reduction.',
-          },
-          {
-            id: '4.2.3',
-            text: 'Process to monitor overall progress of mitigation activities and document completed initiatives.',
-          },
-          {
-            id: '4.2.4',
-            text: 'Identifies ongoing mitigation opportunities, tracks repetitive loss, provides technical assistance, participates in multi-jurisdictional mitigation.',
-          },
-          {
-            id: '4.2.5',
-            text: 'Maintenance process for mitigation plan (4.2.1) including method and schedule for evaluation and revision.',
-          },
-        ],
-      },
-      {
-        id: '4.3',
-        title: 'Prevention',
-        standards: [
-          {
-            id: '4.3.1',
-            text: 'Process(es) to coordinate prevention activities and monitor threats/hazards based on identified hazards, intelligence, threat assessments, alert networks, surveillance, and stakeholder info.',
-          },
-          {
-            id: '4.3.2',
-            text: 'Procedures to implement prevention processes (4.3.1) and exchange information among internal and external stakeholders.',
-          },
-          {
-            id: '4.3.3',
-            text: 'Maintenance process for prevention procedures (4.3.2) including method and schedule for evaluation and revision.',
-          },
-        ],
-      },
-      {
-        id: '4.4',
-        title: 'Continuity Planning',
-        standards: [
-          {
-            id: '4.4.1',
-            text: 'Identifies essential program functions and departments/agencies/organizations with primary responsibilities.',
-          },
-          {
-            id: '4.4.2',
-            text: 'COOP Plan for the EM agency and Emergency Management Program Continuity of Government (COG) Plan, addressing all hazards.',
-          },
-          {
-            id: '4.4.3',
-            text: 'COOP and COG Plans address purpose/scope, authority, situation/assumptions, functional roles, logistics, concept of operations, and maintenance process.',
-          },
-          {
-            id: '4.4.4',
-            text: 'COOP Plans address continued processes/functions, essential positions, lines of succession, vital records, communications, recovery priorities, and alternate operating capability.',
-          },
-          {
-            id: '4.4.5',
-            text: 'COG Plan identifies how governing body will be preserved/reconstituted: succession of leadership, delegation of emergency authority, and command/control.',
-          },
-          {
-            id: '4.4.6',
-            text: 'Procedures to implement all Plans in 4.4.2, applicable to all identified hazards.',
-          },
-          {
-            id: '4.4.7',
-            text: 'Maintenance process for procedures in 4.4.6 including method and schedule for evaluation and revision.',
-          },
-        ],
-      },
-      {
-        id: '4.5',
-        title: 'Operational Planning',
-        standards: [
-          {
-            id: '4.5.1',
-            text: 'Emergency Operations Plan and Recovery Plan developed through formal stakeholder planning addressing all identified hazards.',
-          },
-          {
-            id: '4.5.2',
-            text: 'EOP and Recovery Plan address purpose/scope, authority, situation/assumptions, functional roles, logistics, concept of operations, and maintenance process.',
-          },
-          {
-            id: '4.5.3',
-            text: 'EOP identifies and assigns responsibility for all 29 areas including: admin/finance, agriculture, alert/notification, communications, critical infrastructure, damage assessment, debris management, detection/monitoring, direction/control, donation management, emergency public info, energy/utilities, evacuation, fatality management, firefighting, food/water/commodities, hazardous materials, information collection, law enforcement, mass care/sheltering, mutual aid, private sector, public health, public works, resource management, search & rescue, transportation, volunteer management, and warning.',
-          },
-          {
-            id: '4.5.4',
-            text: 'Recovery Plan establishes short/long-term priorities and assigns responsibility for critical functions, services/programs, vital resources, facilities, and infrastructure.',
-          },
-          {
-            id: '4.5.5',
-            text: 'Procedures to implement all Plans in 4.5.1, applicable to all identified hazards.',
-          },
-          {
-            id: '4.5.6',
-            text: 'Procedures to guide: situational analysis, damage assessment, situation reporting, and incident action planning.',
-          },
-          {
-            id: '4.5.7',
-            text: 'Maintenance process for procedures in 4.5.5 and 4.5.6 including method and schedule for evaluation and revision.',
-          },
-        ],
-      },
-      {
-        id: '4.6',
-        title: 'Incident Management',
-        standards: [
-          {
-            id: '4.6.1',
-            text: 'Formally adopted incident management system: modular organization, unified command, multi-agency coordination, span of control, common terminology, action planning, resource management, integrated communications, pre-designated facilities.',
-          },
-          {
-            id: '4.6.2',
-            text: 'Procedures for coordination among all personnel with emergency response roles including higher, lateral, subordinate elements, and neighboring jurisdictions.',
-          },
-          {
-            id: '4.6.3',
-            text: 'Incident management system identifies specific organizational roles and responsibilities for each function.',
-          },
-          {
-            id: '4.6.4',
-            text: 'Personnel identified to fill specific incident management system roles.',
-          },
-          {
-            id: '4.6.5',
-            text: 'Emergency Management Program personnel receive training on its incident management system.',
-          },
-          {
-            id: '4.6.6',
-            text: 'Maintenance process for coordination procedures (4.6.2) including method and schedule for evaluation and revision.',
-          },
-        ],
-      },
-      {
-        id: '4.7',
-        title: 'Resource Management & Mutual Aid',
-        standards: [
-          {
-            id: '4.7.1',
-            text: 'Resource management plan addressing goals/objectives, gap analysis, resource management systems, donations management, and volunteer management.',
-          },
-          {
-            id: '4.7.2',
-            text: 'Periodic gap analysis addressing identified hazards, resource needs/shortfalls identification, and prioritization of shortfalls.',
-          },
-          {
-            id: '4.7.3',
-            text: 'Resource needs and shortfalls addressed through budget, executive process, mutual aid agreements, MOUs, contracts, or business partnerships.',
-          },
-          {
-            id: '4.7.4',
-            text: 'Mutual aid agreements, contractual service agreements, MOUs, or regional arrangements providing additional resources.',
-          },
-          {
-            id: '4.7.5',
-            text: 'Procedures to store, maintain, and test resources for emergency/disaster operations.',
-          },
-          {
-            id: '4.7.6',
-            text: 'Resource management system procedures for identification, location, acquisition, mobilization, distribution, tracking, and demobilization.',
-          },
-          {
-            id: '4.7.7',
-            text: 'Addresses acceptance and management of donated goods, materials, services, personnel, financial resources, and facilities.',
-          },
-          {
-            id: '4.7.8',
-            text: 'Maintenance process for resource plan (4.7.1) and procedures (4.7.5, 4.7.6) including method and schedule for evaluation and revision.',
-          },
-        ],
-      },
-      {
-        id: '4.8',
-        title: 'Communications & Warning',
-        standards: [
-          {
-            id: '4.8.1',
-            text: 'Communications plan covering internal/external communications, alert/notification to decision-makers, public warning including vulnerable populations, and potential operating environments.',
-          },
-          {
-            id: '4.8.2',
-            text: 'Communication/notification/warning system(s) supporting COOP and EOP plans, with alternative systems, tested on schedule with documented results.',
-          },
-          {
-            id: '4.8.3',
-            text: 'Operational procedures for communications/warning systems addressing identified hazards, operating environments, and decision-making processes.',
-          },
-          {
-            id: '4.8.4',
-            text: 'Communication system(s) that addresses system interoperability.',
-          },
-          {
-            id: '4.8.5',
-            text: 'Maintenance process for communications plan (4.8.1) and procedures (4.8.3) including method and schedule for evaluation and revision.',
-          },
-        ],
-      },
-      {
-        id: '4.9',
-        title: 'Facilities',
-        standards: [
-          {
-            id: '4.9.1',
-            text: 'Primary and alternate facility capable of coordinating and supporting sustained response and recovery operations consistent with identified hazards.',
-          },
-          {
-            id: '4.9.2',
-            text: 'Procedures for activation, operation, and deactivation of primary and alternate facilities, tested on schedule with documented results and corrective actions.',
-          },
-          {
-            id: '4.9.3',
-            text: 'Maintenance process for facility procedures (4.9.2) including method and schedule for evaluation and revision.',
-          },
-        ],
-      },
-      {
-        id: '4.10',
-        title: 'Training',
-        standards: [
-          {
-            id: '4.10.1',
-            text: 'Training plan addressing identified hazards with goals/objectives, training needs assessment, curriculum, course evaluations, training records, and retention schedule.',
-          },
-          {
-            id: '4.10.2',
-            text: 'Training needs assessment addresses all EM Program personnel, key public officials, and internal/external requirements.',
-          },
-          {
-            id: '4.10.3',
-            text: 'Training regularly scheduled based on needs assessment, internal/external requirements, and program goals/objectives.',
-          },
-          {
-            id: '4.10.4',
-            text: 'Personnel receive and maintain training consistent with their current and potential responsibilities.',
-          },
-          {
-            id: '4.10.5',
-            text: 'Training records maintained: types of training planned/conducted and names of those who received training.',
-          },
-          {
-            id: '4.10.6',
-            text: 'Maintenance process for training plan (4.10.1) including method and schedule for evaluation and revision.',
-          },
-        ],
-      },
-      {
-        id: '4.11',
-        title: 'Exercises, Evaluations & Corrective Actions',
-        standards: [
-          {
-            id: '4.11.1',
-            text: 'Exercise, evaluation, and corrective action plan based on identified hazards.',
-          },
-          {
-            id: '4.11.2',
-            text: 'Evaluates personnel, plans, procedures, equipment, and facilities through periodic reviews, testing, post-incident reports, lessons learned, performance evaluations, exercises, and real-world events. Products documented and disseminated.',
-          },
-          {
-            id: '4.11.3',
-            text: 'Process for corrective actions that prioritizes and tracks the resolution of deficiencies.',
-          },
-        ],
-      },
-      {
-        id: '4.12',
-        title: 'Emergency Public Information',
-        standards: [
-          {
-            id: '4.12.1',
-            text: 'Crisis communications, public information, and education plan addressing identified hazards, threats to public safety, risk reduction, and public inquiries/rumors.',
-          },
-          {
-            id: '4.12.2',
-            text: 'Central media contact, trained spokespersons, and pre-scripted information bulletins about hazards, preparedness, and protective actions.',
-          },
-          {
-            id: '4.12.3',
-            text: 'Outreach activities addressing identified hazards for the public, including at-risk populations.',
-          },
-          {
-            id: '4.12.4',
-            text: 'Joint information system procedures to coordinate/authorize information release, disseminate via media, communicate with at-risk populations, interface with officials/VIPs, and respond to inquiries/rumor control.',
-          },
-          {
-            id: '4.12.5',
-            text: 'Joint information center procedures addressing activation, operation, and deactivation.',
-          },
-          {
-            id: '4.12.6',
-            text: 'Procedures in 4.12.4 and 4.12.5 tested on established schedule with documented results and corrective actions.',
-          },
-          {
-            id: '4.12.7',
-            text: 'Maintenance process for plan and procedures (4.12.1, 4.12.4, 4.12.5) including method and schedule for evaluation and revision.',
-          },
-        ],
-      },
-    ],
-  },
-];
+      {/* Background canvas */}
+      <canvas ref={canvasRef} style={s.canvas} />
+      <div style={s.overlay} />
 
-const ALL_SECTIONS = CHAPTERS.flatMap((ch) =>
-  ch.sections.map((s) => ({ ...s, chapter: ch }))
-);
-const ALL_STANDARDS = ALL_SECTIONS.flatMap((sec) =>
-  sec.standards.map((s) => ({ ...s, section: sec, chapter: sec.chapter }))
-);
+      <div style={s.content}>
 
-/* --- CASCADING DEPENDENCY MAP (EMAP Applicant Guide) -- */
-const STD_DEPS = {
-  // 4.1 is the foundation - all peer reviews require it first
-  '4.2.1': '4.1.1',
-  '4.2.2': '4.1.1',
-  '4.2.3': '4.1.1',
-  '4.2.4': '4.1.1',
-  '4.2.5': '4.1.1',
-  '4.3.1': '4.1.1',
-  '4.3.2': '4.1.1',
-  '4.3.3': '4.1.1',
-  '4.4.1': '4.1.1',
-  '4.4.2': '4.1.1',
-  '4.4.3': '4.1.1',
-  '4.4.4': '4.1.1',
-  '4.4.5': '4.1.1',
-  '4.4.6': '4.1.1',
-  '4.4.7': '4.1.1',
-  '4.5.1': '4.1.1',
-  '4.5.2': '4.1.1',
-  '4.5.3': '4.1.1',
-  '4.5.4': '4.1.1',
-  '4.5.5': '4.1.1',
-  '4.5.6': '4.1.1',
-  '4.5.7': '4.1.1',
-  '4.6.1': '4.1.1',
-  '4.6.2': '4.1.1',
-  '4.6.3': '4.1.1',
-  '4.6.4': '4.1.1',
-  '4.6.5': '4.1.1',
-  '4.6.6': '4.1.1',
-  '4.7.1': '4.1.1',
-  '4.7.2': '4.1.1',
-  '4.7.3': '4.1.1',
-  '4.7.4': '4.1.1',
-  '4.7.5': '4.1.1',
-  '4.7.6': '4.1.1',
-  '4.7.7': '4.1.1',
-  '4.7.8': '4.1.1',
-  '4.8.1': '4.1.1',
-  '4.8.2': '4.1.1',
-  '4.8.3': '4.1.1',
-  '4.8.4': '4.1.1',
-  '4.8.5': '4.1.1',
-  '4.9.1': '4.1.1',
-  '4.9.2': '4.1.1',
-  '4.9.3': '4.1.1',
-  // 4.10 requires 4.6 (incident mgmt personnel + training interdependency)
-  '4.10.1': '4.6.1',
-  '4.10.2': '4.6.1',
-  '4.10.3': '4.6.1',
-  '4.10.4': '4.6.1',
-  '4.10.5': '4.6.1',
-  '4.10.6': '4.6.1',
-  // 4.11 requires 4.4-4.9 all complete
-  '4.11.1': '4.9.1',
-  '4.11.2': '4.9.1',
-  '4.11.3': '4.9.1',
-  // 4.12 requires 4.1
-  '4.12.1': '4.1.1',
-  '4.12.2': '4.1.1',
-  '4.12.3': '4.1.1',
-  '4.12.4': '4.1.1',
-  '4.12.5': '4.1.1',
-  '4.12.6': '4.1.1',
-  '4.12.7': '4.1.1',
-};
+        {/* ── NAV ── */}
+        <nav style={s.nav}>
+          <div style={s.navLogo}>
+            <BrainIcon size={30} />
+            <Wordmark size={19} />
+            <div style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: 8,
+              color: T.gold,
+              border: "1px solid rgba(196,154,60,0.3)",
+              background: "rgba(196,154,60,0.07)",
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              padding: "2px 8px",
+              marginLeft: 4,
+            }}>
+              Early Access
+            </div>
+          </div>
 
-/* --- FEMA/NIMS ALIGNMENT MAPPING --- */
-const NIMS_STANDARDS = [
-  '4.6.1',
-  '4.6.2',
-  '4.6.3',
-  '4.6.4',
-  '4.6.5',
-  '4.6.6',
-  '4.10.1',
-  '4.10.2',
-  '4.10.3',
-  '4.10.4',
-  '4.10.5',
-  '4.10.6',
-  '4.8.1',
-  '4.8.4',
-];
+          {/* Desktop nav */}
+          <div style={{ ...s.navLinks }} className="lp-hide-mobile">
+            {[
+              ["Platform",  sectionPlatform],
+              ["Pillars",   sectionPillars],
+              ["Pricing",   sectionPricing],
+              ["Security",  sectionSecurity],
+            ].map(([label, ref]) => (
+              <button
+                key={label}
+                style={s.navLink}
+                onClick={() => scrollTo(ref)}
+                onMouseEnter={navLinkHover}
+                onMouseLeave={navLinkLeave}
+              >{label}</button>
+            ))}
+            <div style={s.navDivider} />
+            <button
+              onClick={onLogin}
+              style={{
+                background: "none",
+                color: "#94A3B8",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 4,
+                padding: "8px 18px",
+                fontSize: 13,
+                cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(196,154,60,0.4)"; e.currentTarget.style.color = "#F0F4FA"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "#94A3B8"; }}
+            >Sign In</button>
+            <button
+              onClick={() => onBuyPlan?.("small_team") ?? onSignup?.()}
+              style={s.ctaPrimary}
+              onMouseEnter={ctaPrimaryHover}
+              onMouseLeave={ctaPrimaryLeave}
+            >Start Free Trial</button>
+          </div>
 
-/* --- GRANT-to-EMAP ALIGNMENT --- */
-const GRANT_EMAP_MAP = {
-  EMPG: ['3.1.1', '3.4.1', '3.4.2', '4.1.1', '4.5.1', '4.10.1', '4.11.1'],
-  BSIR: ['4.3.1', '4.3.2', '4.6.1'],
-  UASI: ['4.3.1', '4.6.1', '4.7.1', '4.8.1', '4.9.1'],
-  HMGP: ['4.2.1', '4.2.2', '4.2.3', '4.2.4'],
-  'BRIC/PDM': ['4.2.1', '4.2.2', '4.2.3'],
-  SHSP: ['4.3.1', '4.6.1', '4.7.1'],
-  FMA: ['4.2.1', '4.2.4'],
-};
-const DEP_LABELS = {
-  '4.1.1':
-    'EMAP requires 4.1 (Hazard ID) to be completed before this section can be peer-reviewed',
-  '4.6.1':
-    'EMAP requires 4.6 (Incident Management) before 4.10 can be peer-reviewed',
-  '4.9.1': 'EMAP requires sections 4.4-4.9 before 4.11 can be peer-reviewed',
-};
+          {/* Mobile sign-in */}
+          <div className="lp-nav-actions" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button onClick={onLogin} style={{ ...s.ctaGhost, padding: "7px 14px", display: "none" }} className="lp-show-mobile">Sign In</button>
+            <button
+              onClick={() => onBuyPlan?.("small_team") ?? onSignup?.()}
+              style={{ ...s.ctaPrimary, padding: "9px 18px" }}
+              onMouseEnter={ctaPrimaryHover}
+              onMouseLeave={ctaPrimaryLeave}
+            >Try Free</button>
+          </div>
+        </nav>
 
-/* --- AI MODEL ROUTING --------------------------------
-   Routes tasks to appropriate model tiers to control cost:
-   - 'fast'   → cheaper model for simple tasks (summaries, short drafts, label lookups)
-   - 'strong' → capable model for complex reasoning (gap analysis, doc interpretation, multi-step)
-   getModelTier(operation) maps operation strings to tiers.
-   The tier is sent as `model_tier` in the request body so the
-   backend Edge Function can select the right vendor model.
--------------------------------------------------------- */
-/* Haiku handles nearly everything. Only PDF/image interpretation and
-   multi-document gap analysis benefit from a stronger model.
-   fast = Haiku (cheap, fast, good for 95% of tasks)
-   strong = Sonnet (only when reasoning across complex documents) */
-const MODEL_TIER_MAP = {
-  general: 'fast',
-  draft_rationale: 'fast',
-  draft_aar: 'fast',
-  finalize_aar: 'fast',
-  exec_summary: 'fast',
-  training_needs: 'fast',
-  grant_guidance: 'fast',
-  thira_analysis: 'fast',
-  spr_generation: 'fast',
-  template_gen: 'fast',
-  action_plan: 'fast',
-  interpret: 'fast',
-  evidence: 'fast',
-  interpret_doc: 'strong',
-  bulk_intake: 'strong',
-  gap_analysis: 'strong',
-};
+        {/* ── HERO ── */}
+        <div style={{ ...s.section, paddingTop: "96px", paddingBottom: "80px" }}>
+          <div className="lp-fade-0" style={{ ...s.sectionLabel, color: T.gold }}>
+            <div style={{ ...s.sectionLabelLine, background: T.gold }} />
+            Emergency Management Platform
+          </div>
 
-function getModelTier(operation) {
-  return MODEL_TIER_MAP[operation] || 'fast';
-}
+          <h1 className="lp-fade-1" style={s.heroTitle}>
+            Your EM program.<br />
+            Running at full strength.<br />
+            <span style={s.gold}>Every single day.</span>
+          </h1>
 
-function trackAICall() {
-  try {
-    const key = 'planrr_ai_usage';
-    const now = new Date();
-    const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
-    const stored = JSON.parse(localStorage.getItem(key) || '{}');
-    if (stored.month !== monthKey) {
-      localStorage.setItem(key, JSON.stringify({ month: monthKey, count: 1 }));
-    } else {
-      stored.count = (stored.count || 0) + 1;
-      localStorage.setItem(key, JSON.stringify(stored));
-    }
-  } catch {}
-}
+          <p className="lp-fade-2" style={{
+            fontSize: 17,
+            color: T.land_muted,
+            maxWidth: 580,
+            lineHeight: 1.82,
+            marginBottom: 16,
+            fontWeight: 300,
+          }}>
+            planrr.app is the all-in-one platform for emergency management programs that need to operate at a high standard — 365 days a year. SAGE, your AI program partner, monitors everything so you know exactly what to work on next.
+          </p>
 
-function getAIUsageCount() {
-  try {
-    const key = 'planrr_ai_usage';
-    const now = new Date();
-    const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
-    const stored = JSON.parse(localStorage.getItem(key) || '{}');
-    return stored.month === monthKey ? (stored.count || 0) : 0;
-  } catch { return 0; }
-}
+          {/* Banger quote */}
+          <div className="lp-fade-3" style={{
+            marginBottom: 40,
+            maxWidth: 660,
+            background: "rgba(19,14,2,0.9)",
+            border: "1px solid rgba(196,154,60,0.4)",
+            borderLeft: `4px solid ${T.gold}`,
+            padding: "18px 24px",
+            borderRadius: "0 4px 4px 0",
+          }}>
+            <div style={{
+              fontFamily: "'Syne', 'DM Sans', sans-serif",
+              fontSize: 15,
+              color: T.land_text,
+              fontWeight: 600,
+              lineHeight: 1.45,
+              marginBottom: 6,
+            }}>
+              When the disaster hits, nobody asks about your budget.<br />They ask if you were ready.
+            </div>
+            <div style={{
+              fontSize: 13,
+              color: T.gold,
+              fontWeight: 300,
+              lineHeight: 1.5,
+            }}>
+              planrr.app doesn't make the plan survive. It makes your organization tough enough that it doesn't need to.
+            </div>
+          </div>
 
-async function callAI(system, prompt, onChunk, operation) {
-  const op = operation || 'general';
-  const tier = getModelTier(op);
-  trackAICall();
-  const enrichedSystem = _currentData ? `${system}\n\nORGANIZATION CONTEXT:\n${buildOrgContext(_currentData)}` : system;
-  const res = await fetch(
-    SB_URL + '/functions/v1/ai-proxy',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SB_KEY },
-      body: JSON.stringify({
-        operation: op,
-        model_tier: tier,
-        stream: true,
-        system: enrichedSystem,
-        prompt,
-        max_tokens: tier === 'strong' ? 1600 : 1200,
-      }),
-    }
-  );
-  if (!res.ok) throw new Error('API error');
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let buf = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const lines = buf.split('\n');
-    buf = lines.pop();
-    for (const l of lines) {
-      if (!l.startsWith('data: ')) continue;
-      const d = l.slice(6).trim();
-      if (d === '[DONE]') return;
-      try {
-        const p = JSON.parse(d);
-        if (p.type === 'content_block_delta' && p.delta?.type === 'text_delta')
-          onChunk(p.delta.text);
-      } catch {}
-    }
-  }
-}
-async function callAIWithDoc(system, textBefore, fileData, onChunk) {
-  const content = [];
-  if (textBefore) content.push({ type: 'text', text: textBefore });
-  if (fileData) {
-    if (fileData.type === 'pdf')
-      content.push({
-        type: 'document',
-        source: {
-          type: 'base64',
-          media_type: 'application/pdf',
-          data: fileData.data,
-        },
-      });
-    else if (fileData.type === 'image')
-      content.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: fileData.mimeType,
-          data: fileData.data,
-        },
-      });
-    else
-      content.push({
-        type: 'text',
-        text: `[Document: ${fileData.name}]\n${fileData.data}`,
-      });
-  }
-  const tier = getModelTier('interpret_doc');
-  const res = await fetch(
-    SB_URL + '/functions/v1/ai-proxy',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SB_KEY },
-      body: JSON.stringify({
-        operation: 'interpret_doc',
-        model_tier: tier,
-        stream: true,
-        system,
-        content,
-        max_tokens: 1000,
-      }),
-    }
-  );
-  if (!res.ok) throw new Error('API error');
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let buf = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const lines = buf.split('\n');
-    buf = lines.pop();
-    for (const l of lines) {
-      if (!l.startsWith('data: ')) continue;
-      const d = l.slice(6).trim();
-      if (d === '[DONE]') return;
-      try {
-        const p = JSON.parse(d);
-        if (p.type === 'content_block_delta' && p.delta?.type === 'text_delta')
-          onChunk(p.delta.text);
-      } catch {}
-    }
-  }
-}
+          <div className="lp-fade-4 lp-hero-btns" style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+            <button
+              onClick={() => onBuyPlan?.("small_team") ?? onSignup?.()}
+              style={s.ctaPrimary}
+              onMouseEnter={ctaPrimaryHover}
+              onMouseLeave={ctaPrimaryLeave}
+            >Start Free Trial</button>
+            <button
+              onClick={onLogin}
+              style={s.ctaGhost}
+              onMouseEnter={ctaGhostHover}
+              onMouseLeave={ctaGhostLeave}
+            >Sign In to Your Program →</button>
+          </div>
+        </div>
 
-/* --- DOCUMENT → EMAP STANDARD MAPPING PIPELINE --------
-   Multi-stage pipeline for mapping uploaded documents to EMAP standards:
-   1. Chunk & summarize with fast model (cheaper)
-   2. Compute similarity against EMAP standard text to find candidates
-   3. Ask strong model on narrowed set for precise mapping + rationale
-   4. Cache results in localStorage keyed by content hash
--------------------------------------------------------- */
-const DOC_MAPPING_CACHE_KEY = 'planrr_doc_mapping_cache';
+        {/* ── STATS STRIP ── */}
+        <div style={{
+          borderTop: `1px solid rgba(196,154,60,0.18)`,
+          borderBottom: `1px solid rgba(196,154,60,0.18)`,
+          background: "rgba(10,10,10,0.88)",
+        }}>
+          <div
+            className="lp-stats"
+            style={{
+              maxWidth: 1120,
+              margin: "0 auto",
+              display: "grid",
+              gridTemplateColumns: "repeat(4,1fr)",
+            }}
+          >
+            {[
+              ["73",   "EMAP Standards",  "Tracked"],
+              ["32",   "FEMA Core",       "Capabilities"],
+              ["100%", "End-to-End",      "EM System"],
+              ["SAGE", "Your AI",         "Program Partner"],
+            ].map(([n, l1, l2], i) => (
+              <div key={l1} style={{
+                padding: "28px clamp(18px,3vw,44px)",
+                borderRight: i < 3 ? "1px solid rgba(196,154,60,0.1)" : "none",
+              }}>
+                <div style={{
+                  fontFamily: "'Syne', 'DM Sans', sans-serif",
+                  fontSize: n === "SAGE" ? 28 : 40,
+                  fontWeight: 800,
+                  color: T.gold,
+                  lineHeight: 1,
+                  marginBottom: 8,
+                  letterSpacing: n === "SAGE" ? "-0.5px" : "-1.5px",
+                }}>{n}</div>
+                <div style={{
+                  fontFamily: "'DM Mono', monospace",
+                  fontSize: 9,
+                  color: T.land_faint,
+                  letterSpacing: "0.13em",
+                  textTransform: "uppercase",
+                  lineHeight: 1.7,
+                }}>{l1}<br />{l2}</div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-function getDocMappingCache() {
-  try {
-    return JSON.parse(localStorage.getItem(DOC_MAPPING_CACHE_KEY) || '{}');
-  } catch { return {}; }
-}
+        {/* ── PLATFORM FEATURES ── */}
+        <div ref={sectionPlatform} style={s.section}>
+          <div style={{ ...s.sectionLabel, color: T.gold }}>
+            <div style={{ ...s.sectionLabelLine, background: T.gold }} />
+            The Platform
+          </div>
+          <h2 style={{
+            fontFamily: "'Syne', 'DM Sans', sans-serif",
+            fontWeight: 800,
+            fontSize: "clamp(26px,3.2vw,42px)",
+            letterSpacing: "-1.5px",
+            marginBottom: 14,
+            lineHeight: 1.04,
+          }}>
+            Everything your program needs.<br />
+            <span style={s.gold}>One place.</span>
+          </h2>
+          <p style={{ color: T.land_muted, fontSize: 15, fontWeight: 300, maxWidth: 620, lineHeight: 1.82, marginBottom: 52 }}>
+            Every module talks to every other module. An exercise finding becomes a compliance gap. A lapsed MOU surfaces in your priority queue. Your program picture builds as you work — not separately from it.
+          </p>
 
-function setDocMappingCache(hash, result) {
-  const cache = getDocMappingCache();
-  cache[hash] = { result, ts: Date.now() };
-  const keys = Object.keys(cache);
-  if (keys.length > 50) {
-    const oldest = keys.sort((a, b) => cache[a].ts - cache[b].ts);
-    oldest.slice(0, keys.length - 50).forEach(k => delete cache[k]);
-  }
-  localStorage.setItem(DOC_MAPPING_CACHE_KEY, JSON.stringify(cache));
-}
+          <div
+            className="lp-3col"
+            style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 3 }}
+          >
+            {features.map(([title, desc, tag]) => (
+              <div
+                key={title}
+                className="hover-card"
+                style={{ ...s.darkCard, transition: "all 0.2s ease" }}
+                onMouseEnter={darkCardHover}
+                onMouseLeave={darkCardLeave}
+              >
+                <div style={s.darkCardAccentTeal} />
+                <div style={s.darkCardTitle}>{title}</div>
+                <div style={s.darkCardBody}>{desc}</div>
+                <div style={s.darkCardTag}>{tag}</div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-function simpleHash(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) {
-    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
-  }
-  return 'dh_' + Math.abs(h).toString(36);
-}
+        {/* ── CALLOUT / HONESTY STRIP ── */}
+        <div style={{
+          borderTop: "1px solid rgba(239,68,68,0.14)",
+          borderBottom: "1px solid rgba(239,68,68,0.08)",
+          background: "rgba(10,10,10,0.88)",
+        }}>
+          <div style={s.section}>
+            <div style={{ ...s.sectionLabel, color: "#EF4444" }}>
+              <div style={{ ...s.sectionLabelLine, background: "#EF4444" }} />
+              Let's be honest
+            </div>
+            <h2 style={{
+              fontFamily: "'Syne', 'DM Sans', sans-serif",
+              fontWeight: 800,
+              fontSize: "clamp(22px,2.8vw,36px)",
+              letterSpacing: "-1.5px",
+              marginBottom: 10,
+              lineHeight: 1.04,
+            }}>
+              Every EM program says they learn from every incident.
+            </h2>
+            <p style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: 11,
+              color: T.land_faint,
+              letterSpacing: "0.04em",
+              lineHeight: 1.7,
+              marginBottom: 44,
+              maxWidth: 640,
+            }}>
+              Almost none close the loop. The findings sit in a folder. The same gaps appear in the next AAR. This is not a people problem. It's a system problem.
+            </p>
 
-function textSimilarity(a, b) {
-  const wa = new Set(a.toLowerCase().split(/\W+/).filter(Boolean));
-  const wb = new Set(b.toLowerCase().split(/\W+/).filter(Boolean));
-  let overlap = 0;
-  wa.forEach(w => { if (wb.has(w)) overlap++; });
-  return overlap / Math.max(wa.size, wb.size, 1);
-}
-
-async function mapDocToEMAP(docText, allStandards, onStatus) {
-  const hash = simpleHash(docText.slice(0, 2000));
-  const cached = getDocMappingCache()[hash];
-  if (cached) {
-    if (onStatus) onStatus('Using cached mapping results');
-    return cached.result;
-  }
-  if (onStatus) onStatus('Step 1/3: Summarizing document...');
-  let summary = '';
-  await callAI(
-    'You are a document summarizer for emergency management. Extract key topics, capabilities, and compliance areas in 200 words max. No markdown.',
-    `Summarize this document for EMAP standard matching:\n\n${docText.slice(0, 8000)}`,
-    (chunk) => { summary += chunk; },
-    'general'
-  );
-  if (onStatus) onStatus('Step 2/3: Finding candidate standards...');
-  const scored = allStandards.map(s => ({
-    ...s,
-    score: textSimilarity(summary, `${s.id} ${s.title} ${s.description || ''}`)
-  }));
-  scored.sort((a, b) => b.score - a.score);
-  const candidates = scored.slice(0, 10);
-  if (onStatus) onStatus('Step 3/3: AI matching to standards...');
-  const candidateText = candidates.map(c =>
-    `${c.id}: ${c.title}${c.description ? ' - ' + c.description : ''}`
-  ).join('\n');
-  let mappingResult = '';
-  await callAI(
-    'You are an EMAP EMS 5-2022 expert. Given a document summary and candidate standards, determine which standards this document maps to. Return a JSON array of objects with fields: standardId, confidence (high/medium/low), rationale (one sentence). Only include standards that genuinely apply.',
-    `Document summary:\n${summary}\n\nCandidate EMAP standards:\n${candidateText}\n\nReturn JSON array of matching standards with rationale.`,
-    (chunk) => { mappingResult += chunk; },
-    'gap_analysis'
-  );
-  let parsed;
-  try {
-    const jsonMatch = mappingResult.match(/\[[\s\S]*\]/);
-    parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
-  } catch {
-    parsed = [{ standardId: 'parse_error', confidence: 'low', rationale: mappingResult }];
-  }
-  const result = { summary, mappings: parsed, candidates: candidates.map(c => c.id) };
-  setDocMappingCache(hash, result);
-  return result;
-}
-
-const SYS_BASE =
-  'You are an EMAP accreditation and emergency management expert in PLANRR - Plan Smartr. Deep expertise in EMAP EMS 5-2022, HSEEP, and EM program management. Be specific, practical, and concise. No markdown headers.';
-
-function buildOrgContext(data) {
-  const parts = [];
-  if (data.orgName) parts.push(`Organization: ${data.orgName}`);
-  if (data.jurisdiction) parts.push(`Type: ${data.jurisdiction}`);
-  if (data.state) parts.push(`State: ${data.state}`);
-  if (data.emName) parts.push(`EM Director: ${data.emName}${data.emTitle ? `, ${data.emTitle}` : ''}`);
-  const empList = (data.employees || []).slice(0, 10);
-  if (empList.length > 0) parts.push(`Staff: ${empList.map(e => `${e.name}${e.role ? ` (${e.role})` : ''}`).join(', ')}`);
-  const overall = { compliant: 0, total: 0 };
-  Object.values(data.standards || {}).forEach(s => { overall.total++; if (s.status === 'compliant') overall.compliant++; });
-  parts.push(`EMAP: ${overall.compliant}/${overall.total} standards compliant`);
-  parts.push(`Training: ${(data.training || []).length}, Exercises: ${(data.exercises || []).length}, Partners: ${(data.partners || []).length}, Plans: ${(data.plans || []).length}`);
-  if ((data.aiMemory || []).length > 0) {
-    parts.push('ORG-SPECIFIC NOTES (remember these):\n' + data.aiMemory.map(m => `- ${m}`).join('\n'));
-  }
-  return parts.join('. ');
-}
-
-let _currentData = null;
-function setCurrentDataRef(d) { _currentData = d; }
+            <div
+              className="lp-3col"
+              style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 3 }}
+            >
+              {[
+                ["The AAR Gap", "You filed the AAR. You didn't action the findings. The same gap shows up in the next one. No mechanism connects finding → standard → corrective action → resolution.", "#EF4444"],
+                ["The Training Lie", "\"Our staff is trained.\" Last documented training: 22 months ago. 4 new hires since. 0 tabletops on the current EOP version. Saying it happened once isn't the same as it being current.", "#EF4444"],
+                ["The Succession Gap", "Your COOP succession line references 2 positions that no longer exist. If your EM director is unavailable today, there is no clear line of authority. SAGE finds this weekly.", "#EF4444"],
+              ].map(([title, body, color]) => (
+                <div key={title} style={{
+                  background: "rgba(239,68,68,0.04)",
+                  border: "1px solid rgba(239,68,68,0.18)",
+                  borderLeft: `3px solid ${color}`,
+                  padding: "24px 22px",
+                }}>
+                  <div style={{
+                    fontFamily: "'DM Mono', monospace",
+                    fontSize: 8,
+                    color: "#EF4444",
+                    letterSpacing: "0.14em",
+                    textTransform: "uppercase",
+                    marginBottom: 12,
+                  }}>× {title}</div>
+                  <div style={{ fontSize: 13, color: T.land_muted, lineHeight: 1.72, fontWeight: 300 }}>{body}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
 function getSYS() {
   if (!_currentData) return SYS_BASE;
@@ -24634,678 +24524,646 @@ function AuthScreen({ onAuth, initialMode, onClose }) {
             <span>HSEEP Aligned</span>
             <span>FEMA Compatible</span>
           </div>
-          <div style={{ fontSize: 10, color: '#334155' }}>Plan Smartr</div>
-        </div>
-      </div>
-  );
-}
+          <h2 style={{
+            fontFamily: "'Syne', 'DM Sans', sans-serif",
+            fontWeight: 800,
+            fontSize: "clamp(24px,3vw,40px)",
+            letterSpacing: "-1.5px",
+            marginBottom: 14,
+            lineHeight: 1.04,
+          }}>
+            The four things that quietly<br />
+            <span style={s.gold}>fail without a system.</span>
+          </h2>
+          <p style={{ color: T.land_muted, fontSize: 15, fontWeight: 300, maxWidth: 660, lineHeight: 1.82, marginBottom: 52 }}>
+            Not because anyone made a bad decision. Because there was no system watching. These gaps accumulate in silence — and they all surface in the same place: the after-action report.
+          </p>
 
-function FirstRunWelcome({ onDone, setView }) {
-  const [step, setStep] = useState(0);
-  const [path, setPath] = useState(null);
-  const totalSteps = 5;
-  const pct = Math.round((step / totalSteps) * 100);
-
-  // Step 0: Welcome + path selection
-  // Step 1: What your role looks like
-  // Step 2: The Plan → Build → Sustain framework
-  // Step 3: Where to start based on path
-  // Step 4: Your first action
-
-  return (
-    <>
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(20,23,25,0.92)',
-          zIndex: 98,
-          backdropFilter: 'blur(4px)',
-        }}
-        onClick={step >= 4 ? onDone : undefined}
-      />
-      <div
-        style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%,-50%)',
-          zIndex: 99,
-          width: 520,
-          maxWidth: 'calc(100vw - 40px)',
-          background: '#1C1F22',
-          border: '1px solid #2E3439',
-          borderRadius: 16,
-          padding: 0,
-          overflow: 'hidden',
-          boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
-        }}
-      >
-        {/* Progress bar */}
-        <div style={{ height: 3, background: '#2E3439' }}>
           <div
-            style={{
-              height: '100%',
-              width: `${pct}%`,
-              background: `linear-gradient(90deg, ${B.teal}, GOLD)`,
-              borderRadius: 2,
-              transition: 'width 0.4s ease',
-            }}
-          />
-        </div>
-
-        <div style={{ padding: '32px 36px' }}>
-          {/* Step counter */}
-          <div
-            style={{
-              fontSize: 10,
-              color: '#475569',
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              marginBottom: 16,
-              fontWeight: 600,
-            }}
+            className="lp-4col"
+            style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 3 }}
           >
-            {step === 0
-              ? 'Welcome'
-              : step === totalSteps
-              ? 'Ready'
-              : 'Step ' + step + ' of ' + (totalSteps - 1)}
+            {pillars.map(([title, body, accent]) => (
+              <div
+                key={title}
+                className="hover-card"
+                style={{ ...s.darkCard, transition: "all 0.2s ease" }}
+                onMouseEnter={darkCardHover}
+                onMouseLeave={darkCardLeave}
+              >
+                <div style={{ ...s.darkCardAccentTeal, background: accent }} />
+                <div style={{ ...s.darkCardTitle, paddingLeft: 14 }}>{title}</div>
+                <div style={{ ...s.darkCardBody, paddingLeft: 14, marginTop: 4 }}>{body}</div>
+              </div>
+            ))}
           </div>
+        </div>
 
-          {step === 0 && (
-            <>
-              <div
-                style={{
-                  fontSize: 22,
-                  fontWeight: 800,
-                  color: '#f0f4fa',
-                  marginBottom: 8,
-                  letterSpacing: '-0.5px',
-                }}
-              >
-                Welcome to planrr.app
-              </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: '#94a3b8',
-                  lineHeight: 1.8,
-                  marginBottom: 24,
-                }}
-              >
-                We're going to help you build a professional emergency
-                management program — whether you're starting from scratch or
-                organizing what you already have. First, tell us where you are:
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 10,
-                  marginBottom: 20,
-                }}
-              >
-                <button
-                  onClick={() => {
-                    setPath('new');
-                    setStep(1);
-                  }}
-                  style={{
-                    background:
-                      path === 'new' ? 'rgba(27,201,196,0.12)' : '#252A2E',
-                    border: `1px solid ${
-                      path === 'new' ? 'rgba(27,201,196,0.3)' : '#2E3439'
-                    }`,
-                    borderRadius: 12,
-                    padding: '16px 20px',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.borderColor = 'rgba(27,201,196,0.3)')
-                  }
-                  onMouseLeave={(e) => {
-                    if (path !== 'new')
-                      e.currentTarget.style.borderColor = '#2E3439';
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: B.teal,
-                      marginBottom: 4,
-                    }}
-                  >
-                    🆕 I'm starting a new program
-                  </div>
-                  <div
-                    style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}
-                  >
-                    EM was just assigned to me, or I'm building from the ground
-                    up. I need guidance on what to do and where to start.
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    setPath('existing');
-                    setStep(1);
-                  }}
-                  style={{
-                    background:
-                      path === 'existing' ? 'rgba(194,150,74,0.12)' : '#252A2E',
-                    border: `1px solid ${
-                      path === 'existing' ? 'rgba(194,150,74,0.3)' : '#2E3439'
-                    }`,
-                    borderRadius: 12,
-                    padding: '16px 20px',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.borderColor = 'rgba(194,150,74,0.3)')
-                  }
-                  onMouseLeave={(e) => {
-                    if (path !== 'existing')
-                      e.currentTarget.style.borderColor = '#2E3439';
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: GOLD,
-                      marginBottom: 4,
-                    }}
-                  >
-                    📂 I have an existing program
-                  </div>
-                  <div
-                    style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}
-                  >
-                    I already have plans, training records, and documents. I
-                    want to organize them and track EMAP compliance.
-                  </div>
-                </button>
-              </div>
-            </>
-          )}
+        {/* ── PRICING ── */}
+        <div ref={sectionPricing} style={{
+          borderTop: `1px solid rgba(196,154,60,0.18)`,
+          background: "rgba(13,13,13,0.82)",
+        }}>
+          <div style={s.section}>
+            <div style={{ ...s.sectionLabel, color: T.gold }}>
+              <div style={{ ...s.sectionLabelLine, background: T.gold }} />
+              Pricing
+            </div>
+            <h2 style={{
+              fontFamily: "'Syne', 'DM Sans', sans-serif",
+              fontWeight: 800,
+              fontSize: "clamp(24px,3vw,40px)",
+              letterSpacing: "-1.5px",
+              marginBottom: 14,
+              lineHeight: 1.04,
+            }}>
+              Built for every shop size.<br />
+              <span style={s.gold}>No feature gating. Ever.</span>
+            </h2>
+            <p style={{ color: T.land_muted, fontSize: 15, fontWeight: 300, maxWidth: 520, lineHeight: 1.82, marginBottom: 52 }}>
+              Every plan includes every feature. We price by team size because understaffed shops deserve the same tools as large agencies.
+            </p>
 
-          {step === 1 && (
-            <>
-              <div
-                style={{
-                  fontSize: 22,
-                  fontWeight: 800,
-                  color: '#f0f4fa',
-                  marginBottom: 8,
-                  letterSpacing: '-0.5px',
-                }}
-              >
-                {path === 'new'
-                  ? "You're not alone in this"
-                  : "Let's organize what you have"}
+            <div
+              className="lp-pricing"
+              style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 2 }}
+            >
+              {pricingPlans.map(({ tier, price, period, desc, features: feats, plan, featured }) => (
+                <div key={tier} style={{
+                  background: featured ? "rgba(28,21,0,0.96)" : "rgba(14,14,14,0.95)",
+                  border: featured ? `2px solid ${T.gold}` : "1px solid rgba(255,255,255,0.06)",
+                  padding: "32px 22px",
+                  position: "relative",
+                  boxShadow: featured ? `0 0 40px rgba(196,154,60,0.18)` : "none",
+                }}>
+                  {featured && (
+                    <div style={{
+                      position: "absolute",
+                      top: -1,
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      background: T.gold,
+                      color: "#111",
+                      fontFamily: "'DM Mono', monospace",
+                      fontSize: 8,
+                      fontWeight: 700,
+                      letterSpacing: "0.15em",
+                      padding: "4px 16px",
+                      whiteSpace: "nowrap",
+                      textTransform: "uppercase",
+                    }}>Most Popular</div>
+                  )}
+                  <div style={{
+                    fontFamily: "'DM Mono', monospace",
+                    fontSize: 9,
+                    color: featured ? T.gold : T.teal,
+                    letterSpacing: "0.15em",
+                    textTransform: "uppercase",
+                    marginBottom: 18,
+                    marginTop: featured ? 12 : 0,
+                  }}>{tier}</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 3, marginBottom: 4 }}>
+                    <span style={{
+                      fontFamily: "'Syne', 'DM Sans', sans-serif",
+                      fontSize: price === "Custom" ? 28 : 42,
+                      fontWeight: 800,
+                      color: T.land_text,
+                      lineHeight: 1,
+                    }}>{price}</span>
+                    {period && <span style={{ color: T.land_faint, fontSize: 12 }}>{period}</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: T.land_faint, marginBottom: 22, lineHeight: 1.55 }}>{desc}</div>
+                  {feats.map((f) => (
+                    <div key={f} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8, fontSize: 12, color: "#94A3B8" }}>
+                      <span style={{ color: featured ? T.gold : T.teal, flexShrink: 0, marginTop: 1, fontSize: 11 }}>+</span>{f}
+                    </div>
+                  ))}
+                  {plan === "enterprise" ? (
+                    <button
+                      onClick={onSignup}
+                      style={{ ...s.ctaTeal, marginTop: 20, color: "#8B5CF6", borderColor: "rgba(139,92,246,0.3)" }}
+                    >Contact Sales</button>
+                  ) : featured ? (
+                    <button
+                      onClick={() => onBuyPlan?.(plan) ?? onSignup?.()}
+                      style={{ ...s.ctaPrimary, width: "100%", marginTop: 20 }}
+                      onMouseEnter={ctaPrimaryHover}
+                      onMouseLeave={ctaPrimaryLeave}
+                    >Start Free Trial</button>
+                  ) : (
+                    <button
+                      onClick={() => onBuyPlan?.(plan) ?? onSignup?.()}
+                      style={{ ...s.ctaTeal, marginTop: 20 }}
+                    >Start Free Trial</button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Founding strip */}
+            <div style={{
+              marginTop: 16,
+              background: "rgba(24,18,2,0.9)",
+              border: `1px solid rgba(196,154,60,0.3)`,
+              padding: "14px 20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 12,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{
+                  fontFamily: "'DM Mono', monospace",
+                  fontSize: 9,
+                  color: T.gold,
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase",
+                }}>⚡ Founding Agency Pricing</span>
+                <span style={{ fontSize: 13, color: T.land_text }}>50% off any plan, locked for life.</span>
               </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: '#94a3b8',
-                  lineHeight: 1.8,
-                  marginBottom: 20,
-                }}
-              >
-                {path === 'new'
-                  ? 'Over half of local EM programs are managed by someone doing it as an additional duty. Planrr is built for exactly that — it walks you through every step so nothing falls through the cracks.'
-                  : 'Most EM programs have documents scattered across drives, email, and filing cabinets. Planrr brings everything into one place and maps it to EMAP standards automatically.'}
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: T.land_faint, letterSpacing: "0.08em" }}>
+                14-day free trial · No credit card required
               </div>
-              <div
-                style={{
-                  background: '#252A2E',
-                  borderRadius: 10,
-                  padding: '16px 18px',
-                  marginBottom: 16,
-                }}
-              >
+            </div>
+          </div>
+        </div>
+
+        {/* ── BIG CTA ── */}
+        <div style={{
+          borderTop: `1px solid rgba(196,154,60,0.2)`,
+          borderBottom: `1px solid rgba(196,154,60,0.2)`,
+          background: "rgba(13,13,13,0.88)",
+          padding: "84px 40px",
+          textAlign: "center",
+        }}>
+          <div style={{ ...s.sectionLabel, color: T.teal, justifyContent: "center" }}>
+            <div style={{ ...s.sectionLabelLine, background: T.teal }} />
+            Organizational resilience isn't a value. It's a practice.
+            <div style={{ ...s.sectionLabelLine, background: T.teal }} />
+          </div>
+          <h2 style={{
+            fontFamily: "'Syne', 'DM Sans', sans-serif",
+            fontWeight: 800,
+            fontSize: "clamp(30px,4.5vw,56px)",
+            letterSpacing: "-2.5px",
+            marginBottom: 16,
+            lineHeight: 1.01,
+          }}>
+            Adapt or don't.<br />
+            <span style={s.gold}>The incident won't wait.</span>
+          </h2>
+          <p style={{
+            color: T.land_muted,
+            fontSize: 15,
+            fontWeight: 300,
+            marginBottom: 40,
+            maxWidth: 520,
+            margin: "0 auto 40px",
+            lineHeight: 1.82,
+          }}>
+            Organizations that learn, adapt, and build institutional resilience don't need the plan to be perfect. They need the people, the systems, and the muscle memory to respond when it isn't.
+          </p>
+          <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
+            <button
+              onClick={() => onBuyPlan?.("small_team") ?? onSignup?.()}
+              style={s.ctaPrimary}
+              onMouseEnter={ctaPrimaryHover}
+              onMouseLeave={ctaPrimaryLeave}
+            >Start Free Trial</button>
+            <button onClick={onLogin} style={s.ctaGhost} onMouseEnter={ctaGhostHover} onMouseLeave={ctaGhostLeave}>
+              Sign In →
+            </button>
+          </div>
+          <div style={{
+            fontFamily: "'DM Mono', monospace",
+            fontSize: 10,
+            color: T.land_faint,
+            letterSpacing: "0.1em",
+            marginTop: 20,
+          }}>
+            Founding agency pricing · Locked for life · Direct input into the roadmap
+          </div>
+        </div>
+
+        {/* ── SECURITY ── */}
+        <div ref={sectionSecurity} style={{
+          borderTop: `1px solid rgba(62,207,207,0.1)`,
+          background: "rgba(10,14,14,0.9)",
+        }}>
+          <div style={s.section}>
+            <div style={{ ...s.sectionLabel, color: T.teal }}>
+              <div style={{ ...s.sectionLabelLine, background: T.teal }} />
+              Security & Compliance
+            </div>
+            <h2 style={{
+              fontFamily: "'Syne', 'DM Sans', sans-serif",
+              fontWeight: 800,
+              fontSize: "clamp(24px,3vw,40px)",
+              letterSpacing: "-1.5px",
+              marginBottom: 14,
+              lineHeight: 1.04,
+            }}>
+              Built for agencies that handle<br />
+              <span style={s.gold}>sensitive data.</span>
+            </h2>
+            <p style={{ color: T.land_muted, fontSize: 15, fontWeight: 300, maxWidth: 560, lineHeight: 1.82, marginBottom: 52 }}>
+              Plans, succession lines, facility locations, resource inventories. Your program data has operational security implications. We treat it that way.
+            </p>
+
+            <div
+              className="lp-3col"
+              style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 3 }}
+            >
+              {[
+                ["HTTPS Everywhere", "Every request, every file transfer. TLS 1.2+ with no exceptions."],
+                ["Encryption at Rest", "AES-256 on everything stored. If someone got to the database, they'd get noise."],
+                ["Authenticated Access", "Every API call requires a valid token. Org-scoped — no other agency sees your data."],
+                ["Activity Logs", "Who changed what, and when. Full audit trail for accountability."],
+                ["Automated Backups", "Continuous backups with point-in-time recovery. Your program doesn't disappear."],
+                ["Secure Infrastructure", "SOC 2-certified cloud. DDoS protection, 24/7 monitoring, network isolation."],
+              ].map(([title, body]) => (
                 <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: 10,
-                  }}
+                  key={title}
+                  className="hover-card"
+                  style={{ ...s.darkCard, transition: "all 0.2s ease" }}
+                  onMouseEnter={darkCardHover}
+                  onMouseLeave={darkCardLeave}
                 >
-                  {(path === 'new'
-                    ? [
-                        { n: '73', l: 'EMAP standards loaded' },
-                        { n: '32', l: 'FEMA capabilities mapped' },
-                        { n: '6', l: 'AI templates ready' },
-                        { n: '∞', l: 'Guided coaching built in' },
-                      ]
-                    : [
-                        { n: '📤', l: 'Bulk document upload' },
-                        { n: '🤖', l: 'AI auto-maps to standards' },
-                        { n: '📊', l: 'Instant gap analysis' },
-                        { n: '📋', l: 'Evidence packaging' },
-                      ]
-                  ).map((s) => (
-                    <div
-                      key={s.l}
-                      style={{ textAlign: 'center', padding: '10px' }}
-                    >
-                      <div
-                        style={{ fontSize: 18, fontWeight: 800, color: B.teal }}
-                      >
-                        {s.n}
-                      </div>
-                      <div
-                        style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}
-                      >
-                        {s.l}
-                      </div>
+                  <div style={s.darkCardAccentTeal} />
+                  <div style={s.darkCardTitle}>{title}</div>
+                  <div style={s.darkCardBody}>{body}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* SOC 2 Roadmap */}
+            <div style={{
+              marginTop: 56,
+              border: `1px solid rgba(196,154,60,0.28)`,
+              borderLeft: `4px solid ${T.gold}`,
+              padding: "36px 40px",
+              background: "rgba(20,15,2,0.9)",
+            }}>
+              <div style={{
+                fontFamily: "'DM Mono', monospace",
+                fontSize: 9,
+                color: T.gold,
+                letterSpacing: "0.15em",
+                textTransform: "uppercase",
+                marginBottom: 14,
+              }}>SOC 2 Compliance Roadmap</div>
+              <h3 style={{
+                fontFamily: "'Syne', 'DM Sans', sans-serif",
+                fontSize: 22,
+                fontWeight: 700,
+                marginBottom: 8,
+              }}>On the path to SOC 2 certification</h3>
+              <p style={{ fontSize: 13, color: T.land_muted, lineHeight: 1.7, marginBottom: 32, maxWidth: 560 }}>
+                Actively pursuing SOC 2 compliance to meet the security requirements of government agencies.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                {[
+                  ["Q2–Q3 2026", "Policies, access control, and change management frameworks", true],
+                  ["Q3 2026",    "Readiness assessment with independent auditor", true],
+                  ["Q4 2026–Q1 2027", "SOC 2 Type I audit and certification", false],
+                  ["Q3 2027",   "SOC 2 Type II audit and certification", false],
+                ].map(([q, desc, active], i) => (
+                  <div key={q} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 20 }}>
+                      <div style={{
+                        width: 10, height: 10, borderRadius: "50%",
+                        background: active ? T.gold : "#2E3439",
+                        border: active ? "none" : "2px solid #475569",
+                        flexShrink: 0, marginTop: 4,
+                      }} />
+                      {i < 3 && <div style={{ width: 2, height: 32, background: active ? "rgba(196,154,60,0.3)" : "#2E3439" }} />}
+                    </div>
+                    <div style={{ paddingBottom: i < 3 ? 16 : 0 }}>
+                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: active ? T.gold : T.land_faint, fontWeight: 600, marginBottom: 2 }}>{q}</div>
+                      <div style={{ fontSize: 13, color: T.land_muted, lineHeight: 1.5 }}>{desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── FOOTER ── */}
+        <div style={{
+          borderTop: `1px solid rgba(196,154,60,0.16)`,
+          background: "rgba(10,10,10,0.97)",
+          padding: "48px clamp(20px,4vw,52px) 32px",
+        }}>
+          <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 32, marginBottom: 36 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <BrainIcon size={26} />
+                  <Wordmark size={18} />
+                </div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#475569", letterSpacing: "0.08em", lineHeight: 1.8, maxWidth: 280 }}>
+                  Emergency management platform.<br />
+                  EMAP EMS 5-2022 · HSEEP · CPG 201<br />
+                  helloplanrr.app@gmail.com
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 48, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: T.gold, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 14 }}>Product</div>
+                  {[["Platform", () => scrollTo(sectionPlatform)], ["Pricing", () => scrollTo(sectionPricing)], ["Security", () => scrollTo(sectionSecurity)]].map(([l, fn]) => (
+                    <div key={l} style={{ marginBottom: 8 }}>
+                      <button onClick={fn} style={{ background: "none", border: "none", fontSize: 13, color: "#475569", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: 0, transition: "color 0.15s" }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = "#94A3B8"}
+                        onMouseLeave={(e) => e.currentTarget.style.color = "#475569"}
+                      >{l}</button>
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: T.gold, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 14 }}>Legal</div>
+                  {[["Privacy Policy", "/privacy"], ["Terms of Service", "/terms"]].map(([l, href]) => (
+                    <div key={l} style={{ marginBottom: 8 }}>
+                      <a href={href} style={{ fontSize: 13, color: "#475569", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s" }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = "#94A3B8"}
+                        onMouseLeave={(e) => e.currentTarget.style.color = "#475569"}
+                      >{l}</a>
                     </div>
                   ))}
                 </div>
               </div>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <div
-                style={{
-                  fontSize: 22,
-                  fontWeight: 800,
-                  color: '#f0f4fa',
-                  marginBottom: 8,
-                  letterSpacing: '-0.5px',
-                }}
-              >
-                Plan → Build → Sustain
-              </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: '#94a3b8',
-                  lineHeight: 1.8,
-                  marginBottom: 20,
-                }}
-              >
-                Every EM program follows the same three phases. The sidebar
-                groups your tools by function:
-              </div>
-              <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
-              >
-                {[
-                  {
-                    phase: 'Plan',
-                    color: B.teal,
-                    icon: '📋',
-                    items: [
-                      'Identify your hazards (THIRA)',
-                      'Write your plans & SOPs',
-                      'Map your partners',
-                      'Inventory your resources',
-                    ],
-                  },
-                  {
-                    phase: 'Build',
-                    color: GOLD,
-                    icon: '🔨',
-                    items: [
-                      'Staff & credential your people',
-                      'Train your team',
-                      'Exercise your plans',
-                      'Secure funding',
-                    ],
-                  },
-                  {
-                    phase: 'Sustain',
-                    color: '#8B5CF6',
-                    icon: '✅',
-                    items: [
-                      'Track EMAP standards',
-                      'Build evidence packages',
-                      'Maintain accreditation',
-                    ],
-                  },
-                ].map((p) => (
-                  <div
-                    key={p.phase}
-                    style={{
-                      background: '#252A2E',
-                      borderRadius: 10,
-                      padding: '14px 18px',
-                      borderLeft: `3px solid ${p.color}`,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        marginBottom: 6,
-                      }}
-                    >
-                      <span style={{ fontSize: 16 }}>{p.icon}</span>
-                      <span
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color: p.color,
-                        }}
-                      >
-                        {p.phase}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {p.items.map((i) => (
-                        <span
-                          key={i}
-                          style={{
-                            fontSize: 11,
-                            color: '#94a3b8',
-                            background: '#1C1F22',
-                            padding: '3px 10px',
-                            borderRadius: 6,
-                          }}
-                        >
-                          {i}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {step === 3 && (
-            <>
-              <div
-                style={{
-                  fontSize: 22,
-                  fontWeight: 800,
-                  color: '#f0f4fa',
-                  marginBottom: 8,
-                  letterSpacing: '-0.5px',
-                }}
-              >
-                {path === 'new'
-                  ? 'Your first 3 steps'
-                  : 'Your fast-track setup'}
-              </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: '#94a3b8',
-                  lineHeight: 1.8,
-                  marginBottom: 20,
-                }}
-              >
-                {path === 'new'
-                  ? "Don't try to do everything at once. Here's exactly where to start:"
-                  : "Here's the fastest way to get your existing program loaded:"}
-              </div>
-              <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
-              >
-                {(path === 'new'
-                  ? [
-                      {
-                        n: '1',
-                        title: 'Set up My Program',
-                        desc: 'Enter your org name, jurisdiction, and contact info. Takes 2 minutes. This populates every document and report.',
-                        where: 'settings',
-                      },
-                      {
-                        n: '2',
-                        title: 'Profile your hazards',
-                        desc: 'Go to Hazard Analysis and list 3-5 threats your area faces. This is the foundation for everything else.',
-                        where: 'thira',
-                      },
-                      {
-                        n: '3',
-                        title: 'Generate your first plan',
-                        desc: 'Go to AI Tools → Doc Templates and generate a Strategic Plan. AI uses your org data to create a 70% starting point.',
-                        where: 'templates',
-                      },
-                    ]
-                  : [
-                      {
-                        n: '1',
-                        title: 'Set up My Program',
-                        desc: 'Enter your org name, jurisdiction, and contact info. Takes 2 minutes.',
-                        where: 'settings',
-                      },
-                      {
-                        n: '2',
-                        title: 'Bulk upload your documents',
-                        desc: 'Drop your EOP, COOP, AARs, MOUs, and training records into Bulk Doc Intake. AI maps them to EMAP standards.',
-                        where: 'intake',
-                      },
-                      {
-                        n: '3',
-                        title: 'Review your gap analysis',
-                        desc: 'Check the Dashboard and EMAP Standards to see where you stand. Focus on the gaps.',
-                        where: 'dashboard',
-                      },
-                    ]
-                ).map((s) => (
-                  <div
-                    key={s.n}
-                    style={{
-                      display: 'flex',
-                      gap: 14,
-                      alignItems: 'flex-start',
-                      background: '#252A2E',
-                      borderRadius: 10,
-                      padding: '14px 18px',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        background: `linear-gradient(135deg, ${B.teal}, ${B.tealDark})`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 14,
-                        fontWeight: 800,
-                        color: '#fff',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {s.n}
-                    </div>
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 700,
-                          color: '#f0f4fa',
-                          marginBottom: 3,
-                        }}
-                      >
-                        {s.title}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: '#94a3b8',
-                          lineHeight: 1.6,
-                        }}
-                      >
-                        {s.desc}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {step === 4 && (
-            <>
-              <div
-                style={{
-                  fontSize: 22,
-                  fontWeight: 800,
-                  color: '#f0f4fa',
-                  marginBottom: 8,
-                  letterSpacing: '-0.5px',
-                }}
-              >
-                You're ready to go
-              </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: '#94a3b8',
-                  lineHeight: 1.8,
-                  marginBottom: 16,
-                }}
-              >
-                Every section has a coaching guide that explains what it is, why
-                it matters, and what to do first. Look for the teal guide
-                banners as you go.
-              </div>
-              <div
-                style={{
-                  background:
-                    'linear-gradient(135deg, rgba(27,201,196,0.1), rgba(194,150,74,0.1))',
-                  borderRadius: 10,
-                  padding: '16px 18px',
-                  border: '1px solid #2E3439',
-                  marginBottom: 16,
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    marginBottom: 10,
-                  }}
-                >
-                  <span style={{ fontSize: 20 }}>💡</span>
-                  <span
-                    style={{ fontSize: 13, fontWeight: 700, color: '#f0f4fa' }}
-                  >
-                    Pro tip
-                  </span>
-                </div>
-                <div
-                  style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.7 }}
-                >
-                  {path === 'new'
-                    ? 'Follow the sidebar top to bottom. Each section builds on the one before it. The numbered steps (①-⑧) are your roadmap. Take it one section at a time.'
-                    : "Start with Bulk Doc Intake to upload everything you have. Then check the Dashboard — it'll show you exactly where your gaps are and what to tackle next."}
-                </div>
-              </div>
-              <div style={{ fontSize: 12, color: '#475569', marginBottom: 4 }}>
-                The guide banners can be dismissed any time. You can always find
-                help in the AI Assistant.
-              </div>
-            </>
-          )}
-
-          {/* Navigation buttons */}
-          <div
-            style={{
-              display: 'flex',
-              gap: 10,
-              marginTop: 24,
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <div>
-              {step > 0 && (
-                <button
-                  onClick={() => setStep((p) => p - 1)}
-                  style={{
-                    background: 'none',
-                    border: '1px solid #2E3439',
-                    color: '#94a3b8',
-                    borderRadius: 8,
-                    padding: '8px 16px',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    fontFamily: "'DM Sans',sans-serif",
-                  }}
-                >
-                  Back
-                </button>
-              )}
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              {step < totalSteps && step > 0 && (
-                <button
-                  onClick={() => setStep((p) => p + 1)}
-                  style={{
-                    background: `linear-gradient(135deg, ${B.teal}, ${B.tealDark})`,
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '10px 24px',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    fontFamily: "'DM Sans',sans-serif",
-                    boxShadow: '0 2px 10px rgba(27,201,196,0.3)',
-                  }}
-                >
-                  Continue
-                </button>
-              )}
-              {step === totalSteps - 1 && <></>}
-              {step >= 4 && (
-                <button
-                  onClick={() => {
-                    setView(path === 'new' ? 'settings' : 'intake');
-                    onDone();
-                  }}
-                  style={{
-                    background: `linear-gradient(135deg, ${B.teal}, ${B.tealDark})`,
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '10px 24px',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    fontFamily: "'DM Sans',sans-serif",
-                    boxShadow: '0 2px 10px rgba(27,201,196,0.3)',
-                  }}
-                >
-                  {path === 'new'
-                    ? 'Start with My Program →'
-                    : 'Go to Bulk Upload →'}
-                </button>
-              )}
+            <div style={{ borderTop: "1px solid rgba(196,154,60,0.1)", paddingTop: 20, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#2E3439", letterSpacing: "0.08em" }}>© 2026 planrr.app · getplanrr.com</div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#2E3439", letterSpacing: "0.08em" }}>EMAP EMS 5-2022 ALIGNED · NOT AFFILIATED WITH EMAP OR IAEM</div>
+            </div>
+          </div>
+        </div>
+
+      </div>{/* /content */}
+    </div>
+  );
+}
+
+// ─── AUTH SCREEN (FIXED — no jank animation) ─────────────────────────────────
+/**
+ * KEY FIX: The original issue was the modal starting at bottom-right because
+ * the container had `position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%)`
+ * but the animation was `fadeUp` (translateY) which fights the centering transform.
+ *
+ * Fix: Use a dedicated `auth-in` keyframe that animates both opacity AND the
+ * combined translate, so there's never a frame where only one is applied.
+ *
+ * Additional: The backdrop renders BEFORE the card, so you never see the card
+ * "flying in" from a corner — it fades up from center.
+ */
+export function AuthScreenFixed({ onAuth, initialMode = "login", onClose }) {
+  const [mode, setMode] = useState(initialMode);
+  const [email,  setEmail]  = useState("");
+  const [pass,   setPass]   = useState("");
+  const [pass2,  setPass2]  = useState("");
+  const [name,   setName]   = useState("");
+  const [org,    setOrg]    = useState("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const [ok,  setOk]  = useState("");
+
+  const inputStyle = {
+    width: "100%",
+    padding: "11px 14px",
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 8,
+    color: "#F0F4FA",
+    fontSize: 14,
+    fontFamily: "'DM Sans', sans-serif",
+    outline: "none",
+    marginBottom: 12,
+    transition: "border-color 0.2s, box-shadow 0.2s",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 11,
+    fontWeight: 600,
+    color: "#64748B",
+    marginBottom: 5,
+    textTransform: "uppercase",
+    letterSpacing: "0.07em",
+    fontFamily: "'DM Mono', monospace",
+  };
+
+  const btnPrimary = {
+    width: "100%",
+    padding: "13px",
+    background: `linear-gradient(135deg, ${T.teal}, ${T.tealDark})`,
+    color: "#fff",
+    border: "none",
+    borderRadius: 8,
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: "pointer",
+    marginBottom: 10,
+    boxShadow: "0 4px 16px rgba(62,207,207,0.3)",
+    transition: "all 0.18s ease",
+    letterSpacing: "0.01em",
+  };
+
+  const linkStyle = {
+    background: "none",
+    border: "none",
+    color: T.teal,
+    fontSize: 13,
+    cursor: "pointer",
+    padding: 0,
+    fontWeight: 600,
+    fontFamily: "'DM Sans', sans-serif",
+    textDecoration: "underline",
+    textUnderlineOffset: 2,
+  };
+
+  const focusInput = (e) => {
+    e.target.style.borderColor = T.teal;
+    e.target.style.boxShadow = `0 0 0 3px rgba(62,207,207,0.12)`;
+  };
+  const blurInput = (e) => {
+    e.target.style.borderColor = "rgba(255,255,255,0.1)";
+    e.target.style.boxShadow = "none";
+  };
+
+  return (
+    <>
+      <style>{`
+        @keyframes auth-backdrop {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes auth-card {
+          from { opacity: 0; transform: translate(-50%, -47%); }
+          to   { opacity: 1; transform: translate(-50%, -50%); }
+        }
+        .auth-input:focus {
+          border-color: ${T.teal} !important;
+          box-shadow: 0 0 0 3px rgba(62,207,207,0.12) !important;
+        }
+      `}</style>
+
+      {/* Backdrop — renders first, before the card */}
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(10,12,14,0.78)",
+          backdropFilter: "blur(8px)",
+          zIndex: 200,
+          animation: "auth-backdrop 0.22s ease both",
+        }}
+      />
+
+      {/* Card — separate stacking context, centered via transform */}
+      <div style={{
+        position: "fixed",
+        top: "50%",
+        left: "50%",
+        /* transform is PART of the animation keyframe — never fights centering */
+        zIndex: 201,
+        width: 430,
+        maxWidth: "calc(100vw - 32px)",
+        maxHeight: "calc(100vh - 40px)",
+        overflowY: "auto",
+        animation: "auth-card 0.28s cubic-bezier(0.34, 1.06, 0.64, 1) both",
+        /* initial state set via keyframe — transform is correctly applied from the start */
+      }}>
+        {/* Logo above card */}
+        <div style={{ textAlign: "center", marginBottom: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ background: T.sidebar, borderRadius: 12, padding: 10, border: `1px solid rgba(62,207,207,0.2)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width={22} height={22} viewBox="0 0 100 100" fill="none">
+                <rect width="100" height="100" rx="18" fill={T.sidebar} />
+                <rect width="100" height="100" rx="18" fill="none" stroke={T.teal} strokeWidth="3.5" />
+                <path d="M20 78 L20 20 L66 20 C80 20 86 30 86 40 C86 50 80 58 66 58 L32 58 L32 78 Z" fill={T.teal} />
+                <path d="M32 30 L58 30 C64 30 68 34 68 38 C68 42 64 46 58 46 L32 46 Z" fill={T.sidebar} />
+              </svg>
+            </div>
+            <div style={{ display: "flex", alignItems: "baseline", fontFamily: "'Oxanium','DM Sans',sans-serif", fontWeight: 800, lineHeight: 1 }}>
+              <span style={{ fontSize: 20, color: "#F0F4FA" }}>planrr</span>
+              <span style={{ fontSize: 20, color: T.gold }}>.app</span>
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: "#64748B", letterSpacing: "0.03em" }}>AI-powered emergency management</div>
+        </div>
+
+        {/* Card body */}
+        <div style={{
+          background: "rgba(22,25,28,0.97)",
+          backdropFilter: "blur(24px)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 16,
+          padding: "28px 30px",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)",
+          position: "relative",
+        }}>
+          {onClose && (
+            <button onClick={onClose} style={{
+              position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.08)", color: "#64748B",
+              fontSize: 16, cursor: "pointer", padding: "4px 8px", lineHeight: 1,
+              borderRadius: 6, transition: "all 0.15s",
+            }}>✕</button>
+          )}
+
+          {err && (
+            <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#EF4444", marginBottom: 14 }}>
+              {err}
+            </div>
+          )}
+          {ok && (
+            <div style={{ background: "rgba(62,207,207,0.1)", border: `1px solid rgba(62,207,207,0.3)`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: T.teal, marginBottom: 14 }}>
+              {ok}
+            </div>
+          )}
+
+          {mode === "login" && (
+            <>
+              <div style={{ fontSize: 21, fontWeight: 800, color: "#F0F4FA", marginBottom: 4, letterSpacing: "-0.5px", fontFamily: "'Syne','DM Sans',sans-serif" }}>Welcome back</div>
+              <div style={{ fontSize: 13, color: "#64748B", marginBottom: 22 }}>Sign in to your program</div>
+              <label style={labelStyle}>Work email</label>
+              <input className="auth-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@agency.gov" style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
+              <label style={labelStyle}>Password</label>
+              <input className="auth-input" type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="Password" style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
               <button
-                onClick={onDone}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#475569',
-                  fontSize: 11,
-                  cursor: 'pointer',
-                  fontFamily: "'DM Sans',sans-serif",
-                  padding: '8px 4px',
-                }}
+                disabled={loading}
+                style={{ ...btnPrimary, opacity: loading ? 0.7 : 1 }}
+                onMouseEnter={(e) => { if (!loading) { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 6px 22px rgba(62,207,207,0.4)"; }}}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(62,207,207,0.3)"; }}
               >
-                Skip
+                {loading ? <span style={{ display: "inline-block", animation: "spinner 0.8s linear infinite", marginRight: 8 }}>⟳</span> : null}
+                {loading ? "Signing in…" : "Sign In"}
               </button>
-            </div>
+              <div style={{ textAlign: "center", marginBottom: 8 }}>
+                <button style={linkStyle} onClick={() => { setMode("reset"); setErr(""); setOk(""); }}>Forgot password?</button>
+              </div>
+              <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "14px 0" }} />
+              <div style={{ fontSize: 12, color: "#64748B", textAlign: "center" }}>
+                No account?{" "}
+                <button style={linkStyle} onClick={() => { setMode("signup"); setErr(""); setOk(""); }}>Request access</button>
+              </div>
+            </>
+          )}
+
+          {mode === "signup" && (
+            <>
+              <div style={{ fontSize: 21, fontWeight: 800, color: "#F0F4FA", marginBottom: 4, letterSpacing: "-0.5px", fontFamily: "'Syne','DM Sans',sans-serif" }}>Start your free trial</div>
+              <div style={{ fontSize: 13, color: "#64748B", marginBottom: 20 }}>14 days free · Cancel anytime</div>
+              <label style={labelStyle}>Your name</label>
+              <input className="auth-input" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
+              <label style={labelStyle}>Work email</label>
+              <input className="auth-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@agency.gov" style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
+              <label style={labelStyle}>Organization name</label>
+              <input className="auth-input" type="text" value={org} onChange={(e) => setOrg(e.target.value)} placeholder="County Emergency Management" style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
+              <label style={labelStyle}>Password</label>
+              <input className="auth-input" type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="8+ characters" style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
+              <label style={labelStyle}>Confirm password</label>
+              <input className="auth-input" type="password" value={pass2} onChange={(e) => setPass2(e.target.value)} placeholder="Repeat password" style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
+              <button style={{ ...btnPrimary, opacity: loading ? 0.7 : 1 }} disabled={loading}
+                onMouseEnter={(e) => { if (!loading) { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 6px 22px rgba(62,207,207,0.4)"; }}}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(62,207,207,0.3)"; }}
+              >{loading ? "Setting up…" : "Start Free Trial"}</button>
+              <div style={{ fontSize: 12, color: "#64748B", textAlign: "center" }}>
+                Have an account?{" "}
+                <button style={linkStyle} onClick={() => { setMode("login"); setErr(""); setOk(""); }}>Sign in</button>
+              </div>
+            </>
+          )}
+
+          {mode === "reset" && (
+            <>
+              <div style={{ fontSize: 21, fontWeight: 800, color: "#F0F4FA", marginBottom: 4, letterSpacing: "-0.5px", fontFamily: "'Syne','DM Sans',sans-serif" }}>Reset password</div>
+              <div style={{ fontSize: 13, color: "#64748B", marginBottom: 22 }}>We'll send a reset link to your email</div>
+              <label style={labelStyle}>Work email</label>
+              <input className="auth-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@agency.gov" style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
+              {!ok && <button style={btnPrimary}>{loading ? "Sending…" : "Send Reset Link"}</button>}
+              <button onClick={() => { setMode("login"); setErr(""); setOk(""); }} style={{
+                width: "100%", padding: 11, background: "none", color: "#94A3B8",
+                border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 13,
+                cursor: "pointer", transition: "all 0.15s", fontFamily: "'DM Sans', sans-serif",
+              }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = `rgba(62,207,207,0.3)`; e.currentTarget.style.color = T.teal; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "#94A3B8"; }}
+              >← Back to Sign In</button>
+            </>
+          )}
+        </div>
+
+        {/* Footer badges */}
+        <div style={{ textAlign: "center", marginTop: 20 }}>
+          <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#334155", justifyContent: "center", fontFamily: "'DM Mono', monospace", letterSpacing: "0.06em" }}>
+            <span>EMAP EMS 5-2022</span>
+            <span>HSEEP Aligned</span>
+            <span>FEMA Compatible</span>
           </div>
         </div>
       </div>
@@ -25313,1049 +25171,123 @@ function FirstRunWelcome({ onDone, setView }) {
   );
 }
 
-function Onboarding({ onComplete }) {
-  const [name, setName] = useState('');
-  const [jur, setJur] = useState('');
-  const [state, setState] = useState('');
+// ─── IN-APP DESIGN CONTINUITY PATCH ──────────────────────────────────────────
+/**
+ * Add these CSS classes to elements throughout the app for visual consistency
+ * with the landing page brand tokens.
+ *
+ * Usage examples:
+ *   <h1 className="planrr-headline">Dashboard</h1>
+ *   <span className="planrr-mono-label">EMAP 4.1</span>
+ *   <div className="planrr-card-elevated">...</div>
+ */
+export const IN_APP_STYLE_PATCH = `
+/* ─── IN-APP TOPBAR ─── */
+#planrr-topbar {
+  font-family: 'DM Sans', sans-serif;
+  background: rgba(242,245,247,0.94) !important;
+  backdrop-filter: blur(16px) saturate(1.3) !important;
+  border-bottom: 1px solid rgba(226,232,234,0.7) !important;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.02) !important;
+}
+
+/* Breadcrumb text refinement */
+#planrr-topbar span {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+}
+#planrr-topbar span[style*="fontWeight: 700"] {
+  font-family: 'Syne', 'DM Sans', sans-serif !important;
+  font-size: 14px;
+  color: #111827;
+}
+
+/* ─── IN-APP SIDEBAR ─── */
+#planrr-sidebar {
+  background: linear-gradient(175deg, #1A1F2E 0%, #141922 100%) !important;
+}
+
+/* Sidebar nav item hover glow */
+#planrr-sidebar button:hover {
+  background: rgba(62,207,207,0.07) !important;
+}
+#planrr-sidebar button[style*="color: rgb(62, 207, 207)"] {
+  background: rgba(62,207,207,0.1) !important;
+  border-left-color: #3ECFCF !important;
+}
+
+/* ─── CARDS & SURFACES ─── */
+.planrr-view > * > div[style*="background: rgb(255, 255, 255)"],
+div[style*="background: rgb(255, 255, 255)"][style*="border-radius: 14px"] {
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.04),
+    0 4px 12px rgba(0,0,0,0.02),
+    inset 0 1px 0 rgba(255,255,255,0.9) !important;
+}
+
+/* ─── SECTION HEADERS ─── */
+h1[style*="fontWeight: 800"] {
+  font-family: 'Syne', 'DM Sans', sans-serif !important;
+  letter-spacing: -0.5px !important;
+}
+
+/* ─── TAGS & BADGES ─── */
+span[style*="fontWeight: 700"][style*="fontSize: 9"] {
+  font-family: 'DM Mono', monospace !important;
+  letter-spacing: 0.08em !important;
+}
+
+/* ─── STANDARD ID BADGES ─── */
+span[style*="background: rgb(255, 251, 235)"][style*="fontWeight: 800"] {
+  font-family: 'DM Mono', monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.06em !important;
+}
+
+/* ─── COMPLIANCE PROGRESS BARS ─── */
+div[style*="background: linear-gradient(90deg, rgb(62, 207, 207)"] {
+  box-shadow: 0 0 8px rgba(62,207,207,0.3) !important;
+}
+
+/* ─── AI BLOCKS ─── */
+div[style*="borderLeft: 3px solid rgb(62, 207, 207)"] {
+  border-radius: 0 10px 10px 0 !important;
+}
+
+/* ─── FOCUS STATES ─── */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid #3ECFCF !important;
+  outline-offset: 2px !important;
+}
+`;
+
+// ─── PREVIEW COMPONENT ────────────────────────────────────────────────────────
+/**
+ * This default export shows the design tokens and key components for review.
+ * Replace with your actual LandingPage in production.
+ */
+export default function DesignSystemPreview() {
+  const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState("login");
+
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: B.sidebar,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 100,
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          width: 400,
-          height: 400,
-          borderRadius: '50%',
-          background: `radial-gradient(circle,${B.teal}12,transparent 70%)`,
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%,-50%)',
-          pointerEvents: 'none',
-        }}
+    <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#0E0E0E", minHeight: "100vh" }}>
+      <style>{GLOBAL_CSS}</style>
+      <LandingPageV2
+        onLogin={() => { setAuthMode("login"); setShowAuth(true); }}
+        onSignup={() => { setAuthMode("signup"); setShowAuth(true); }}
+        onBuyPlan={(plan) => { setAuthMode("signup"); setShowAuth(true); }}
       />
-      <div
-        style={{
-          background: 'rgba(255,255,255,0.97)',
-          border: `1px solid ${B.border}`,
-          borderRadius: 16,
-          padding: 44,
-          width: 480,
-          boxShadow: '0 32px 80px rgba(0,0,0,0.3)',
-          position: 'relative',
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: 12,
-              marginBottom: 16,
-            }}
-          >
-            <div
-              style={{
-                background: B.sidebar,
-                borderRadius: 12,
-                padding: '9px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <BrainIcon size={28} strokeWidth={1.3} />
-            </div>
-            <Wordmark size="lg" />
-          </div>
-          <p style={{ fontSize: 14, color: B.muted, lineHeight: 1.65 }}>
-            AI-powered EM program management - EMAP accreditation, exercises &
-            AARs, personnel credentialing, and operations in one place.
-          </p>
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <Label>Organization Name</Label>
-          <FInput
-            value={name}
-            onChange={setName}
-            placeholder="e.g. County Emergency Management"
-          />
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 10,
-            marginBottom: 24,
-          }}
-        >
-          <div>
-            <Label>Jurisdiction Type</Label>
-            <FSel value={jur} onChange={setJur}>
-              <option value="">Select...</option>
-              {[
-                'State EM Agency',
-                'County / Parish EM',
-                'Municipal EM',
-                'Tribal EM',
-                'Territorial EM',
-                'Federal Agency EM',
-                'Campus / University EM',
-                'Private Sector EM',
-                'Other',
-              ].map((o) => (
-                <option key={o}>{o}</option>
-              ))}
-            </FSel>
-          </div>
-          <div>
-            <Label>State</Label>
-            <FSel value={state} onChange={setState}>
-              <option value="">Select state...</option>
-              {US_STATES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </FSel>
-          </div>
-        </div>
-        <button
-          onClick={() => name.trim() && onComplete(name.trim(), jur, state)}
-          disabled={!name.trim()}
-          style={{
-            width: '100%',
-            background: name.trim() ? B.teal : '#edf2f4',
-            color: name.trim() ? '#fff' : B.faint,
-            border: 'none',
-            borderRadius: 9,
-            padding: '14px',
-            fontSize: 14,
-            fontWeight: 800,
-            cursor: name.trim() ? 'pointer' : 'not-allowed',
-            fontFamily: "'DM Sans',sans-serif",
-            transition: 'all 0.2s',
-            letterSpacing: '0.01em',
-          }}
-        >
-          Plan Smartr -
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------
-   APP ROOT
-------------------------------------------------------- */
-
-/* --- FEEDBACK MODAL ---------------------------------- */
-function FeedbackModal() {
-  const [show, setShow] = useState(false);
-  const [type, setType] = useState('bug');
-  const [text, setText] = useState('');
-  const [sent, setSent] = useState(false);
-  // Check display style via DOM (triggered by topbar button)
-  useEffect(() => {
-    const el = document.getElementById('planrr-feedback');
-    if (el) {
-      const obs = new MutationObserver(() =>
-        setShow(el.style.display === 'flex')
-      );
-      obs.observe(el, { attributes: true, attributeFilter: ['style'] });
-      return () => obs.disconnect();
-    }
-  }, []);
-  const close = () => {
-    document.getElementById('planrr-feedback').style.display = 'none';
-    setSent(false);
-    setText('');
-  };
-  const submit = async () => {
-    if (!text.trim()) return;
-    // Store in localStorage as simple feedback log
-    const fb = JSON.parse(localStorage.getItem('planrr_feedback') || '[]');
-    fb.push({
-      id: uid(),
-      type,
-      text,
-      ts: Date.now(),
-      url: window.location.href,
-    });
-    localStorage.setItem('planrr_feedback', JSON.stringify(fb));
-    setSent(true);
-    setTimeout(close, 2000);
-  };
-  return (
-    <div
-      id="planrr-feedback"
-      style={{
-        display: 'none',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(15,23,42,0.5)',
-        zIndex: 999,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <div
-        style={{
-          background: '#fff',
-          borderRadius: 12,
-          padding: '28px 32px',
-          width: 440,
-          maxWidth: 'calc(100vw - 40px)',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-          fontFamily: 'DM Sans,sans-serif',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 18,
-          }}
-        >
-          <div style={{ fontSize: 16, fontWeight: 700, color: B.text }}>
-            Send Feedback
-          </div>
-          <button
-            onClick={close}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: 18,
-              cursor: 'pointer',
-              color: B.faint,
-            }}
-          >
-            x
-          </button>
-        </div>
-        {sent ? (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '20px 0',
-              color: B.green,
-              fontWeight: 600,
-            }}
-          >
-            Thank you! Feedback received.
-          </div>
-        ) : (
-          <>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-              {[
-                ['bug', 'Bug Report'],
-                ['idea', 'Feature Idea'],
-                ['praise', 'What Works Well'],
-                ['other', 'Other'],
-              ].map(([v, l]) => (
-                <button
-                  key={v}
-                  onClick={() => setType(v)}
-                  style={{
-                    flex: 1,
-                    padding: '7px 4px',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    borderRadius: 6,
-                    border: `1px solid ${type === v ? B.teal : B.border}`,
-                    background: type === v ? B.tealLight : '#f8fafc',
-                    color: type === v ? B.tealDark : B.muted,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-            <FTextarea
-              value={text}
-              onChange={setText}
-              placeholder={
-                type === 'bug'
-                  ? 'Describe what happened and what you expected...'
-                  : type === 'idea'
-                  ? 'Describe the feature you would like to see...'
-                  : type === 'praise'
-                  ? "Tell us what's working well..."
-                  : 'Your feedback...'
-              }
-              rows={4}
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <Btn label="Send Feedback" onClick={submit} primary />
-              <Btn label="Cancel" onClick={close} />
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function AppInner() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [data, setData] = useState(null);
-  const pathView = location.pathname.replace(/^\/app\//, '').replace(/^\//, '') || 'dashboard';
-  const view = VIEW_TITLES[pathView] ? pathView : 'dashboard';
-  const setView = useCallback((v) => {
-    navigate('/app/' + v);
-  }, [navigate]);
-  const [onboarding, setOnboarding] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [subStatus, setSubStatus] = useState(null); // null=loading, 'active'|'trialing'|'none'
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [authed, setAuthed] = useState(() => {
-    const status = isLoggedIn();
-    return status === true || status === 'needs_refresh';
-  });
-  const [sessionExpired, setSessionExpired] = useState(false);
-  const [firstRun, setFirstRun] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem('planrr_sidebar_collapsed') === '1'; } catch { return false; }
-  });
-  const toggleCollapse = () => {
-    setSidebarCollapsed(p => {
-      const next = !p;
-      try { localStorage.setItem('planrr_sidebar_collapsed', next ? '1' : '0'); } catch {}
-      return next;
-    });
-  };
-  const saveTimer = useRef(null);
-  const refreshTimer = useRef(null);
-
-  useEffect(() => {
-    if (!authed) return;
-    const scheduleRefresh = () => {
-      clearTimeout(refreshTimer.current);
-      const exp = getTokenExpiry();
-      const msUntilRefresh = Math.max((exp - Date.now()) - 60000, 5000);
-      refreshTimer.current = setTimeout(async () => {
-        const ok = await sbRefreshToken();
-        if (ok) {
-          scheduleRefresh();
-        } else {
-          setSessionExpired(true);
-        }
-      }, msUntilRefresh);
-    };
-    const init = async () => {
-      const status = isLoggedIn();
-      if (status === 'needs_refresh') {
-        const ok = await sbRefreshToken();
-        if (!ok) { setAuthed(false); return; }
-      }
-      scheduleRefresh();
-    };
-    init();
-    return () => clearTimeout(refreshTimer.current);
-  }, [authed]);
-
-  useEffect(() => {
-    if (!authed) {
-      setLoaded(true);
-      return;
-    }
-    const token = getAccessToken();
-    if (token) {
-      fetch(SB_URL + '/rest/v1/subscriptions?select=status,trial_end,current_period_end&limit=1', {
-        headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-      }).then(r => r.ok ? r.json() : []).then(rows => {
-        if (rows.length > 0) {
-          const s = rows[0];
-          if (s.status === 'active' || s.status === 'trialing') {
-            setSubStatus(s.status);
-          } else if (s.status === 'past_due' || s.status === 'canceled') {
-            setSubStatus('expired');
-          } else {
-            setSubStatus(s.status || 'none');
-          }
-        } else {
-          setSubStatus('none');
-        }
-      }).catch(() => setSubStatus('none'));
-    } else {
-      setSubStatus('none');
-    }
-    loadData().then((d) => {
-      if (d) {
-        const stds = {};
-        ALL_STANDARDS.forEach((s) => {
-          stds[s.id] = d.standards?.[s.id] || initRecord();
-        });
-        const loaded = {
-          ...initData(),
-          ...d,
-          standards: stds,
-          employees: d.employees || [],
-          grants: d.grants || [],
-          thira: d.thira || { hazards: [], lastUpdated: '', nextDue: '' },
-          capItems: d.capItems || [],
-          activityLog: d.activityLog || [],
-          journey: d.journey || {},
-          incidents: d.incidents || [],
-        };
-        const synced = syncStandardsFromOps(loaded);
-        if (synced) loaded.standards = synced;
-        setData(loaded);
-        setCurrentDataRef(loaded);
-        if (!d.orgName) setOnboarding(true);
-        else if (!d.welcomeDismissed) setFirstRun(true);
-      } else {
-        const stds = {};
-        ALL_STANDARDS.forEach((s) => {
-          stds[s.id] = initRecord();
-        });
-        setData({ ...initData(), standards: stds });
-        setOnboarding(true);
-      }
-      setLoaded(true);
-    });
-  }, [authed]);
-  const updateData = useCallback((updater) => {
-    setData((prev) => {
-      const next =
-        typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
-      const synced = syncStandardsFromOps(next);
-      const final = synced ? { ...next, standards: synced } : next;
-      const autoLog = [];
-      const track = [
-        ['training', 'training', 'Training record'],
-        ['exercises', 'exercises', 'Exercise'],
-        ['partners', 'partners', 'Partner agreement'],
-        ['plans', 'plans', 'Plan'],
-        ['employees', 'employees', 'Personnel record'],
-        ['resources', 'resources', 'Resource'],
-      ];
-      track.forEach(([key, mod, label]) => {
-        const pLen = (prev[key] || []).length;
-        const nLen = (final[key] || []).length;
-        if (nLen > pLen) autoLog.push({ type: 'created', module: mod, detail: `${label} added (${nLen} total)` });
-        else if (nLen < pLen) autoLog.push({ type: 'deleted', module: mod, detail: `${label} removed (${nLen} total)` });
-      });
-      if (autoLog.length > 0 && final.activityLog) {
-        const entries = autoLog.map(a => ({ id: uid(), ts: Date.now(), ...a }));
-        final.activityLog = [...entries, ...final.activityLog].slice(0, 200);
-      }
-      clearTimeout(saveTimer.current);
-      setCurrentDataRef(final);
-      saveTimer.current = setTimeout(() => saveData(final), 500);
-      return final;
-    });
-  }, []);
-  // Update document title on view change
-  useEffect(() => {
-    const title = VIEW_TITLES[view] || 'Dashboard';
-    document.title = `${title} | planrr.app`;
-  }, [view]);
-  // Global search keyboard shortcut
-  useEffect(() => {
-    const h = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
-    };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, []);
-  const handleOnboard = useCallback((name, jur, state) => {
-    const stds = {};
-    ALL_STANDARDS.forEach((s) => {
-      stds[s.id] = initRecord();
-    });
-    const d = {
-      ...initData(),
-      orgName: name,
-      jurisdiction: jur,
-      state,
-      standards: stds,
-    };
-    setData(d);
-    setOnboarding(false);
-    setFirstRun(true);
-    saveData(d);
-  }, []);
-  const [authMode, setAuthMode] = useState(null); // null | "login" | "signup"
-  if (!authed)
-    return (
-      <>
-        <LandingPage
-          onLogin={() => setAuthMode('login')}
-          onSignup={() => setAuthMode('signup')}
-          onBuy={() => setAuthMode('signup')}
-          onBuyPlan={(planId) => {
-            sessionStorage.setItem('planrr_pending_plan', planId);
-            setAuthMode('signup');
-          }}
-        />
-        {authMode && (
-          <>
-            <div
-              onClick={() => setAuthMode(null)}
-              style={{
-                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                background: 'rgba(15,17,19,0.75)', backdropFilter: 'blur(6px)',
-                zIndex: 200, cursor: 'pointer',
-              }}
-            />
-            <div style={{
-              position: 'fixed', top: '50%', left: '50%',
-              transform: 'translate(-50%,-50%)', zIndex: 201,
-              width: 440, maxWidth: 'calc(100vw - 32px)',
-              maxHeight: 'calc(100vh - 40px)', overflowY: 'auto',
-              animation: 'fadeUp 0.25s ease',
-            }}>
-              <AuthScreen
-                onAuth={() => {
-                  setLoaded(false);
-                  setAuthed(true);
-                  setAuthMode(null);
-                  const pendingPlan = sessionStorage.getItem('planrr_pending_plan');
-                  if (pendingPlan) {
-                    sessionStorage.removeItem('planrr_pending_plan');
-                    const link = STRIPE_BUY_LINKS[pendingPlan];
-                    if (link) {
-                      try {
-                        const s = JSON.parse(localStorage.getItem('sb_session') || '{}');
-                        const email = s?.user?.email || '';
-                        const url = email ? `${link}?prefilled_email=${encodeURIComponent(email)}` : link;
-                        window.location.href = url;
-                      } catch {
-                        window.location.href = link;
-                      }
-                      return;
-                    }
-                  }
-                  navigate('/app/dashboard');
-                }}
-                initialMode={authMode}
-                onClose={() => setAuthMode(null)}
-              />
-            </div>
-          </>
-        )}
-      </>
-    );
-  if (!loaded)
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          background: B.sidebar,
-          flexDirection: 'column',
-          gap: 14,
-        }}
-      >
-        <div
-          style={{
-            background: 'rgba(255,255,255,0.05)',
-            borderRadius: 14,
-            padding: '14px',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <BrainIcon size={34} strokeWidth={1.2} />
-        </div>
-        <Wordmark dark size="md" />
-        <div style={{ color: B.sidebarMuted, fontSize: 12 }}>
-          Loading your program...
-        </div>
-      </div>
-    );
-  if (onboarding)
-    return <Onboarding onComplete={handleOnboard} />;
-  if (subStatus === 'none' || subStatus === 'expired') {
-    return (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100vh', background: B.sidebar, flexDirection: 'column', gap: 16,
-        fontFamily: "'DM Sans',sans-serif", padding: 20,
-      }}>
-        <BrainIcon size={40} strokeWidth={1.2} />
-        <Wordmark dark size="lg" />
-        <div style={{ maxWidth: 400, textAlign: 'center', marginTop: 8 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: '#f0f4fa', marginBottom: 8 }}>
-            {subStatus === 'expired' ? 'Your subscription has ended' : 'Choose a plan to get started'}
-          </div>
-          <div style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7, marginBottom: 24 }}>
-            {subStatus === 'expired'
-              ? 'Your subscription is no longer active. Resubscribe to continue using planrr.app. Your data is safe and waiting.'
-              : 'Start your 14-day free trial to access all features. No credit card required upfront — cancel anytime.'}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { label: 'Solo Operator — $79/mo', plan: 'solo' },
-              { label: 'Small Team — $149/mo', plan: 'small_team' },
-              { label: 'Full Program — $199/mo', plan: 'full_program' },
-            ].map(p => (
-              <button key={p.plan} onClick={() => {
-                const link = STRIPE_BUY_LINKS[p.plan];
-                if (link) {
-                  try {
-                    const s = JSON.parse(localStorage.getItem('sb_session') || '{}');
-                    const email = s?.user?.email || '';
-                    window.location.href = email ? `${link}?prefilled_email=${encodeURIComponent(email)}` : link;
-                  } catch { window.location.href = link; }
-                }
-              }} style={{
-                background: p.plan === 'small_team' ? GOLD : 'rgba(255,255,255,0.06)',
-                color: p.plan === 'small_team' ? '#141719' : '#f0f4fa',
-                border: p.plan === 'small_team' ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 10, padding: '14px 20px', fontSize: 14, fontWeight: 700,
-                cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s',
-              }}>{p.label}{p.plan === 'small_team' ? ' — Most Popular' : ''}</button>
-            ))}
-          </div>
-          <button onClick={sbSignOut} style={{
-            background: 'none', border: 'none', color: '#64748b', fontSize: 12,
-            cursor: 'pointer', marginTop: 16, padding: '4px 8px',
-          }}>Sign out</button>
-        </div>
-      </div>
-    );
-  }
-  const checkoutSuccess = new URLSearchParams(window.location.search).get('checkout') === 'success';
-  const notifications = buildNotifications(data);
-  return (
-    <div
-      style={{
-        display: 'flex',
-        background: B.bg,
-        minHeight: '100vh',
-        fontFamily: "'DM Sans',sans-serif",
-      }}
-    >
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800;9..40,900&family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=Oxanium:wght@700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0;}:focus-visible{outline:2px solid #1BC9C4;outline-offset:2px;border-radius:4px}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:${B.bg};}::-webkit-scrollbar-thumb{background:#cdd6da;border-radius:3px;}#planrr-sidebar ::-webkit-scrollbar{width:4px;}#planrr-sidebar ::-webkit-scrollbar-track{background:transparent;}#planrr-sidebar ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px;}#planrr-sidebar ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2);}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes typingDot{0%,60%,100%{transform:translateY(0);opacity:0.4}30%{transform:translateY(-3px);opacity:1}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@media print{#planrr-sidebar{display:none!important}#planrr-topbar{display:none!important}#planrr-main{margin-left:0!important}}@media(max-width:1024px){#planrr-sidebar{position:fixed!important;left:-260px!important;transition:left 0.25s ease!important;z-index:100!important}#planrr-sidebar.open{left:0!important}#planrr-main{margin-left:0!important}.planrr-menu-toggle{display:flex!important}.planrr-sidebar-overlay{display:block!important}}@media(max-width:768px){.planrr-pricing-grid{grid-template-columns:1fr!important}.planrr-features-grid{grid-template-columns:1fr!important}.planrr-stats-strip{grid-template-columns:repeat(2,1fr)!important}.planrr-security-grid{grid-template-columns:1fr!important}.planrr-landing-header{padding:14px 16px!important}.planrr-landing-hero{padding:48px 20px 40px!important}.planrr-landing-section{padding:48px 20px!important}}@media(max-width:480px){.planrr-stats-strip{grid-template-columns:1fr!important}}`}</style>
-      {sidebarOpen && (
-        <div
-          onClick={() => setSidebarOpen(false)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.4)',
-            zIndex: 99,
-            display: 'none',
-          }}
-          className="planrr-sidebar-overlay"
+      {showAuth && (
+        <AuthScreenFixed
+          initialMode={authMode}
+          onClose={() => setShowAuth(false)}
+          onAuth={() => { setShowAuth(false); alert("Auth successful!"); }}
         />
       )}
-      <div id="planrr-sidebar" className={sidebarOpen ? 'open' : ''} style={sidebarCollapsed ? { width: 64 } : undefined}>
-        <Sidebar
-          view={view}
-          setView={(v) => { setView(v); setSidebarOpen(false); }}
-          data={data}
-          notifCount={notifications.length}
-          orgName={data.orgName}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={toggleCollapse}
-          onEditOrg={() => {
-            const n = prompt('Organization name:', data.orgName);
-            if (n) updateData((p) => ({ ...p, orgName: n }));
-          }}
-        />
-      </div>
-      <div
-        id="planrr-main"
-        style={{
-          marginLeft: sidebarCollapsed ? 64 : 244,
-          flex: 1,
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'stretch',
-          transition: 'margin-left 0.2s ease',
-        }}
-      >
-        <div
-          id="planrr-topbar"
-          style={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 30,
-            background: 'rgba(240,244,245,0.92)',
-            backdropFilter: 'blur(12px)',
-            borderBottom: `1px solid rgba(226,232,234,0.8)`,
-            height: 52,
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 32px',
-            gap: 12,
-          }}
-        >
-          <button
-            className="planrr-menu-toggle"
-            onClick={() => setSidebarOpen((p) => !p)}
-            style={{
-              display: 'none',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 20,
-              color: B.text,
-              padding: 4,
-              marginRight: 4,
-            }}
-            aria-label="Toggle sidebar"
-          >
-            ☰
-          </button>
-          <div
-            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}
-          >
-            <span style={{ fontSize: 13, color: B.faint, fontWeight: 500 }}>
-              {data.orgName && (
-                <>
-                  <span style={{ color: B.text, fontWeight: 700 }}>
-                    {data.orgName}
-                  </span>
-                  <span style={{ margin: '0 8px', color: '#d1d5db' }}>/</span>
-                </>
-              )}
-              {view === 'journey' && 'Accreditation Journey'}
-              {view === 'dashboard' && 'Dashboard'}
-              {view === 'accreditation' && 'EMAP Standards'}
-              {view === 'intake' && 'Bulk Document Intake'}
-              {view === 'package' && 'Accreditation Package Builder'}
-              {view === 'training' && 'Training Manager'}
-              {view === 'exercises' && 'Exercises & AARs'}
-              {view === 'partners' && 'Partner Registry'}
-              {view === 'plans' && 'Plans & SOPs'}
-              {view === 'resources' && 'Resources'}
-              {view === 'employees' && 'Personnel'}
-              {view === 'calendar' && 'Program Calendar'}
-              {view === 'reports' && 'Compliance Report'}
-              {view === 'assistant' && 'AI Assistant'}
-              {view === 'grants' && 'Grants & Funding'}
-              {view === 'thira' && 'Hazard Analysis'}
-              {view === 'cap' && 'Corrective Action Program'}
-              {view === 'activity' && 'Activity Log'}
-              {view === 'settings' && 'My Program'}
-              {view === 'templates' && 'Document Templates'}
-              {view === 'evidence' && 'Evidence Export'}
-              {view === 'recovery' && 'Recovery Planning'}
-              {view === 'mutualaid' && 'Mutual Aid Map'}
-            </span>
-          </div>
-          {/* Search button */}
-          <button
-            onClick={() => setSearchOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              background: '#f4f7f8',
-              border: `1px solid ${B.border}`,
-              borderRadius: 8,
-              padding: '5px 12px',
-              cursor: 'pointer',
-              fontSize: 12,
-              color: B.faint,
-              fontFamily: "'DM Sans',sans-serif",
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = B.teal)}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = B.border)}
-          >
-            <svg
-              width={13}
-              height={13}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={B.faint}
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            Search
-            <kbd
-              style={{
-                fontSize: 9,
-                color: B.faint,
-                background: '#e8ecee',
-                border: `1px solid ${B.border}`,
-                borderRadius: 3,
-                padding: '1px 4px',
-                lineHeight: 1.4,
-              }}
-            >
-              -K
-            </kbd>
-          </button>
-          {notifications.length > 0 && (
-            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-              {notifications.slice(0, 2).map((n) => (
-                <div
-                  key={n.id}
-                  onClick={() => setView(n.module)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    background:
-                      n.urgency === 'overdue' || n.urgency === 'urgent'
-                        ? B.redLight
-                        : B.amberLight,
-                    border: `1px solid ${
-                      n.urgency === 'overdue' || n.urgency === 'urgent'
-                        ? B.redBorder
-                        : B.amberBorder
-                    }`,
-                    borderRadius: 8,
-                    padding: '3px 9px',
-                    cursor: 'pointer',
-                    fontSize: 11,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 5,
-                      height: 5,
-                      borderRadius: '50%',
-                      background:
-                        n.urgency === 'ok'
-                          ? B.green
-                          : n.urgency === 'soon'
-                          ? B.amber
-                          : B.red,
-                    }}
-                  />
-                  <span
-                    style={{
-                      color:
-                        n.urgency === 'overdue' || n.urgency === 'urgent'
-                          ? B.red
-                          : '#92400e',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {n.title}
-                  </span>
-                </div>
-              ))}
-              {notifications.length > 2 && (
-                <span style={{ fontSize: 11, color: B.faint }}>
-                  +{notifications.length - 2}
-                </span>
-              )}
-            </div>
-          )}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              opacity: 0.4,
-            }}
-          >
-            <BrainIcon size={11} color={B.teal} strokeWidth={1.5} />
-            <span
-              style={{
-                fontSize: 9,
-                fontWeight: 800,
-                color: B.muted,
-                letterSpacing: '0.1em',
-              }}
-            >
-              PLANRR
-            </span>
-          </div>
-          <button
-            onClick={sbSignOut}
-            style={{
-              fontSize: 11,
-              color: B.faint,
-              background: 'none',
-              border: '1px solid ' + B.border,
-              borderRadius: 7,
-              padding: '4px 10px',
-              cursor: 'pointer',
-              marginLeft: 6,
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = B.red;
-              e.currentTarget.style.color = B.red;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = B.border;
-              e.currentTarget.style.color = B.faint;
-            }}
-          >
-            Sign out
-          </button>
-        </div>
-        {checkoutSuccess && (
-          <div style={{
-            background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8,
-            padding: '12px 20px', margin: '8px 32px 0', display: 'flex',
-            alignItems: 'center', justifyContent: 'space-between', gap: 12,
-          }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#065F46', marginBottom: 2 }}>Welcome to planrr.app!</div>
-              <div style={{ fontSize: 12, color: '#047857' }}>Your subscription is active with a 14-day free trial. Start building your program.</div>
-            </div>
-            <button onClick={() => { window.history.replaceState({}, '', window.location.pathname); window.location.reload(); }} style={{
-              background: B.teal, color: '#fff', border: 'none', borderRadius: 6,
-              padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
-            }}>Got it</button>
-          </div>
-        )}
-        {sessionExpired && (
-          <div style={{
-            background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8,
-            padding: '10px 20px', margin: '8px 32px 0', display: 'flex',
-            alignItems: 'center', justifyContent: 'space-between', gap: 12,
-          }}>
-            <span style={{ fontSize: 13, color: '#92400e' }}>
-              Your session has expired. Please sign in again to continue syncing your data.
-            </span>
-            <button onClick={() => { sbSignOut(); }} style={{
-              background: GOLD, color: '#141719', border: 'none', borderRadius: 6,
-              padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}>Sign In Again</button>
-          </div>
-        )}
-        <div
-          style={{
-            animation: 'fadeUp 0.3s ease',
-            maxWidth: 1400,
-            width: '100%',
-            alignSelf: 'center',
-            flex: 1,
-          }}
-        >
-          {view === 'journey' && (
-            <AccreditationJourney
-              data={data}
-              updateData={updateData}
-              setView={setView}
-            />
-          )}
-          {view === 'dashboard' && (
-            <Dashboard data={data} setView={setView} orgName={data.orgName} updateData={updateData} />
-          )}
-          {view === 'accreditation' && (
-            <AccreditationView data={data} updateData={updateData} />
-          )}
-          {view === 'intake' && (
-            <BulkIntake data={data} updateData={updateData} />
-          )}
-          {view === 'package' && (
-            <PackageBuilder data={data} setView={setView} />
-          )}
-          {view === 'training' && (
-            <TrainingManager data={data} setData={updateData} />
-          )}
-          {view === 'exercises' && (
-            <ExerciseManager data={data} setData={updateData} />
-          )}
-          {view === 'partners' && (
-            <PartnerRegistry data={data} setData={updateData} />
-          )}
-          {view === 'plans' && <PlanLibrary data={data} setData={updateData} />}
-          {view === 'resources' && (
-            <ResourcesView data={data} setData={updateData} />
-          )}
-          {view === 'employees' && (
-            <EmployeesView data={data} setData={updateData} />
-          )}
-          {view === 'calendar' && <ProgramCalendar data={data} />}
-          {view === 'reports' && (
-            <ReportsView data={data} orgName={data.orgName} />
-          )}
-          {view === 'assistant' && (
-            <AiAssistantView data={data} orgName={data.orgName} />
-          )}
-          {view === 'grants' && (
-            <GrantTracker data={data} setData={updateData} />
-          )}
-          {view === 'thira' && <ThiraView data={data} setData={updateData} />}
-          {view === 'cap' && <CapDashboard data={data} setData={updateData} />}
-          {view === 'activity' && (
-            <ActivityLogView data={data} setData={updateData} />
-          )}
-          {view === 'settings' && (
-            <SettingsView data={data} updateData={updateData} />
-          )}
-          {view === 'templates' && (
-            <DocTemplatesView data={data} orgName={data.orgName} />
-          )}
-          {view === 'evidence' && (
-            <EvidenceExportView data={data} orgName={data.orgName} />
-          )}
-          {view === 'recovery' && (
-            <RecoveryPlanningView data={data} setData={updateData} />
-          )}
-          {view === 'mutualaid' && (
-            <MutualAidView data={data} setData={updateData} />
-          )}
-        </div>
-        {firstRun && !onboarding && (
-          <FirstRunWelcome
-            onDone={() => {
-              setFirstRun(false);
-              updateData({ welcomeDismissed: true });
-            }}
-            setView={setView}
-          />
-        )}
-        <FeedbackModal />
-
-        {searchOpen && (
-          <GlobalSearch
-            data={data}
-            setView={(v) => {
-              setView(v);
-            }}
-            onClose={() => setSearchOpen(false)}
-          />
-        )}
-      </div>
     </div>
-  );
-}
-
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <Routes>
-        <Route path="/privacy" element={<PrivacyPolicy />} />
-        <Route path="/terms" element={<TermsOfService />} />
-        <Route path="/report" element={<SharedReport />} />
-        <Route path="/founder" element={<Founder />} />
-        <Route path="/faq" element={<FAQ />} />
-        <Route path="/app/*" element={<AppInner />} />
-        <Route path="/*" element={<AppInner />} />
-      </Routes>
-    </ErrorBoundary>
   );
 }
