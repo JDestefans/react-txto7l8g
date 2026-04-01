@@ -25400,50 +25400,32 @@ function AppInner() {
           }}
         />
         {authMode && (
-          <>
-            <div
-              onClick={() => setAuthMode(null)}
-              style={{
-                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                background: 'rgba(15,17,19,0.75)', backdropFilter: 'blur(6px)',
-                zIndex: 200, cursor: 'pointer',
-              }}
-            />
-            <div style={{
-              position: 'fixed', top: '50%', left: '50%',
-              transform: 'translate(-50%,-50%)', zIndex: 201,
-              width: 440, maxWidth: 'calc(100vw - 32px)',
-              maxHeight: 'calc(100vh - 40px)', overflowY: 'auto',
-              animation: 'fadeUp 0.25s ease',
-            }}>
-              <AuthScreen
-                onAuth={() => {
-                  setLoaded(false);
-                  setAuthed(true);
-                  setAuthMode(null);
-                  const pendingPlan = sessionStorage.getItem('planrr_pending_plan');
-                  if (pendingPlan) {
-                    sessionStorage.removeItem('planrr_pending_plan');
-                    const link = STRIPE_BUY_LINKS[pendingPlan];
-                    if (link) {
-                      try {
-                        const s = JSON.parse(localStorage.getItem('sb_session') || '{}');
-                        const email = s?.user?.email || s?.email || '';
-                        const url = email ? `${link}?prefilled_email=${encodeURIComponent(email)}` : link;
-                        window.location.href = url;
-                      } catch {
-                        window.location.href = link;
-                      }
-                      return;
-                    }
+          <AuthScreen
+            onAuth={() => {
+              setLoaded(false);
+              setAuthed(true);
+              setAuthMode(null);
+              const pendingPlan = sessionStorage.getItem('planrr_pending_plan');
+              if (pendingPlan) {
+                sessionStorage.removeItem('planrr_pending_plan');
+                const link = STRIPE_BUY_LINKS[pendingPlan];
+                if (link) {
+                  try {
+                    const s = JSON.parse(localStorage.getItem('sb_session') || '{}');
+                    const email = s?.user?.email || s?.email || '';
+                    const url = email ? `${link}?prefilled_email=${encodeURIComponent(email)}` : link;
+                    window.location.href = url;
+                  } catch {
+                    window.location.href = link;
                   }
-                  navigate('/app/dashboard');
-                }}
-                initialMode={authMode}
-                onClose={() => setAuthMode(null)}
-              />
-            </div>
-          </>
+                  return;
+                }
+              }
+              navigate('/app/dashboard');
+            }}
+            initialMode={authMode}
+            onClose={() => setAuthMode(null)}
+          />
         )}
       </>
     );
