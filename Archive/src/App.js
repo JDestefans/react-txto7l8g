@@ -1,23 +1,101 @@
-import React from 'react';
+import React, { Component } from 'react';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useNavigate, useLocation, Routes, Route, Navigate, Link } from 'react-router-dom';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
+import SharedReport from './pages/SharedReport';
+import Founder from './pages/Founder';
+import FAQ from './pages/FAQ';
+import { STARTER_PACKS, applyStarterPack } from './data/starterPacks';
+import { downloadICal } from './services/calendar';
+import { buildShareURL } from './services/shareReport';
+import { buildGrantNarrativePrompt } from './services/grantHelper';
+import SAGE from './components/SAGE';
+// pdfExtract loaded dynamically to avoid Jest import.meta issues
 
-/* ─── BRAND (fixed contrast) ─────────────────────────── */
+/* --- ERROR BOUNDARY ----------------------------------- */
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          height: '100vh', background: '#1C1F22', flexDirection: 'column', gap: 16,
+          fontFamily: "'DM Sans',sans-serif",
+        }}>
+          <div style={{ fontSize: 48 }}>⚠</div>
+          <div style={{ color: '#f0f4fa', fontSize: 20, fontWeight: 700 }}>Something went wrong</div>
+          <div style={{ color: '#94a3b8', fontSize: 14, maxWidth: 400, textAlign: 'center', lineHeight: 1.6 }}>
+            An unexpected error occurred. Please reload the page to continue.
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: 8, background: GOLD, color: '#141719', border: 'none',
+              padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/* --- VIEW TITLES (for document.title) ----------------- */
+const VIEW_TITLES = {
+  dashboard: 'Dashboard',
+  accreditation: 'EMAP Standards',
+  intake: 'Bulk Document Intake',
+  package: 'Accreditation Package Builder',
+  training: 'Training Manager',
+  exercises: 'Exercises & AARs',
+  partners: 'Partner Registry',
+  plans: 'Plans & SOPs',
+  resources: 'Resources',
+  employees: 'Personnel',
+  calendar: 'Program Calendar',
+  reports: 'Compliance Report',
+  assistant: 'AI Assistant',
+  grants: 'Grants & Funding',
+  thira: 'Hazard Analysis',
+  cap: 'Corrective Action Program',
+  activity: 'Activity Log',
+  settings: 'My Program',
+  templates: 'Document Templates',
+  evidence: 'Evidence Export',
+  recovery: 'Recovery Planning',
+  mutualaid: 'Mutual Aid Map',
+  journey: 'Accreditation Journey',
+  sage: 'SAGE — AI Partner',
+};
+
+/* --- BRAND (fixed contrast) --------------------------- */
 const B = {
-  teal: '#1BC9C4',
-  tealDark: '#13A8A4',
+  teal: '#3ECFCF',
+  tealDark: '#2BAEAE',
   tealLight: '#E6FAFA',
-  tealBorder: '#9EECEA',
-  bg: '#F0F4F5',
+  tealBorder: 'rgba(62,207,207,0.28)',
+  bg: '#F2F5F7',
   card: '#FFFFFF',
   border: '#E2E8EA',
   text: '#111827',
   muted: '#374151',
-  faint: '#6B7280', // ← fixed contrast
-  sidebar: '#1C1F22',
-  sidebarMid: '#252A2E',
-  sidebarBorder: '#2E3439',
+  faint: '#6B7280',
+  sidebar: '#1A1F2E',
+  sidebarMid: '#242B3D',
+  sidebarBorder: '#2A3550',
   sidebarMuted: '#94A3B8',
-  green: '#10B981',
+  green: '#22C55E',
   greenLight: '#ECFDF5',
   greenBorder: '#A7F3D0',
   amber: '#F59E0B',
@@ -68,35 +146,95 @@ const ST = {
   },
 };
 
-/* ─── WORDMARK + PLACEHOLDER MARK ────────────────────── */
-const GOLD = '#c2964a';
+/* --- WORDMARK + PLACEHOLDER MARK ---------------------- */
+const GOLD = '#C49A3C';
 
-/* Minimal square mark — placeholder until final logo is locked */
-const BrainIcon = ({ size = 28, color = B.teal, strokeWidth = 1.2 }) => (
-  <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-    <rect
-      x="1.5"
-      y="1.5"
-      width="29"
-      height="29"
-      rx="6"
-      stroke={color}
-      strokeWidth={strokeWidth}
-      fill="none"
-    />
-    <text
-      x="16"
-      y="23"
-      textAnchor="middle"
-      fill={color}
-      fontSize="17"
-      fontWeight="800"
-      fontFamily="'Syne','DM Sans',sans-serif"
-    >
-      P
-    </text>
-  </svg>
-);
+/* --- GLOBAL CSS ─────────────────────────────────────────────────────────────
+   Injected into <head> by AppInner on mount.
+   Handles: fonts, topbar glass, sidebar gradient, auth modal jank fix.
+──────────────────────────────────────────────────────────────────────────── */
+const GLOBAL_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Syne:wght@700;800;900&family=Oxanium:wght@700;800&display=swap');
+:root {
+  --teal: #3ECFCF; --teal-dark: #2BAEAE; --gold: #C49A3C;
+  --font-body: 'DM Sans', sans-serif;
+  --font-display: 'Syne', 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --font-mark: 'Oxanium', 'DM Sans', sans-serif;
+}
+#planrr-topbar {
+  background: rgba(242,245,247,0.94) !important;
+  backdrop-filter: blur(16px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.4) !important;
+  border-bottom: 1px solid rgba(226,232,234,0.7) !important;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+}
+#planrr-sidebar { background: linear-gradient(180deg, #1A1F2E 0%, #161B28 100%) !important; }
+h1[style*="fontWeight: 800"] { font-family: 'Syne', 'DM Sans', sans-serif !important; letter-spacing: -0.5px !important; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 10px; }
+#planrr-sidebar ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+  outline: 2px solid #3ECFCF !important; outline-offset: 2px !important;
+}
+@keyframes auth-backdrop { from{opacity:0} to{opacity:1} }
+@keyframes auth-card {
+  from { opacity: 0; transform: translate(-50%, -47%); }
+  to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+@keyframes lp-fade-up { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+@keyframes brain-glow { 0%,100%{box-shadow:0 0 0 0 rgba(62,207,207,0)} 50%{box-shadow:0 0 40px 8px rgba(62,207,207,0.15)} }
+@keyframes spinner { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+@media(max-width:900px){ .lp-3col{grid-template-columns:1fr 1fr!important} .lp-pricing{grid-template-columns:1fr 1fr!important} }
+@media(max-width:600px){ .lp-3col,.lp-pricing{grid-template-columns:1fr!important} .lp-hero-btns{flex-direction:column!important} .lp-hide-mobile{display:none!important} }
+`;
+
+/* --- LOADING SKELETON --------------------------------- */
+function Skeleton({ width, height = 14, style }) {
+  return (
+    <div style={{
+      width: width || '100%', height, borderRadius: 6,
+      background: `linear-gradient(90deg, ${B.border} 25%, #e8ecee 50%, ${B.border} 75%)`,
+      backgroundSize: '200% 100%',
+      animation: 'shimmer 1.5s ease infinite',
+      ...style,
+    }} />
+  );
+}
+
+function ViewSkeleton() {
+  return (
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', animation: 'fadeIn 0.3s ease' }}>
+      <Skeleton width={220} height={20} style={{ marginBottom: 24 }} />
+      <Skeleton width="60%" height={14} style={{ marginBottom: 12 }} />
+      <Skeleton width="80%" height={14} style={{ marginBottom: 12 }} />
+      <Skeleton width="45%" height={14} style={{ marginBottom: 32 }} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
+        {[1,2,3].map(i => (
+          <div key={i} style={{ background: B.card, border: `1px solid ${B.border}`, borderRadius: 12, padding: 20 }}>
+            <Skeleton width={100} height={12} style={{ marginBottom: 12 }} />
+            <Skeleton height={28} style={{ marginBottom: 8 }} />
+            <Skeleton width="60%" height={10} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const BrainIcon = ({ size = 28, color = B.teal, strokeWidth = 1.2, bgColor }) => {
+  const bg = bgColor || B.sidebar;
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      <rect width="100" height="100" rx="18" fill={bg} />
+      <rect width="100" height="100" rx="18" fill="none" stroke={color} strokeWidth={strokeWidth * 3} />
+      {/* P icon: short stem, wide bowl at TOP, thin slot cutout */}
+      <path d="M20 78 L20 20 L66 20 C80 20 86 30 86 40 C86 50 80 58 66 58 L32 58 L32 78 Z" fill={color} />
+      <path d="M32 30 L58 30 C64 30 68 34 68 38 C68 42 64 46 58 46 L32 46 Z" fill={bg} />
+    </svg>
+  );
+};
 
 const Wordmark = ({ dark = false, size = 'md' }) => {
   const sizes = {
@@ -115,7 +253,7 @@ const Wordmark = ({ dark = false, size = 'md' }) => {
           letterSpacing: '-0.5px',
           color: base,
           lineHeight: 1,
-          fontFamily: "'Syne','DM Sans',sans-serif",
+          fontFamily: "'Oxanium','DM Sans',sans-serif",
         }}
       >
         planrr
@@ -127,7 +265,7 @@ const Wordmark = ({ dark = false, size = 'md' }) => {
           letterSpacing: '-0.5px',
           color: GOLD,
           lineHeight: 1,
-          fontFamily: "'Syne','DM Sans',sans-serif",
+          fontFamily: "'Oxanium','DM Sans',sans-serif",
         }}
       >
         .app
@@ -136,7 +274,7 @@ const Wordmark = ({ dark = false, size = 'md' }) => {
   );
 };
 
-/* ─── ALL 73 STANDARDS ───────────────────────────────── */
+/* --- ALL 73 STANDARDS --------------------------------- */
 const CHAPTERS = [
   {
     id: 'ch3',
@@ -557,9 +695,9 @@ const ALL_STANDARDS = ALL_SECTIONS.flatMap((sec) =>
   sec.standards.map((s) => ({ ...s, section: sec, chapter: sec.chapter }))
 );
 
-/* ─── CASCADING DEPENDENCY MAP (EMAP Applicant Guide) ── */
+/* --- CASCADING DEPENDENCY MAP (EMAP Applicant Guide) -- */
 const STD_DEPS = {
-  // 4.1 is the foundation — all peer reviews require it first
+  // 4.1 is the foundation - all peer reviews require it first
   '4.2.1': '4.1.1',
   '4.2.2': '4.1.1',
   '4.2.3': '4.1.1',
@@ -611,7 +749,7 @@ const STD_DEPS = {
   '4.10.4': '4.6.1',
   '4.10.5': '4.6.1',
   '4.10.6': '4.6.1',
-  // 4.11 requires 4.4–4.9 all complete
+  // 4.11 requires 4.4-4.9 all complete
   '4.11.1': '4.9.1',
   '4.11.2': '4.9.1',
   '4.11.3': '4.9.1',
@@ -624,26 +762,120 @@ const STD_DEPS = {
   '4.12.6': '4.1.1',
   '4.12.7': '4.1.1',
 };
+
+/* --- FEMA/NIMS ALIGNMENT MAPPING --- */
+const NIMS_STANDARDS = [
+  '4.6.1',
+  '4.6.2',
+  '4.6.3',
+  '4.6.4',
+  '4.6.5',
+  '4.6.6',
+  '4.10.1',
+  '4.10.2',
+  '4.10.3',
+  '4.10.4',
+  '4.10.5',
+  '4.10.6',
+  '4.8.1',
+  '4.8.4',
+];
+
+/* --- GRANT-to-EMAP ALIGNMENT --- */
+const GRANT_EMAP_MAP = {
+  EMPG: ['3.1.1', '3.4.1', '3.4.2', '4.1.1', '4.5.1', '4.10.1', '4.11.1'],
+  BSIR: ['4.3.1', '4.3.2', '4.6.1'],
+  UASI: ['4.3.1', '4.6.1', '4.7.1', '4.8.1', '4.9.1'],
+  HMGP: ['4.2.1', '4.2.2', '4.2.3', '4.2.4'],
+  'BRIC/PDM': ['4.2.1', '4.2.2', '4.2.3'],
+  SHSP: ['4.3.1', '4.6.1', '4.7.1'],
+  FMA: ['4.2.1', '4.2.4'],
+};
 const DEP_LABELS = {
   '4.1.1':
     'EMAP requires 4.1 (Hazard ID) to be completed before this section can be peer-reviewed',
   '4.6.1':
     'EMAP requires 4.6 (Incident Management) before 4.10 can be peer-reviewed',
-  '4.9.1': 'EMAP requires sections 4.4–4.9 before 4.11 can be peer-reviewed',
+  '4.9.1': 'EMAP requires sections 4.4-4.9 before 4.11 can be peer-reviewed',
 };
 
+/* --- AI MODEL ROUTING --------------------------------
+   Routes tasks to appropriate model tiers to control cost:
+   - 'fast'   → cheaper model for simple tasks (summaries, short drafts, label lookups)
+   - 'strong' → capable model for complex reasoning (gap analysis, doc interpretation, multi-step)
+   getModelTier(operation) maps operation strings to tiers.
+   The tier is sent as `model_tier` in the request body so the
+   backend Edge Function can select the right vendor model.
+-------------------------------------------------------- */
+/* Haiku handles nearly everything. Only PDF/image interpretation and
+   multi-document gap analysis benefit from a stronger model.
+   fast = Haiku (cheap, fast, good for 95% of tasks)
+   strong = Sonnet (only when reasoning across complex documents) */
+const MODEL_TIER_MAP = {
+  general: 'fast',
+  draft_rationale: 'fast',
+  draft_aar: 'fast',
+  finalize_aar: 'fast',
+  exec_summary: 'fast',
+  training_needs: 'fast',
+  grant_guidance: 'fast',
+  thira_analysis: 'fast',
+  spr_generation: 'fast',
+  template_gen: 'fast',
+  action_plan: 'fast',
+  interpret: 'fast',
+  evidence: 'fast',
+  interpret_doc: 'strong',
+  bulk_intake: 'strong',
+  gap_analysis: 'strong',
+};
+
+function getModelTier(operation) {
+  return MODEL_TIER_MAP[operation] || 'fast';
+}
+
+function trackAICall() {
+  try {
+    const key = 'planrr_ai_usage';
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
+    const stored = JSON.parse(localStorage.getItem(key) || '{}');
+    if (stored.month !== monthKey) {
+      localStorage.setItem(key, JSON.stringify({ month: monthKey, count: 1 }));
+    } else {
+      stored.count = (stored.count || 0) + 1;
+      localStorage.setItem(key, JSON.stringify(stored));
+    }
+  } catch {}
+}
+
+function getAIUsageCount() {
+  try {
+    const key = 'planrr_ai_usage';
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
+    const stored = JSON.parse(localStorage.getItem(key) || '{}');
+    return stored.month === monthKey ? (stored.count || 0) : 0;
+  } catch { return 0; }
+}
+
 async function callAI(system, prompt, onChunk, operation) {
+  const op = operation || 'general';
+  const tier = getModelTier(op);
+  trackAICall();
+  const enrichedSystem = _currentData ? `${system}\n\nORGANIZATION CONTEXT:\n${buildOrgContext(_currentData)}` : system;
   const res = await fetch(
-    'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/ai-proxy',
+    SB_URL + '/functions/v1/ai-proxy',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SB_KEY },
       body: JSON.stringify({
-        operation: operation || 'general',
+        operation: op,
+        model_tier: tier,
         stream: true,
-        system,
+        system: enrichedSystem,
         prompt,
-        max_tokens: 1200,
+        max_tokens: tier === 'strong' ? 1600 : 1200,
       }),
     }
   );
@@ -697,13 +929,15 @@ async function callAIWithDoc(system, textBefore, fileData, onChunk) {
         text: `[Document: ${fileData.name}]\n${fileData.data}`,
       });
   }
+  const tier = getModelTier('interpret_doc');
   const res = await fetch(
-    'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/ai-proxy',
+    SB_URL + '/functions/v1/ai-proxy',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SB_KEY },
       body: JSON.stringify({
         operation: 'interpret_doc',
+        model_tier: tier,
         stream: true,
         system,
         content,
@@ -734,10 +968,185 @@ async function callAIWithDoc(system, textBefore, fileData, onChunk) {
   }
 }
 
-const SYS =
-  'You are an EMAP accreditation and emergency management expert in PLANRR — Plan Smartr. Deep expertise in EMAP EMS 5-2022, HSEEP, and EM program management. Be specific, practical, and concise. No markdown headers.';
+/* --- DOCUMENT → EMAP STANDARD MAPPING PIPELINE --------
+   Multi-stage pipeline for mapping uploaded documents to EMAP standards:
+   1. Chunk & summarize with fast model (cheaper)
+   2. Compute similarity against EMAP standard text to find candidates
+   3. Ask strong model on narrowed set for precise mapping + rationale
+   4. Cache results in localStorage keyed by content hash
+-------------------------------------------------------- */
+const DOC_MAPPING_CACHE_KEY = 'planrr_doc_mapping_cache';
 
-/* ─── FILE UTILS ─────────────────────────────────────── */
+function getDocMappingCache() {
+  try {
+    return JSON.parse(localStorage.getItem(DOC_MAPPING_CACHE_KEY) || '{}');
+  } catch { return {}; }
+}
+
+function setDocMappingCache(hash, result) {
+  const cache = getDocMappingCache();
+  cache[hash] = { result, ts: Date.now() };
+  const keys = Object.keys(cache);
+  if (keys.length > 50) {
+    const oldest = keys.sort((a, b) => cache[a].ts - cache[b].ts);
+    oldest.slice(0, keys.length - 50).forEach(k => delete cache[k]);
+  }
+  localStorage.setItem(DOC_MAPPING_CACHE_KEY, JSON.stringify(cache));
+}
+
+function simpleHash(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return 'dh_' + Math.abs(h).toString(36);
+}
+
+function textSimilarity(a, b) {
+  const wa = new Set(a.toLowerCase().split(/\W+/).filter(Boolean));
+  const wb = new Set(b.toLowerCase().split(/\W+/).filter(Boolean));
+  let overlap = 0;
+  wa.forEach(w => { if (wb.has(w)) overlap++; });
+  return overlap / Math.max(wa.size, wb.size, 1);
+}
+
+async function mapDocToEMAP(docText, allStandards, onStatus) {
+  const hash = simpleHash(docText.slice(0, 2000));
+  const cached = getDocMappingCache()[hash];
+  if (cached) {
+    if (onStatus) onStatus('Using cached mapping results');
+    return cached.result;
+  }
+  if (onStatus) onStatus('Step 1/3: Summarizing document...');
+  let summary = '';
+  await callAI(
+    'You are a document summarizer for emergency management. Extract key topics, capabilities, and compliance areas in 200 words max. No markdown.',
+    `Summarize this document for EMAP standard matching:\n\n${docText.slice(0, 8000)}`,
+    (chunk) => { summary += chunk; },
+    'general'
+  );
+  if (onStatus) onStatus('Step 2/3: Finding candidate standards...');
+  const scored = allStandards.map(s => ({
+    ...s,
+    score: textSimilarity(summary, `${s.id} ${s.title} ${s.description || ''}`)
+  }));
+  scored.sort((a, b) => b.score - a.score);
+  const candidates = scored.slice(0, 10);
+  if (onStatus) onStatus('Step 3/3: AI matching to standards...');
+  const candidateText = candidates.map(c =>
+    `${c.id}: ${c.title}${c.description ? ' - ' + c.description : ''}`
+  ).join('\n');
+  let mappingResult = '';
+  await callAI(
+    'You are an EMAP EMS 5-2022 expert. Given a document summary and candidate standards, determine which standards this document maps to. Return a JSON array of objects with fields: standardId, confidence (high/medium/low), rationale (one sentence). Only include standards that genuinely apply.',
+    `Document summary:\n${summary}\n\nCandidate EMAP standards:\n${candidateText}\n\nReturn JSON array of matching standards with rationale.`,
+    (chunk) => { mappingResult += chunk; },
+    'gap_analysis'
+  );
+  let parsed;
+  try {
+    const jsonMatch = mappingResult.match(/\[[\s\S]*\]/);
+    parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+  } catch {
+    parsed = [{ standardId: 'parse_error', confidence: 'low', rationale: mappingResult }];
+  }
+  const result = { summary, mappings: parsed, candidates: candidates.map(c => c.id) };
+  setDocMappingCache(hash, result);
+  return result;
+}
+
+const SYS_BASE =
+  'You are an EMAP accreditation and emergency management expert in PLANRR - Plan Smartr. Deep expertise in EMAP EMS 5-2022, HSEEP, and EM program management. Be specific, practical, and concise. No markdown headers.';
+
+function buildOrgContext(data) {
+  const parts = [];
+  if (data.orgName) parts.push(`Organization: ${data.orgName}`);
+  if (data.jurisdiction) parts.push(`Type: ${data.jurisdiction}`);
+  if (data.state) parts.push(`State: ${data.state}`);
+  if (data.emName) parts.push(`EM Director: ${data.emName}${data.emTitle ? `, ${data.emTitle}` : ''}`);
+  const empList = (data.employees || []).slice(0, 10);
+  if (empList.length > 0) parts.push(`Staff: ${empList.map(e => `${e.name}${e.role ? ` (${e.role})` : ''}`).join(', ')}`);
+  const overall = { compliant: 0, total: 0 };
+  Object.values(data.standards || {}).forEach(s => { overall.total++; if (s.status === 'compliant') overall.compliant++; });
+  parts.push(`EMAP: ${overall.compliant}/${overall.total} standards compliant`);
+  parts.push(`Training: ${(data.training || []).length}, Exercises: ${(data.exercises || []).length}, Partners: ${(data.partners || []).length}, Plans: ${(data.plans || []).length}`);
+  if ((data.aiMemory || []).length > 0) {
+    parts.push('ORG-SPECIFIC NOTES (remember these):\n' + data.aiMemory.map(m => `- ${m}`).join('\n'));
+  }
+  return parts.join('. ');
+}
+
+let _currentData = null;
+function setCurrentDataRef(d) { _currentData = d; }
+
+function getSYS() {
+  if (!_currentData) return SYS_BASE;
+  const ctx = buildOrgContext(_currentData);
+  return `${SYS_BASE}\n\nORGANIZATION CONTEXT:\n${ctx}`;
+}
+
+const SYS = SYS_BASE;
+
+/* --- PLAN & QUOTA DEFINITIONS -------------------------
+   Per-org plan limits: seat caps and monthly AI call quotas.
+   Enforcement helpers check these limits before adding users
+   or making AI calls, prompting upgrade when exceeded.
+-------------------------------------------------------- */
+const PLAN_LIMITS = {
+  solo: { label: 'Solo Operator', seats: 1, aiCallsPerMonth: 200, price: 79 },
+  small_team: { label: 'Small Team', seats: 5, aiCallsPerMonth: 1000, price: 149 },
+  full_program: { label: 'Full Program', seats: Infinity, aiCallsPerMonth: 5000, price: 199 },
+  enterprise: { label: 'Enterprise', seats: Infinity, aiCallsPerMonth: Infinity, price: null },
+};
+
+const STRIPE_BUY_LINKS = {
+  solo: process.env.REACT_APP_STRIPE_BUY_LINK_SOLO || 'https://buy.stripe.com/bJe14odeGdG0cOv43LgrS00',
+  small_team: process.env.REACT_APP_STRIPE_BUY_LINK_SMALL_TEAM || 'https://buy.stripe.com/7sY14o3E659u4hZ9o5grS01',
+  full_program: process.env.REACT_APP_STRIPE_BUY_LINK_FULL_PROGRAM || 'https://buy.stripe.com/8x228s4Ia31m3dV7fXgrS02',
+};
+
+function getPlanLimits(planId) {
+  return PLAN_LIMITS[planId] || PLAN_LIMITS.solo;
+}
+
+function checkSeatLimit(data) {
+  const plan = getPlanLimits(data.plan || 'solo');
+  const currentSeats = (data.employees || []).length + 1;
+  if (currentSeats >= plan.seats) {
+    return { allowed: false, message: `Your ${plan.label} plan supports up to ${plan.seats} seat${plan.seats > 1 ? 's' : ''}. Upgrade to add more team members.`, plan: plan.label };
+  }
+  return { allowed: true };
+}
+
+function checkAIQuota(data) {
+  const plan = getPlanLimits(data.plan || 'solo');
+  const used = data.aiCallsThisMonth || 0;
+  if (used >= plan.aiCallsPerMonth) {
+    return { allowed: false, message: `You've used all ${plan.aiCallsPerMonth} AI calls for this month on your ${plan.label} plan. Upgrade for higher limits.`, plan: plan.label };
+  }
+  return { allowed: true, remaining: plan.aiCallsPerMonth - used };
+}
+
+function incrementAIUsage(data, updateData) {
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
+  if (data.aiUsageMonth !== monthKey) {
+    updateData({ aiUsageMonth: monthKey, aiCallsThisMonth: 1 });
+  } else {
+    updateData({ aiCallsThisMonth: (data.aiCallsThisMonth || 0) + 1 });
+  }
+}
+
+async function guardedCallAI(data, updateData, system, prompt, onChunk, operation) {
+  const quota = checkAIQuota(data);
+  if (!quota.allowed) {
+    throw new Error(quota.message);
+  }
+  incrementAIUsage(data, updateData);
+  return callAI(system, prompt, onChunk, operation);
+}
+
+/* --- FILE UTILS --------------------------------------- */
 function readFile(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -788,7 +1197,7 @@ const fmtDate = (d) =>
         day: 'numeric',
         year: 'numeric',
       })
-    : '—';
+    : '-';
 const daysUntil = (d) =>
   d ? Math.ceil((new Date(d + 'T00:00:00') - new Date()) / 86400000) : null;
 const timeAgo = (ts) => {
@@ -817,7 +1226,7 @@ function useCountUp(t, dur = 900) {
   return v;
 }
 
-/* ─── DATA ───────────────────────────────────────────── */
+/* --- DATA --------------------------------------------- */
 function initRecord() {
   return {
     status: 'not_started',
@@ -852,6 +1261,9 @@ function initData() {
     capItems: [],
     activityLog: [],
     journey: {},
+    recovery: { priorities: [], functions: {}, notes: '' },
+    mutualAid: [],
+    incidents: [],
   };
 }
 function addActivity(updateData, type, module, detail) {
@@ -863,21 +1275,207 @@ function addActivity(updateData, type, module, detail) {
     ],
   }));
 }
-async function loadData() {
-  try {
-    const r = localStorage.getItem('planrr_v3');
-    return r ? JSON.parse(r) : null;
-  } catch {
-    return null;
+
+/* --- CROSS-PLATFORM DATA SYNC: Program Ops → EMAP Standards --- */
+function syncStandardsFromOps(data) {
+  const stds = { ...(data.standards || {}) };
+  let changed = false;
+  // Helper: promote a standard to in_progress if it's not_started, append auto-note
+  const promote = (stdId, note) => {
+    const cur = stds[stdId] || initRecord();
+    if (cur.status === 'not_started') {
+      const autoTag = '[Auto-linked] ';
+      const existingNote = cur.notes || '';
+      const newNote = existingNote.includes(autoTag)
+        ? existingNote
+        : (existingNote ? existingNote + '\n' : '') + autoTag + note;
+      stds[stdId] = {
+        ...cur,
+        status: 'in_progress',
+        notes: newNote,
+        updatedAt: Date.now(),
+      };
+      changed = true;
+    }
+  };
+  // Plans → EMAP sections (4.4 Continuity, 4.5 Operational, 4.2 Mitigation, 4.8 Comms)
+  const PLAN_EMAP = {
+    EOP: ['4.5.1', '4.5.2', '4.5.3', '4.5.5'],
+    COOP: ['4.4.1', '4.4.2', '4.4.3', '4.4.4', '4.4.6'],
+    'COG Plan': ['4.4.2', '4.4.5'],
+    'Hazard Mitigation Plan': ['4.2.1', '4.2.2', '4.2.3'],
+    'Recovery Plan': ['4.5.1', '4.5.4'],
+    'Communications Plan': ['4.8.1', '4.8.3'],
+    'Evacuation Plan': ['4.5.5'],
+  };
+  (data.plans || []).forEach((p) => {
+    const refs = PLAN_EMAP[p.type];
+    if (refs)
+      refs.forEach((sid) =>
+        promote(sid, `${p.type} "${p.name}" added to Plan Library`)
+      );
+  });
+  // Training → 4.10 Training standards
+  if ((data.training || []).length >= 1) {
+    ['4.10.1', '4.10.3', '4.10.5'].forEach((sid) =>
+      promote(sid, `${data.training.length} training record(s) in system`)
+    );
   }
+  if ((data.training || []).length >= 5) {
+    ['4.10.2', '4.10.4'].forEach((sid) =>
+      promote(
+        sid,
+        `${data.training.length} training records demonstrate needs coverage`
+      )
+    );
+  }
+  // Exercises → 4.11 Exercises, Evaluations & Corrective Actions
+  if ((data.exercises || []).length >= 1) {
+    promote('4.11.1', `${data.exercises.length} exercise(s) logged`);
+    promote(
+      '4.11.2',
+      `${data.exercises.length} exercise(s) available for evaluation`
+    );
+  }
+  if ((data.exercises || []).filter((e) => e.aarFinal).length >= 1) {
+    promote('4.11.2', 'Exercise with final AAR on file');
+  }
+  if (
+    (data.exercises || []).some((e) => (e.corrective || []).length > 0) ||
+    (data.capItems || []).length > 0
+  ) {
+    promote('4.11.3', 'Corrective actions tracked in system');
+  }
+  // Partners/MOUs → 4.7 Resource Management & Mutual Aid
+  if ((data.partners || []).length >= 1) {
+    ['4.7.3', '4.7.4'].forEach((sid) =>
+      promote(sid, `${data.partners.length} partner agreement(s) on file`)
+    );
+  }
+  if ((data.partners || []).length >= 3) {
+    promote(
+      '4.7.1',
+      `${data.partners.length} partner agreements support resource management`
+    );
+  }
+  // THIRA/Hazards → 4.1 Hazard ID & Risk Assessment
+  const hazards = data.thira?.hazards || [];
+  if (hazards.length >= 1) {
+    ['4.1.1', '4.1.2'].forEach((sid) =>
+      promote(sid, `${hazards.length} hazard(s) profiled in THIRA`)
+    );
+  }
+  if (hazards.length >= 3) {
+    promote('4.1.3', 'THIRA hazard profile established with multiple hazards');
+  }
+  // Employees/Personnel → 4.6 Incident Management (personnel assigned to roles)
+  if ((data.employees || []).length >= 1) {
+    promote(
+      '4.6.4',
+      `${data.employees.length} personnel in roster for incident role assignment`
+    );
+  }
+  // Resources → 4.7.5, 4.7.6
+  if ((data.resources || []).length >= 1) {
+    ['4.7.5', '4.7.6'].forEach((sid) =>
+      promote(sid, `${data.resources.length} resource(s) inventoried`)
+    );
+  }
+  // Grants → 3.4 Administration & Finance
+  if ((data.grants || []).filter((g) => g.status === 'active').length >= 1) {
+    ['3.4.1', '3.4.2'].forEach((sid) =>
+      promote(sid, 'Active grant funding tracked')
+    );
+  }
+  return changed ? stds : null;
 }
-async function saveData(d) {
+function getUserId() {
   try {
-    localStorage.setItem('planrr_v3', JSON.stringify(d));
-  } catch {}
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    if (!s || !s.user) return null;
+    return s.user.id;
+  } catch { return null; }
 }
 
-/* ─── STATUS HELPERS ─────────────────────────────────── */
+function getLocalKey() {
+  const uid = getUserId();
+  return uid ? `planrr_v3_${uid}` : 'planrr_v3';
+}
+
+function getAccessToken() {
+  try {
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    return s?.access_token || null;
+  } catch { return null; }
+}
+
+async function loadData() {
+  const localKey = getLocalKey();
+  const token = getAccessToken();
+  if (token) {
+    try {
+      const r = await fetch(SB_URL + '/rest/v1/program_data?select=data&limit=1', {
+        headers: {
+          apikey: SB_KEY,
+          Authorization: 'Bearer ' + token,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (r.ok) {
+        const rows = await r.json();
+        if (rows.length > 0 && rows[0].data) {
+          localStorage.setItem(localKey, JSON.stringify(rows[0].data));
+          return rows[0].data;
+        }
+      }
+    } catch (e) {
+      console.warn('planrr: cloud load failed, using local', e.message);
+    }
+  }
+  try {
+    const r = localStorage.getItem(localKey);
+    if (r) return JSON.parse(r);
+    const legacy = localStorage.getItem('planrr_v3');
+    if (legacy) {
+      const parsed = JSON.parse(legacy);
+      localStorage.setItem(localKey, legacy);
+      return parsed;
+    }
+    return null;
+  } catch { return null; }
+}
+
+let _saveQueued = false;
+async function saveData(d) {
+  const localKey = getLocalKey();
+  try {
+    localStorage.setItem(localKey, JSON.stringify(d));
+  } catch {}
+  const token = getAccessToken();
+  const userId = getUserId();
+  if (!token || !userId || _saveQueued) return;
+  _saveQueued = true;
+  setTimeout(async () => {
+    _saveQueued = false;
+    try {
+      const r = await fetch(SB_URL + '/rest/v1/program_data', {
+        method: 'POST',
+        headers: {
+          apikey: SB_KEY,
+          Authorization: 'Bearer ' + token,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({ user_id: userId, data: d }),
+      });
+      if (!r.ok) console.warn('planrr: save to cloud failed', r.status);
+    } catch (e) {
+      console.warn('planrr: save to cloud error', e.message);
+    }
+  }, 2000);
+}
+
+/* --- STATUS HELPERS ----------------------------------- */
 function sectionAggStatus(section, standards) {
   const s = section.standards.map(
     (s) => standards[s.id]?.status || 'not_started'
@@ -915,7 +1513,7 @@ function buildNotifications(data) {
         id: 'mou-' + p.id,
         urgency: d < 0 ? 'overdue' : d < 30 ? 'urgent' : 'soon',
         title: d < 0 ? `MOU expired: ${p.name}` : `MOU expiring: ${p.name}`,
-        detail: d < 0 ? 'Expired — renew immediately' : `${d} days remaining`,
+        detail: d < 0 ? 'Expired - renew immediately' : `${d} days remaining`,
         module: 'partners',
       });
   });
@@ -980,7 +1578,7 @@ function buildNotifications(data) {
             d < 0
               ? `Credential expired: ${emp.name}`
               : `Credential expiring: ${emp.name}`,
-          detail: `${cr.name} — ${d < 0 ? 'Expired' : d + ' days'}`,
+          detail: `${cr.name} - ${d < 0 ? 'Expired' : d + ' days'}`,
           module: 'employees',
         });
     });
@@ -988,7 +1586,7 @@ function buildNotifications(data) {
   return n;
 }
 
-/* ─── SHARED UI ──────────────────────────────────────── */
+/* --- SHARED UI ---------------------------------------- */
 function Ring({ pct, size = 36, sw = 3 }) {
   const r = (size - sw * 2) / 2,
     circ = 2 * Math.PI * r,
@@ -1120,9 +1718,9 @@ const Btn = ({
     style={{
       display: 'flex',
       alignItems: 'center',
-      gap: 5,
-      padding: small ? '5px 10px' : '8px 16px',
-      borderRadius: 7,
+      gap: 6,
+      padding: small ? '6px 12px' : '10px 20px',
+      borderRadius: 10,
       border: primary || danger ? 'none' : `1px solid ${B.border}`,
       background: primary ? B.teal : danger ? B.red : B.card,
       color: primary || danger ? '#fff' : B.muted,
@@ -1131,32 +1729,50 @@ const Btn = ({
       cursor: disabled || loading ? 'not-allowed' : 'pointer',
       opacity: disabled ? 0.5 : 1,
       fontFamily: "'DM Sans',sans-serif",
-      transition: 'all 0.15s',
+      transition: 'all 0.2s ease',
       whiteSpace: 'nowrap',
+      boxShadow: primary ? '0 2px 8px rgba(27,201,196,0.25)' : 'none',
     }}
     onMouseEnter={(e) => {
-      if (!disabled && !loading && primary)
-        e.currentTarget.style.background = B.tealDark;
+      if (!disabled && !loading) {
+        if (primary) {
+          e.currentTarget.style.background = B.tealDark;
+          e.currentTarget.style.transform = 'translateY(-1px)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(27,201,196,0.3)';
+        } else if (!danger) {
+          e.currentTarget.style.borderColor = B.teal;
+          e.currentTarget.style.color = B.teal;
+        }
+      }
     }}
     onMouseLeave={(e) => {
-      if (!disabled && !loading && primary)
-        e.currentTarget.style.background = B.teal;
+      if (!disabled && !loading) {
+        if (primary) {
+          e.currentTarget.style.background = B.teal;
+          e.currentTarget.style.transform = 'none';
+          e.currentTarget.style.boxShadow = '0 2px 8px rgba(27,201,196,0.25)';
+        } else if (!danger) {
+          e.currentTarget.style.borderColor = B.border;
+          e.currentTarget.style.color = B.muted;
+        }
+      }
     }}
   >
     <span style={{ fontSize: 12 }}>{icon || ''}</span>
-    {loading ? 'Working…' : label}
+    {loading ? 'Working...' : label}
   </button>
 );
-const Card = ({ children, style }) => (
+const Card = ({ children, style, ...props }) => (
   <div
     style={{
       background: B.card,
       border: `1px solid ${B.border}`,
-      borderRadius: 11,
-      padding: '18px 20px',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+      borderRadius: 14,
+      padding: '22px 24px',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.03), 0 4px 12px rgba(0,0,0,0.02)',
       ...style,
     }}
+    {...props}
   >
     {children}
   </div>
@@ -1165,11 +1781,11 @@ const Label = ({ children }) => (
   <div
     style={{
       fontSize: 11,
-      color: B.faint,
+      color: B.muted,
       textTransform: 'uppercase',
-      letterSpacing: '0.07em',
-      fontWeight: 700,
-      marginBottom: 5,
+      letterSpacing: '0.06em',
+      fontWeight: 600,
+      marginBottom: 6,
     }}
   >
     {children}
@@ -1184,19 +1800,383 @@ const FInput = ({ value, onChange, placeholder, type = 'text', style: s }) => (
     style={{
       width: '100%',
       border: `1px solid ${B.border}`,
-      borderRadius: 7,
-      padding: '8px 11px',
+      borderRadius: 10,
+      padding: '10px 14px',
       color: B.text,
       fontSize: 13,
       fontFamily: "'DM Sans',sans-serif",
       outline: 'none',
-      background: '#fafcfc',
+      background: '#f8fafb',
+      transition: 'all 0.15s ease',
       ...s,
     }}
-    onFocus={(e) => (e.target.style.borderColor = B.teal)}
-    onBlur={(e) => (e.target.style.borderColor = B.border)}
+    onFocus={(e) => {
+      e.target.style.borderColor = B.teal;
+      e.target.style.boxShadow = '0 0 0 3px rgba(27,201,196,0.1)';
+      e.target.style.background = '#fff';
+    }}
+    onBlur={(e) => {
+      e.target.style.borderColor = B.border;
+      e.target.style.boxShadow = 'none';
+      e.target.style.background = '#f8fafb';
+    }}
   />
 );
+
+/* --- COACH BANNER SYSTEM ----------------------------- */
+const COACH = {
+  thira: {
+    emoji: '🎯',
+    title: 'Start Here: Know Your Threats',
+    what: "A Threat & Hazard Identification Risk Assessment (THIRA) profiles every hazard your jurisdiction faces — natural disasters, technological incidents, human-caused threats. It's the foundation everything else is built on.",
+    why: 'EMAP 4.1 requires a documented hazard identification and risk assessment. FEMA grants (EMPG, BSIR, HMGP) all reference your THIRA. Without it, your plans have no basis.',
+    first:
+      'List 3-5 hazards you know your area faces (floods, earthquakes, wildfire, etc.). For each one, estimate likelihood and impact. If you have an existing THIRA document, upload it and AI will extract everything automatically.',
+    next: 'plans',
+  },
+  plans: {
+    emoji: '📋',
+    title: 'Build Your Plans',
+    what: "Your Emergency Operations Plan (EOP), Continuity of Operations Plan (COOP), and supporting procedures are the playbooks your team follows during incidents. These aren't shelf documents — they're how people know what to do.",
+    why: "EMAP 4.4 and 4.5 require an EOP, COOP, and supporting procedures. Plans must address all hazards identified in your THIRA (that's why hazards come first).",
+    first:
+      'Start with your EOP. If you have one, upload it. If not, go to AI Tools → Doc Templates to generate a starter EOP based on your hazard profile. Then add your COOP.',
+    next: 'partners',
+  },
+  partners: {
+    emoji: '🤝',
+    title: 'Map Your Partners',
+    what: 'Emergency management is never a solo operation. Partners include mutual aid agencies, NGOs (Red Cross, Salvation Army), private sector, neighboring jurisdictions, state/federal contacts, and utilities.',
+    why: 'EMAP 4.3 requires documented stakeholder relationships. 4.7 requires mutual aid agreements. Assessors want to see signed MOUs and defined roles.',
+    first:
+      "Add your top 5 partners — the agencies you'd call first in a disaster. Include their contact info and what they bring (personnel, equipment, shelter, etc.). Upload any existing MOUs.",
+    next: 'resources',
+  },
+  resources: {
+    emoji: '📦',
+    title: 'Inventory Your Resources',
+    what: 'Resources are the people, equipment, facilities, and supplies your program can deploy. Think apparatus, shelters, generators, caches, vehicles, and specialized teams.',
+    why: "EMAP 4.7 requires a resource management plan with documented capabilities and gaps. You can't request what you don't know you need, and you can't justify funding without a gap analysis.",
+    first:
+      "Start with your major resource categories: facilities, vehicles, equipment, supplies. For each, note quantity, condition, and who owns it. Flag gaps where you know you're short.",
+    next: 'employees',
+  },
+  employees: {
+    emoji: '👥',
+    title: 'Track Your People',
+    what: 'Personnel records include all staff and volunteers working in your EM program — their certifications (ICS, NIMS, CPR), training records, and credential expiration dates.',
+    why: 'EMAP 4.6 requires personnel credentialing, NIMS compliance, and role-based training. FEMA requires IS-100, IS-200, IS-700, IS-800 for all EM personnel. Expired certs = compliance gaps.',
+    first:
+      'Add yourself and any staff. For each person, note their ICS/NIMS courses completed and expiration dates. The app will flag anything overdue.',
+    next: 'training',
+  },
+  training: {
+    emoji: '🎓',
+    title: 'Plan Your Training',
+    what: 'A training program ensures your team and partners maintain the skills needed to execute your plans. It covers courses, schedules, attendance tracking, and gap analysis.',
+    why: 'EMAP 4.10 requires a training needs assessment, multi-year training plan, and documentation of all training conducted. Most programs fail here at accreditation.',
+    first:
+      "Add any training sessions from the past year — even simple ones like a tabletop briefing. Include date, attendees, and topic. Then identify what training you need but haven't done yet.",
+    next: 'exercises',
+  },
+  exercises: {
+    emoji: '🏋️',
+    title: 'Exercise Your Plans',
+    what: 'Exercises test your plans in controlled settings. Incidents are real-world activations your team responded to. Both need After-Action Reports (AARs) with findings and corrective actions. Use the Exercises tab for drills and exercises, and the Incidents tab for real-world events.',
+    why: 'EMAP 4.11 requires exercises with HSEEP methodology. EMAP 4.12 covers incident management. AARs from both exercises and real incidents demonstrate a closed-loop improvement cycle — the gold standard for accreditation.',
+    first:
+      "Log any exercise or real-world activation from the past 2 years. For exercises: include type, objectives, and AAR. For incidents: log the event and write an AAR with findings. If you haven't done either, schedule a tabletop — it's the easiest way to start.",
+    next: 'grants',
+  },
+  grants: {
+    emoji: '💰',
+    title: 'Fund Your Program',
+    what: 'Grants fund everything from personnel to equipment to exercises. EMPG is the big one for EM programs, but HMGP, BRIC, UASI, and SHSP are all relevant depending on your jurisdiction.',
+    why: 'Without funding, programs stagnate. Grant tracking shows your leadership the ROI of EM investment. The app maps each grant to the EMAP standards it supports, so you can show exactly how funding drives compliance.',
+    first:
+      "Add any active grants with their deadlines and deliverables. If you don't have grants yet, look at EMPG (Emergency Management Performance Grant) — it's the baseline federal funding for EM programs.",
+    next: 'accreditation',
+  },
+  accreditation: {
+    emoji: '✅',
+    title: 'Track Your Standards',
+    what: 'EMAP has 73 standards across 12 sections. Each standard needs evidence documentation to prove compliance. This is your master compliance tracker.',
+    why: "This is the whole point — demonstrating your program meets national standards. Even if you're not pursuing formal accreditation, these standards represent best practice. Hitting them means your program is solid.",
+    first:
+      "Don't try to tackle all 73 at once. Start with the sections you've already been building (4.1 Hazards, 4.5 Plans, 4.6 Personnel). Mark what you have evidence for. The dashboard will show your progress.",
+    next: 'journey',
+  },
+  journey: {
+    emoji: '🗺️',
+    title: 'Your Accreditation Roadmap',
+    what: 'The Accreditation Journey breaks the path to EMAP accreditation into phases: self-assessment, gap closure, application, on-site review, and maintenance.',
+    why: "Accreditation typically takes 12-24 months. This view helps you track where you are, what's next, and project your timeline based on current pace.",
+    first:
+      "Review your current phase. If you're just starting, you're in self-assessment. Focus on completing the Plan → Build sections first, then circle back here to track your formal progress.",
+    next: null,
+  },
+  recovery: {
+    emoji: '🔄',
+    title: 'Plan for Recovery',
+    what: 'Recovery planning covers what happens after the immediate response — restoring services, rebuilding infrastructure, supporting affected populations, and getting back to normal operations.',
+    why: "EMAP 4.5.4 requires a Recovery Plan with short/long-term priorities across critical functions. Many programs neglect this, but FEMA's emphasis on resilience makes it increasingly important.",
+    first:
+      "Identify your top 3 recovery priorities (infrastructure, housing, economic). For each, note who's responsible and what resources are needed. Even a basic framework satisfies the standard.",
+    next: null,
+  },
+  mutualaid: {
+    emoji: '🌐',
+    title: 'Map Mutual Aid',
+    what: 'Mutual aid maps your agreements with neighboring jurisdictions and what resources each partner can provide during incidents.',
+    why: "EMAP 4.7 requires documented mutual aid agreements. FEMA Core Capability 'Operational Coordination' depends on knowing who can help and what they bring.",
+    first:
+      'Add your mutual aid partners and tag what resource types they can provide (personnel, apparatus, shelter, etc.). Upload any signed agreements.',
+    next: null,
+  },
+  templates: {
+    emoji: '🤖',
+    title: 'AI Document Generation',
+    what: 'These templates use AI to generate professional EM documents pre-filled with your program data — org name, hazards, personnel, and compliance status.',
+    why: 'Writing plans from scratch is the #1 time killer for EM managers. These templates give you a 70% starting point that you customize for your jurisdiction.',
+    first:
+      'Pick the document you need most urgently. For most new programs, start with the Multi-Year Strategic Plan (EMAP 3.1.1) — it frames everything else.',
+    next: null,
+  },
+  evidence: {
+    emoji: '📎',
+    title: 'Evidence Packaging',
+    what: 'Evidence Export bundles your compliance documentation per EMAP standard into packages ready for assessor review.',
+    why: 'During accreditation review, assessors need organized evidence for each standard. This tool automates that packaging instead of you manually compiling folders.',
+    first:
+      "Select a section you're confident about and preview the evidence package. It pulls in linked plans, training records, exercise AARs, and personnel data automatically.",
+    next: null,
+  },
+  intake: {
+    emoji: '📤',
+    title: 'Bulk Document Upload',
+    what: 'Drop in your existing documents — EOPs, COOPs, AARs, SOPs, MOUs — and AI reads each one and maps it to the relevant EMAP standards automatically.',
+    why: 'If you have existing documents from a previous manager or another system, this is the fastest way to populate your program. Instead of manually entering everything, let AI do the heavy lifting.',
+    first:
+      'Gather your key documents (EOP, COOP, any AARs, training records, MOUs) and upload them. AI will identify which EMAP standards each document supports.',
+    next: null,
+  },
+  package: {
+    emoji: '📦',
+    title: 'Accreditation Package',
+    what: 'The Package Builder compiles your complete accreditation application — all evidence, narratives, and documentation organized by EMAP section.',
+    why: "When you're ready to submit for EMAP accreditation, this creates the formal package. It identifies gaps and shows what's ready vs. what still needs work.",
+    first:
+      'This is an advanced tool — come back here once you have at least 50% of standards documented. Use the EMAP Standards tracker to get there first.',
+    next: null,
+  },
+  cap: {
+    emoji: '⚠️',
+    title: 'Corrective Actions',
+    what: 'Corrective actions are improvement items identified from exercises, real-world incidents, or self-assessments. Each one needs an owner, deadline, and resolution.',
+    why: 'EMAP 4.11 requires that exercise findings feed into a corrective action program. Showing a closed-loop improvement process is critical for accreditation.',
+    first:
+      "If you've logged any exercises with AAR findings, corrective actions auto-populate here. Otherwise, add any known improvement items from recent incidents or reviews.",
+    next: null,
+  },
+};
+
+function CoachBanner({ moduleId, onNavigate }) {
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return (
+        JSON.parse(localStorage.getItem('planrr_coach_dismissed') || '{}')[
+          moduleId
+        ] || false
+      );
+    } catch {
+      return false;
+    }
+  });
+  const [expanded, setExpanded] = useState(false);
+  const c = COACH[moduleId];
+  if (!c || dismissed) return null;
+  const dismiss = () => {
+    setDismissed(true);
+    try {
+      const d = JSON.parse(
+        localStorage.getItem('planrr_coach_dismissed') || '{}'
+      );
+      d[moduleId] = true;
+      localStorage.setItem('planrr_coach_dismissed', JSON.stringify(d));
+    } catch {}
+  };
+  return (
+    <div
+      style={{
+        marginBottom: 20,
+        background: 'linear-gradient(135deg, #f0fafa 0%, #f8fafb 100%)',
+        border: `1px solid ${B.tealBorder}`,
+        borderRadius: 14,
+        padding: '18px 22px',
+        position: 'relative',
+        animation: 'fadeUp 0.3s ease',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 14,
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginBottom: 8,
+            }}
+          >
+            <span style={{ fontSize: 20 }}>{c.emoji}</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: B.text }}>
+              {c.title}
+            </span>
+            <span
+              style={{
+                fontSize: 9,
+                color: B.teal,
+                background: 'rgba(27,201,196,0.12)',
+                padding: '2px 8px',
+                borderRadius: 5,
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+              }}
+            >
+              GUIDE
+            </span>
+          </div>
+          <div
+            style={{
+              fontSize: 13,
+              color: B.muted,
+              lineHeight: 1.7,
+              marginBottom: expanded ? 12 : 0,
+            }}
+          >
+            {c.what}
+          </div>
+          {expanded && (
+            <>
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: '12px 16px',
+                  background: 'rgba(255,255,255,0.7)',
+                  borderRadius: 10,
+                  border: `1px solid ${B.border}`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: B.teal,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    marginBottom: 6,
+                  }}
+                >
+                  Why This Matters
+                </div>
+                <div style={{ fontSize: 13, color: B.muted, lineHeight: 1.7 }}>
+                  {c.why}
+                </div>
+              </div>
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: '12px 16px',
+                  background: 'rgba(27,201,196,0.06)',
+                  borderRadius: 10,
+                  border: `1px solid ${B.tealBorder}`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: '#0d9488',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    marginBottom: 6,
+                  }}
+                >
+                  What To Do First
+                </div>
+                <div style={{ fontSize: 13, color: B.muted, lineHeight: 1.7 }}>
+                  {c.first}
+                </div>
+              </div>
+              {c.next && (
+                <button
+                  onClick={() => onNavigate && onNavigate(c.next)}
+                  style={{
+                    marginTop: 12,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: B.teal,
+                    fontWeight: 600,
+                    background: 'none',
+                    border: `1px solid ${B.tealBorder}`,
+                    borderRadius: 8,
+                    padding: '6px 14px',
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans',sans-serif",
+                  }}
+                >
+                  Next step: {COACH[c.next]?.title || c.next} →
+                </button>
+              )}
+            </>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            style={{
+              fontSize: 11,
+              color: B.teal,
+              background: 'rgba(27,201,196,0.1)',
+              border: `1px solid ${B.tealBorder}`,
+              borderRadius: 7,
+              padding: '5px 12px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            {expanded ? 'Less' : 'Learn more'}
+          </button>
+          <button
+            onClick={dismiss}
+            style={{
+              fontSize: 11,
+              color: B.faint,
+              background: 'none',
+              border: `1px solid ${B.border}`,
+              borderRadius: 7,
+              padding: '5px 10px',
+              cursor: 'pointer',
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+            title="Dismiss this guide"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 const FSel = ({ value, onChange, children, style: s }) => (
   <select
     value={value}
@@ -1204,17 +2184,24 @@ const FSel = ({ value, onChange, children, style: s }) => (
     style={{
       width: '100%',
       border: `1px solid ${B.border}`,
-      borderRadius: 7,
-      padding: '8px 11px',
+      borderRadius: 10,
+      padding: '10px 14px',
       color: value ? B.text : B.faint,
       fontSize: 13,
       fontFamily: "'DM Sans',sans-serif",
       outline: 'none',
-      background: '#fafcfc',
+      background: '#f8fafb',
+      transition: 'all 0.15s ease',
       ...s,
     }}
-    onFocus={(e) => (e.target.style.borderColor = B.teal)}
-    onBlur={(e) => (e.target.style.borderColor = B.border)}
+    onFocus={(e) => {
+      e.target.style.borderColor = B.teal;
+      e.target.style.boxShadow = '0 0 0 3px rgba(27,201,196,0.1)';
+    }}
+    onBlur={(e) => {
+      e.target.style.borderColor = B.border;
+      e.target.style.boxShadow = 'none';
+    }}
   >
     {children}
   </select>
@@ -1319,7 +2306,7 @@ function ConfBar({ score }) {
       >
         <span style={{ fontSize: 10, color: B.faint }}>AI Confidence</span>
         <span style={{ fontSize: 10, fontWeight: 700, color: col }}>
-          {score}% —{' '}
+          {score}% -{' '}
           {score >= 75 ? 'Strong' : score >= 50 ? 'Moderate' : 'Weak'}
         </span>
       </div>
@@ -1345,7 +2332,7 @@ function ConfBar({ score }) {
   );
 }
 
-/* ─── FILE ATTACHMENT WIDGET ─────────────────────────── */
+/* --- FILE ATTACHMENT WIDGET --------------------------- */
 function Attachments({ docs = [], onAdd, onRemove, compact }) {
   const inputRef = useRef();
   const handleFiles = async (files) => {
@@ -1393,7 +2380,7 @@ function Attachments({ docs = [], onAdd, onRemove, compact }) {
                   padding: '0 1px',
                 }}
               >
-                ×
+                -
               </button>
             </span>
           ))}
@@ -1489,17 +2476,17 @@ function Attachments({ docs = [], onAdd, onRemove, compact }) {
         >
           <span style={{ fontSize: 14 }}>
             {d.name.endsWith('.pdf')
-              ? '📕'
+              ? '-'
               : d.name.match(/\.(jpg|jpeg|png)$/)
-              ? '🖼️'
-              : '📄'}
+              ? '--'
+              : '-'}
           </span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: B.text }}>
               {d.name}
             </div>
             <div style={{ fontSize: 10, color: B.faint }}>
-              {fmtSize(d.size)} · {timeAgo(d.uploadedAt)}
+              {fmtSize(d.size)} - {timeAgo(d.uploadedAt)}
             </div>
           </div>
           <button
@@ -1512,7 +2499,7 @@ function Attachments({ docs = [], onAdd, onRemove, compact }) {
               fontSize: 15,
             }}
           >
-            ×
+            -
           </button>
         </div>
       ))}
@@ -1520,7 +2507,7 @@ function Attachments({ docs = [], onAdd, onRemove, compact }) {
   );
 }
 
-/* ─── EVIDENCE UPLOAD (EMAP standards) ──────────────── */
+/* --- EVIDENCE UPLOAD (EMAP standards) ---------------- */
 function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
   const [dragging, setDragging] = useState(false);
   const [analyzing, setAnalyzing] = useState(null);
@@ -1585,7 +2572,8 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
         (chunk) => {
           draft += chunk;
           onUpdateDocRationale(doc.id, draft);
-        }
+        },
+        'draft_rationale'
       );
     } catch {
       onUpdateDocRationale(doc.id, 'Error drafting rationale.');
@@ -1690,7 +2678,7 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
           color: '#1e40af',
         }}
       >
-        EMAP requires a written rationale for every proof of compliance —
+        EMAP requires a written rationale for every proof of compliance -
         explaining <em>how</em> the document demonstrates compliance,
         referencing specific sections and pages. Use the AI draft button on each
         document to generate one.
@@ -1718,14 +2706,12 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
       >
         {docs.length === 0 && (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 22, marginBottom: 4, opacity: 0.4 }}>
-              📄
-            </div>
+            <div style={{ fontSize: 22, marginBottom: 4, opacity: 0.4 }}>-</div>
             <div style={{ fontSize: 12, color: B.faint }}>
               Drop files here or click to upload
             </div>
             <div style={{ fontSize: 10, color: '#d1d8db', marginTop: 2 }}>
-              PDF, Word, images — AI analyzes + drafts rationale
+              PDF, Word, images - AI analyzes + drafts rationale
             </div>
           </div>
         )}
@@ -1767,10 +2753,10 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                       }}
                     >
                       {doc.name.endsWith('.pdf')
-                        ? '📕'
+                        ? '-'
                         : doc.name.match(/\.(jpg|jpeg|png)$/)
-                        ? '🖼️'
-                        : '📄'}
+                        ? '--'
+                        : '-'}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
@@ -1786,7 +2772,7 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                         {doc.name}
                       </div>
                       <div style={{ fontSize: 10, color: B.faint }}>
-                        {fmtSz(doc.size)} · {timeAgo(doc.uploadedAt)}
+                        {fmtSz(doc.size)} - {timeAgo(doc.uploadedAt)}
                         {doc.isDraft ? (
                           <span
                             style={{
@@ -1795,7 +2781,7 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                               marginLeft: 6,
                             }}
                           >
-                            ⚠ Draft — not accepted by EMAP
+                            - Draft - not accepted by EMAP
                           </span>
                         ) : (
                           ''
@@ -1814,7 +2800,7 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                         lineHeight: 1,
                       }}
                     >
-                      ×
+                      -
                     </button>
                   </div>
                   {/* Analyzing state */}
@@ -1835,9 +2821,9 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                           display: 'inline-block',
                         }}
                       >
-                        ⟳
+                        -
                       </span>
-                      AI analyzing document…
+                      AI analyzing document...
                     </div>
                   )}
                   {/* Confidence bar */}
@@ -1912,11 +2898,11 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                             letterSpacing: '0.06em',
                           }}
                         >
-                          {hasDraft ? '✓ Rationale' : '⚠ Rationale required'}
+                          {hasDraft ? 'ok Rationale' : '- Rationale required'}
                         </span>
                         {hasDraft && (
                           <span style={{ fontSize: 10, color: B.faint }}>
-                            — EMAP proof of compliance
+                            - EMAP proof of compliance
                           </span>
                         )}
                       </div>
@@ -1944,7 +2930,9 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                             color={B.purple}
                             strokeWidth={1.5}
                           />
-                          {isDraftLoading ? 'Drafting…' : 'AI Draft Rationale'}
+                          {isDraftLoading
+                            ? 'Drafting...'
+                            : 'AI Draft Rationale'}
                         </button>
                       )}
                     </div>
@@ -1994,9 +2982,9 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
                             display: 'inline-block',
                           }}
                         >
-                          ⟳
+                          -
                         </span>
-                        AI drafting rationale…
+                        AI drafting rationale...
                       </div>
                     )}
                   </div>
@@ -2057,8 +3045,8 @@ function DocZone({ std, docs, onAddDoc, onRemoveDoc, onUpdateDocRationale }) {
   );
 }
 
-/* ─── STANDARD DETAIL PANEL ──────────────────────────── */
-function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
+/* --- STANDARD DETAIL PANEL ---------------------------- */
+function DetailPanel({ stdId, standards, onUpdateStd, onClose, onAddCapItem }) {
   const std = ALL_STANDARDS.find((s) => s.id === stdId);
   const st = standards[stdId] || initRecord();
   const allIds = ALL_STANDARDS.map((s) => s.id);
@@ -2104,7 +3092,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
           ...p,
           [mode]: fullText.replace(/AUTO_STATUS:\s*\w+\n?/i, '').trim(),
         }));
-      });
+      }, mode === 'action' ? 'action_plan' : mode);
       if (mode === 'interpret') {
         const m = fullText.match(/AUTO_STATUS:\s*(\w+)/i);
         if (m && ST[m[1].toLowerCase()] && st.status === 'not_started')
@@ -2119,8 +3107,33 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
     if (aiData[aiMode]) {
       update(
         'notes',
-        (st.notes ? st.notes + '\n\n—\n\n' : '') + aiData[aiMode]
+        (st.notes ? st.notes + '\n\n-\n\n' : '') + aiData[aiMode]
       );
+      if (aiMode === 'action' && onAddCapItem) {
+        const lines = aiData[aiMode].split('\n').filter(l =>
+          l.match(/^\s*(\d+[\.\):]|\-|\•|\*)\s/)
+        );
+        const items = lines.map(line =>
+          line.replace(/^\s*(\d+[\.\):]|\-|\•|\*)\s*/, '')
+            .replace(/\*\*/g, '').trim()
+        ).filter(t => t.length > 10);
+        if (items.length === 0) {
+          const sentences = aiData[aiMode].split(/[.!]\s/).filter(s => s.length > 20).slice(0, 8);
+          items.push(...sentences.map(s => s.trim()));
+        }
+        items.forEach(text => {
+          onAddCapItem({
+            id: uid(),
+            item: text.slice(0, 200),
+            source: `EMAP ${std.id}`,
+            stdRef: std.id,
+            priority: 'medium',
+            status: 'open',
+            closed: false,
+            addedAt: Date.now(),
+          });
+        });
+      }
       setAdopted(true);
       setTimeout(() => setAdopted(false), 2500);
     }
@@ -2228,7 +3241,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                 fontWeight: 600,
               }}
             >
-              ← Prev
+              - Prev
             </button>
             <button
               onClick={() =>
@@ -2248,7 +3261,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                 fontWeight: 600,
               }}
             >
-              Next →
+              Next -
             </button>
             <span style={{ fontSize: 11, color: B.faint }}>
               {idx + 1}/{allIds.length}
@@ -2267,12 +3280,12 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
               lineHeight: 1,
             }}
           >
-            ✕
+            x
           </button>
         </div>
         <div style={{ padding: '20px 22px 48px' }}>
           <div style={{ fontSize: 11, color: B.faint, marginBottom: 8 }}>
-            {std.chapter.title} › {std.section.title}
+            {std.chapter.title} - {std.section.title}
           </div>
           <div
             style={{
@@ -2325,8 +3338,8 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                   fontWeight: 600,
                 }}
               >
-                📄 {(st.docs || []).length} doc
-                {(st.docs || []).length !== 1 ? 's' : ''} · {bestDocConf}%
+                - {(st.docs || []).length} doc
+                {(st.docs || []).length !== 1 ? 's' : ''} - {bestDocConf}%
               </span>
             )}
             {docsWithRationale > 0 && (
@@ -2341,7 +3354,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                   fontWeight: 600,
                 }}
               >
-                ✓ {docsWithRationale} rationale
+                ok {docsWithRationale} rationale
                 {docsWithRationale > 1 ? 's' : ''}
               </span>
             )}
@@ -2357,7 +3370,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                   fontWeight: 600,
                 }}
               >
-                ⚠ {docsWithoutRationale} rationale
+                - {docsWithoutRationale} rationale
                 {docsWithoutRationale > 1 ? 's' : ''} needed
               </span>
             )}
@@ -2382,7 +3395,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
               <span style={{ flexShrink: 0, marginTop: 1 }}>ⓘ</span>
               <div>
                 <strong>EMAP peer review sequencing note:</strong> {depLabel}.
-                You can continue documenting this standard — this flag is
+                You can continue documenting this standard - this flag is
                 informational only and does not prevent you from moving forward
                 in PLANRR.
               </div>
@@ -2436,14 +3449,15 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
             </div>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
               {[
-                ['interpret', '◉ Interpret'],
-                ['evidence', '◈ Suggest Evidence'],
-                ['action', '◎ Build Action Plan'],
+                ['interpret', '- Interpret'],
+                ['evidence', '- Suggest Evidence'],
+                ['action', '- Build Action Plan'],
+                ['partner', '🤝 Guided Review'],
               ].map(([mode, lbl]) => (
                 <button
                   key={mode}
-                  onClick={() => runAi(mode)}
-                  disabled={aiLoading[mode]}
+                  onClick={() => mode === 'partner' ? setAiMode('partner') : runAi(mode)}
+                  disabled={mode !== 'partner' && aiLoading[mode]}
                   style={{
                     padding: '6px 13px',
                     borderRadius: 7,
@@ -2460,11 +3474,28 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                     transition: 'all 0.15s',
                   }}
                 >
-                  {aiLoading[mode] ? '⟳ Working…' : lbl}
+                  {aiLoading[mode] ? '- Working...' : lbl}
                 </button>
               ))}
             </div>
-            {aiMode && (
+            {aiMode === 'partner' && (
+              <div style={{ marginTop: 12 }}>
+                <SAGE
+                  title={`Standard ${std.id} Review`}
+                  icon="✓"
+                  systemPrompt={`You are an EMAP accreditation expert reviewing Standard ${std.id}: "${std.text}". Guide the EM director through understanding what this standard requires, what evidence they need, and how to build compliance. Ask about their current practices, documentation, and gaps. Help them develop a specific action plan.`}
+                  orgContext={`Organization: ${data?.orgName || 'Unknown'}. Standard ${std.id} current status: ${st.status}. Notes: ${st.notes || 'none'}. Documents: ${(st.docs || []).length} attached.`}
+                  initialMessage={`Let's review **Standard ${std.id}** together.\n\n"${std.text}"\n\nYour current status is **${ST[st.status]?.label || 'Not Started'}**. Can you tell me what your organization currently does to address this standard? What documentation or processes do you have in place?`}
+                  completeLabel="Generate Compliance Summary"
+                  onComplete={(result) => {
+                    update('notes', (st.notes ? st.notes + '\n\n---\n\n' : '') + result);
+                    setAiMode(null);
+                  }}
+                  onClose={() => setAiMode(null)}
+                />
+              </div>
+            )}
+            {aiMode && aiMode !== 'partner' && (
               <>
                 <AiBlock
                   content={aiData[aiMode]}
@@ -2496,7 +3527,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
                         transition: 'all 0.2s',
                       }}
                     >
-                      {adopted ? '✓ Added to notes' : '↓ Add to notes'}
+                      {adopted ? 'ok Added to notes' : '- Add to notes'}
                     </button>
                     <button
                       onClick={() => setAiMode(null)}
@@ -2572,7 +3603,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
               <FInput
                 value={st.assignee || ''}
                 onChange={(v) => update('assignee', v)}
-                placeholder="Name or role…"
+                placeholder="Name or role..."
               />
             </div>
             <div>
@@ -2589,7 +3620,7 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
             <FTextarea
               value={st.notes || ''}
               onChange={(v) => update('notes', v)}
-              placeholder="Gap analysis, corrective actions, progress notes…"
+              placeholder="Gap analysis, corrective actions, progress notes..."
             />
           </div>
           <div style={{ borderTop: `1px solid ${B.border}`, paddingTop: 16 }}>
@@ -2625,9 +3656,9 @@ function DetailPanel({ stdId, standards, onUpdateStd, onClose }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    EMAP STANDARDS VIEW
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function AccreditationView({ data, updateData }) {
   const standards = data.standards || {};
   const [detailId, setDetailId] = useState(null);
@@ -2666,8 +3697,8 @@ function AccreditationView({ data, updateData }) {
           EMAP Standards
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 3 }}>
-          EMS 5-2022 · {compliantSections}/{ALL_SECTIONS.length} sections
-          compliant · {overall.compliant}/{overall.total} standards compliant
+          EMS 5-2022 - {compliantSections}/{ALL_SECTIONS.length} sections
+          compliant - {overall.compliant}/{overall.total} standards compliant
         </p>
         <div
           style={{
@@ -2689,19 +3720,20 @@ function AccreditationView({ data, updateData }) {
         </div>
         <div style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 11 }}>
           <span style={{ color: B.green, fontWeight: 600 }}>
-            ✓ {overall.compliant} compliant
+            ok {overall.compliant} compliant
           </span>
           <span style={{ color: B.amber, fontWeight: 600 }}>
-            ◑ {overall.in_progress} in progress
+            - {overall.in_progress} in progress
           </span>
           <span style={{ color: B.red, fontWeight: 600 }}>
             ! {overall.needs_review} needs review
           </span>
           <span style={{ color: B.faint }}>
-            ○ {overall.not_started} not started
+            o {overall.not_started} not started
           </span>
         </div>
       </div>
+      <CoachBanner moduleId="accreditation" />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {ALL_SECTIONS.map((sec) => {
           const aggStatus = sectionAggStatus(sec, standards);
@@ -2841,7 +3873,7 @@ function AccreditationView({ data, updateData }) {
                     flexShrink: 0,
                   }}
                 >
-                  ▼
+                  -
                 </span>
               </div>
               {isExpanded && (
@@ -2955,8 +3987,8 @@ function AccreditationView({ data, updateData }) {
                                 fontWeight: 600,
                               }}
                             >
-                              📄{docCount}
-                              {bestConf !== null ? ` · ${bestConf}%` : ''}
+                              -{docCount}
+                              {bestConf !== null ? `  -  ${bestConf}%` : ''}
                             </span>
                           )}
                           {st.assignee && (
@@ -2964,12 +3996,12 @@ function AccreditationView({ data, updateData }) {
                               style={{ fontSize: 10, color: B.faint }}
                               title={st.assignee}
                             >
-                              👤
+                              -
                             </span>
                           )}
                           <StatusPill status={st.status} compact />
                           <span style={{ color: '#d1d8db', fontSize: 14 }}>
-                            ›
+                            -
                           </span>
                         </div>
                       </div>
@@ -2992,7 +4024,7 @@ function AccreditationView({ data, updateData }) {
                     }
                     readOnly
                     onClick={() => setDetailId(sec.standards[0]?.id)}
-                    placeholder="Click to view notes…"
+                    placeholder="Click to view notes..."
                     style={{
                       width: '100%',
                       border: `1px solid ${B.border}`,
@@ -3021,15 +4053,22 @@ function AccreditationView({ data, updateData }) {
             if (nextId) setDetailId(nextId);
             else setDetailId(null);
           }}
+          onAddCapItem={(item) => {
+            updateData(prev => ({
+              ...prev,
+              capItems: [...(prev.capItems || []), item],
+            }));
+            addActivity(updateData, 'created', 'cap', `CAP item from EMAP ${item.stdRef}: ${item.item.slice(0, 60)}`);
+          }}
         />
       )}
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
-   EXERCISE & AAR — Full workflow
-═══════════════════════════════════════════════════════ */
+/* -------------------------------------------------------
+   EXERCISE & AAR - Full workflow
+------------------------------------------------------- */
 const HSEEP_TYPES = [
   'Seminar',
   'Workshop',
@@ -3038,6 +4077,25 @@ const HSEEP_TYPES = [
   'Drill',
   'Functional Exercise (FE)',
   'Full-Scale Exercise (FSE)',
+];
+const INCIDENT_TYPES = [
+  'Natural Disaster',
+  'Severe Weather',
+  'Wildfire',
+  'Flood',
+  'Earthquake',
+  'HAZMAT Incident',
+  'Mass Casualty',
+  'Active Threat',
+  'Public Health Emergency',
+  'Infrastructure Failure',
+  'Civil Unrest',
+  'Search & Rescue',
+  'Evacuation',
+  'EOC Activation',
+  'Planned Event / Special Event',
+  'Mutual Aid Deployment',
+  'Other',
 ];
 const EXERCISE_STATUS = {
   planned: { label: 'Planned', color: B.blue, bg: B.blueLight },
@@ -3100,7 +4158,7 @@ const US_STATES = [
   'Wyoming',
 ];
 
-function ExerciseDetail({ ex, onUpdate, onClose }) {
+function ExerciseDetail({ ex, onUpdate, onClose, isIncident }) {
   const [tab, setTab] = useState('overview');
   const [aarDraftLoading, setAarDraftLoading] = useState(false);
   const [aarFinalLoading, setAarFinalLoading] = useState(false);
@@ -3136,7 +4194,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
       await callAI(SYS, prompt, (chunk) => {
         draft += chunk;
         u('aarDraft', draft);
-      });
+      }, 'draft_aar');
     } catch {
       u('aarDraft', 'Error generating draft.');
     }
@@ -3158,7 +4216,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
       await callAI(SYS, prompt, (chunk) => {
         final += chunk;
         u('aarFinal', final);
-      });
+      }, 'finalize_aar');
     } catch {
       u('aarFinal', 'Error generating final.');
     }
@@ -3255,8 +4313,9 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 {ex.name}
               </div>
               <div style={{ fontSize: 12, color: B.faint, marginTop: 2 }}>
-                {ex.type} · {fmtDate(ex.date)}
-                {ex.location ? ` · ${ex.location}` : ''}
+                {isIncident ? 'Incident: ' : ''}
+                {ex.type} - {fmtDate(ex.date)}
+                {ex.location ? `  -  ${ex.location}` : ''}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -3286,7 +4345,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   lineHeight: 1,
                 }}
               >
-                ✕
+                x
               </button>
             </div>
           </div>
@@ -3321,7 +4380,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
 
         {/* Tab content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 22px 40px' }}>
-          {/* ─ OVERVIEW ─ */}
+          {/* - OVERVIEW - */}
           {tab === 'overview' && (
             <div>
               <div
@@ -3341,10 +4400,12 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   />
                 </div>
                 <div>
-                  <Label>HSEEP Exercise Type</Label>
+                  <Label>
+                    {isIncident ? 'Incident Type' : 'HSEEP Exercise Type'}
+                  </Label>
                   <FSel value={ex.type || ''} onChange={(v) => u('type', v)}>
-                    <option value="">Select type…</option>
-                    {HSEEP_TYPES.map((t) => (
+                    <option value="">Select type...</option>
+                    {(isIncident ? INCIDENT_TYPES : HSEEP_TYPES).map((t) => (
                       <option key={t}>{t}</option>
                     ))}
                   </FSel>
@@ -3368,7 +4429,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 <div>
                   <Label>State (for AAR requirements)</Label>
                   <FSel value={ex.state || ''} onChange={(v) => u('state', v)}>
-                    <option value="">Select state…</option>
+                    <option value="">Select state...</option>
                     {US_STATES.map((s) => (
                       <option key={s}>{s}</option>
                     ))}
@@ -3389,20 +4450,34 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 </div>
               </div>
               <div style={{ marginBottom: 14 }}>
-                <Label>Exercise Scenario / Overview</Label>
+                <Label>
+                  {isIncident
+                    ? 'Incident Summary'
+                    : 'Exercise Scenario / Overview'}
+                </Label>
                 <FTextarea
                   value={ex.scenario || ''}
                   onChange={(v) => u('scenario', v)}
-                  placeholder="Describe the scenario, scope, and context of the exercise…"
+                  placeholder={
+                    isIncident
+                      ? 'Describe what happened, scope, response actions taken...'
+                      : 'Describe the scenario, scope, and context of the exercise...'
+                  }
                   rows={4}
                 />
               </div>
               <div style={{ marginBottom: 14 }}>
-                <Label>Sponsoring Agency</Label>
+                <Label>
+                  {isIncident ? 'Lead/Responding Agency' : 'Sponsoring Agency'}
+                </Label>
                 <FInput
                   value={ex.sponsor || ''}
                   onChange={(v) => u('sponsor', v)}
-                  placeholder="Lead agency name"
+                  placeholder={
+                    isIncident
+                      ? 'Agency that led the response'
+                      : 'Lead agency name'
+                  }
                 />
               </div>
               <div>
@@ -3420,7 +4495,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
             </div>
           )}
 
-          {/* ─ OBJECTIVES & PARTICIPANTS ─ */}
+          {/* - OBJECTIVES & PARTICIPANTS - */}
           {tab === 'objectives' && (
             <div>
               <div style={{ marginBottom: 18 }}>
@@ -3433,7 +4508,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   <FInput
                     value={''}
                     onChange={() => {}}
-                    placeholder="Add objective… (press Enter)"
+                    placeholder="Add objective... (press Enter)"
                     style={{ fontSize: 12 }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -3467,7 +4542,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                       textAlign: 'center',
                     }}
                   >
-                    No objectives added — type above and press Enter
+                    No objectives added - type above and press Enter
                   </div>
                 )}
                 {(ex.objectives || []).map((obj, i) => (
@@ -3510,7 +4585,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                         fontSize: 14,
                       }}
                     >
-                      ×
+                      -
                     </button>
                   </div>
                 ))}
@@ -3546,7 +4621,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   <FTextarea
                     value={ex.participantNotes || ''}
                     onChange={(v) => u('participantNotes', v)}
-                    placeholder="List agencies, roles, or other participation details…"
+                    placeholder="List agencies, roles, or other participation details..."
                     rows={3}
                   />
                 </div>
@@ -3556,7 +4631,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 <FTextarea
                   value={ex.controllers || ''}
                   onChange={(v) => u('controllers', v)}
-                  placeholder="List controllers and evaluators assigned to this exercise…"
+                  placeholder="List controllers and evaluators assigned to this exercise..."
                   rows={3}
                 />
               </div>
@@ -3565,14 +4640,14 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 <FTextarea
                   value={ex.observerNotes || ''}
                   onChange={(v) => u('observerNotes', v)}
-                  placeholder="Hot wash notes, observer observations during exercise…"
+                  placeholder="Hot wash notes, observer observations during exercise..."
                   rows={3}
                 />
               </div>
             </div>
           )}
 
-          {/* ─ EVALUATION (Strengths, AFIs, CAs) ─ */}
+          {/* - EVALUATION (Strengths, AFIs, CAs) - */}
           {tab === 'eval' && (
             <div>
               <div
@@ -3589,7 +4664,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   <FInput
                     value={strengthText}
                     onChange={setStrengthText}
-                    placeholder="Add a strength…"
+                    placeholder="Add a strength..."
                     style={{ fontSize: 12 }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -3630,7 +4705,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                         marginTop: 1,
                       }}
                     >
-                      ✓
+                      ok
                     </span>
                     <span style={{ flex: 1, fontSize: 12, color: B.text }}>
                       {s}
@@ -3645,7 +4720,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                         fontSize: 13,
                       }}
                     >
-                      ×
+                      -
                     </button>
                   </div>
                 ))}
@@ -3664,7 +4739,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   <FInput
                     value={afiText}
                     onChange={setAfiText}
-                    placeholder="Add an area for improvement…"
+                    placeholder="Add an area for improvement..."
                     style={{ fontSize: 12 }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -3705,7 +4780,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                         marginTop: 1,
                       }}
                     >
-                      △
+                      -
                     </span>
                     <span style={{ flex: 1, fontSize: 12, color: B.text }}>
                       {a}
@@ -3720,7 +4795,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                         fontSize: 13,
                       }}
                     >
-                      ×
+                      -
                     </button>
                   </div>
                 ))}
@@ -3733,12 +4808,12 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   padding: '14px 16px',
                 }}
               >
-                <Label>Improvement Plan — Corrective Actions</Label>
+                <Label>Improvement Plan - Corrective Actions</Label>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                   <FInput
                     value={caText}
                     onChange={setCaText}
-                    placeholder="Add corrective action…"
+                    placeholder="Add corrective action..."
                     style={{ fontSize: 12 }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -3792,7 +4867,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
             </div>
           )}
 
-          {/* ─ AAR DRAFT ─ */}
+          {/* - AAR DRAFT - */}
           {tab === 'aar_draft' && (
             <div>
               <div
@@ -3828,22 +4903,40 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                       AI AAR Draft Generator
                     </div>
                     <div style={{ fontSize: 11, color: B.faint }}>
-                      HSEEP-compliant draft · EMAP 4.11 requirements ·{' '}
+                      HSEEP-compliant draft - EMAP 4.11 requirements -{' '}
                       {ex.state
                         ? `${ex.state} state considerations`
                         : 'Add state for state-specific guidance'}
                     </div>
                   </div>
-                  <Btn
-                    label={
-                      aarDraftLoading ? '⟳ Drafting…' : 'Generate AAR Draft'
-                    }
-                    onClick={genAARDraft}
-                    loading={aarDraftLoading}
-                    primary
-                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Btn
+                      label={aarDraftLoading ? '- Drafting...' : 'Quick Generate'}
+                      onClick={genAARDraft}
+                      loading={aarDraftLoading}
+                      primary
+                    />
+                    <Btn
+                      label="🤝 Build AAR Together"
+                      onClick={() => u('aarPartnerOpen', true)}
+                    />
+                  </div>
                 </div>
-                {!ex.aarDraft && !aarDraftLoading && (
+                {ex.aarPartnerOpen && (
+                  <div style={{ marginBottom: 16 }}>
+                    <SAGE
+                      title="AAR Builder"
+                      icon="📝"
+                      systemPrompt={`You are an HSEEP-certified exercise evaluator building an After-Action Report. Guide the EM director through a structured AAR conversation covering: exercise design summary, analysis of capabilities against objectives, strengths observed, areas for improvement (AFIs), and corrective action items. Each AFI should be tied to a specific EMAP standard when possible.`}
+                      orgContext={`Exercise: ${ex.name} (${ex.type}). Date: ${ex.date || 'TBD'}. Objectives: ${ex.objectives || 'Not set'}. Scenario: ${ex.scenario || 'Not set'}. Participants: ${ex.participants || 'Not set'}. Strengths noted: ${(ex.strengths || []).join(', ') || 'None yet'}. AFIs: ${(ex.afis || []).join(', ') || 'None yet'}.`}
+                      initialMessage={`Let's build the AAR for **${ex.name}** together.\n\nI'll walk you through each HSEEP section. Let's start — can you describe what happened during the exercise? What was the overall flow and how did things go?`}
+                      completeLabel="Generate Final AAR"
+                      onComplete={(result) => { u('aarDraft', result); u('aarPartnerOpen', false); }}
+                      onClose={() => u('aarPartnerOpen', false)}
+                    />
+                  </div>
+                )}
+                {!ex.aarDraft && !aarDraftLoading && !ex.aarPartnerOpen && (
                   <div style={{ fontSize: 12, color: B.faint }}>
                     Fill in Overview and Objectives/Participants tabs first,
                     then generate your HSEEP-compliant AAR draft here. AI will
@@ -3867,9 +4960,9 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                         display: 'inline-block',
                       }}
                     >
-                      ⟳
+                      -
                     </span>
-                    Drafting HSEEP-compliant AAR…
+                    Drafting HSEEP-compliant AAR...
                   </div>
                 )}
               </div>
@@ -3878,7 +4971,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                 <FTextarea
                   value={ex.aarDraft || ''}
                   onChange={(v) => u('aarDraft', v)}
-                  placeholder="AAR draft will appear here after AI generation, or type/paste your draft…"
+                  placeholder="AAR draft will appear here after AI generation, or type/paste your draft..."
                   rows={20}
                 />
               </div>
@@ -3897,7 +4990,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
             </div>
           )}
 
-          {/* ─ AAR FINAL ─ */}
+          {/* - AAR FINAL - */}
           {tab === 'aar_final' && (
             <div>
               <div
@@ -3937,7 +5030,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                     </div>
                   </div>
                   <Btn
-                    label={aarFinalLoading ? '⟳ Finalizing…' : 'Finalize AAR'}
+                    label={aarFinalLoading ? '- Finalizing...' : 'Finalize AAR'}
                     onClick={finalizeAAR}
                     loading={aarFinalLoading}
                     primary
@@ -3974,7 +5067,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                   <FInput
                     value={ex.aarDistribution || ''}
                     onChange={(v) => u('aarDistribution', v)}
-                    placeholder="Stakeholders, agencies…"
+                    placeholder="Stakeholders, agencies..."
                   />
                 </div>
               </div>
@@ -4002,7 +5095,7 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
                     color: '#065f46',
                   }}
                 >
-                  ✓ Final AAR on file — counts as evidence for EMAP 4.11.2
+                  ok Final AAR on file - counts as evidence for EMAP 4.11.2
                 </div>
               )}
             </div>
@@ -4014,14 +5107,23 @@ function ExerciseDetail({ ex, onUpdate, onClose }) {
 }
 
 function ExerciseManager({ data, setData }) {
+  const [activeTab, setActiveTab] = useState('exercises');
   const [showForm, setShowForm] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedIncId, setSelectedIncId] = useState(null);
   const [form, setForm] = useState({
     name: '',
     type: 'Tabletop Exercise (TTX)',
     date: today(),
     status: 'planned',
   });
+  const [incForm, setIncForm] = useState({
+    name: '',
+    type: 'Natural Disaster',
+    date: today(),
+    status: 'completed',
+  });
+  const incidents = data.incidents || [];
   const createEx = () => {
     if (!form.name) return;
     const ex = {
@@ -4044,10 +5146,41 @@ function ExerciseManager({ data, setData }) {
     setShowForm(false);
     setSelectedId(ex.id);
   };
+  const createInc = () => {
+    if (!incForm.name) return;
+    const inc = {
+      ...incForm,
+      id: uid(),
+      isIncident: true,
+      objectives: [],
+      strengths: [],
+      afis: [],
+      corrective: [],
+      docs: [],
+      addedAt: Date.now(),
+    };
+    setData((prev) => ({
+      ...prev,
+      incidents: [...(prev.incidents || []), inc],
+    }));
+    setIncForm({
+      name: '',
+      type: 'Natural Disaster',
+      date: today(),
+      status: 'completed',
+    });
+    setShowForm(false);
+    setSelectedIncId(inc.id);
+  };
   const updateEx = (id, updates) =>
     setData((prev) => ({
       ...prev,
       exercises: prev.exercises.map((e) => (e.id === id ? updates : e)),
+    }));
+  const updateInc = (id, updates) =>
+    setData((prev) => ({
+      ...prev,
+      incidents: (prev.incidents || []).map((i) => (i.id === id ? updates : i)),
     }));
   const removeEx = (id) => {
     setData((prev) => ({
@@ -4056,9 +5189,22 @@ function ExerciseManager({ data, setData }) {
     }));
     if (selectedId === id) setSelectedId(null);
   };
+  const removeInc = (id) => {
+    setData((prev) => ({
+      ...prev,
+      incidents: (prev.incidents || []).filter((i) => i.id !== id),
+    }));
+    if (selectedIncId === id) setSelectedIncId(null);
+  };
   const sel = selectedId
     ? data.exercises.find((e) => e.id === selectedId)
     : null;
+  const selInc = selectedIncId
+    ? incidents.find((i) => i.id === selectedIncId)
+    : null;
+  const totalAARs = [...data.exercises, ...incidents].filter(
+    (e) => e.aarDraft || e.aarFinal
+  ).length;
   return (
     <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 1000 }}>
       <div
@@ -4081,221 +5227,523 @@ function ExerciseManager({ data, setData }) {
             Exercises & AARs
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.11 · HSEEP-aligned · {data.exercises.length} exercises ·
-            AI-assisted AAR drafting
+            EMAP 4.11 + 4.12 - {data.exercises.length} exercises -{' '}
+            {incidents.length} incidents - {totalAARs} AARs on file
           </p>
         </div>
-        <Btn label="+ New Exercise" onClick={() => setShowForm(true)} primary />
+        <Btn
+          label={
+            activeTab === 'exercises' ? '+ New Exercise' : '+ New Incident'
+          }
+          onClick={() => setShowForm(true)}
+          primary
+        />
       </div>
+      <CoachBanner moduleId="exercises" />
+
+      {/* Tab switcher */}
       <div
         style={{
-          background: `${B.purple}10`,
-          border: `1px solid ${B.purpleBorder}`,
-          borderLeft: `3px solid ${B.purple}`,
-          borderRadius: '0 8px 8px 0',
-          padding: '9px 14px',
-          marginBottom: 14,
-          fontSize: 12,
-          color: '#5b21b6',
+          display: 'flex',
+          gap: 4,
+          marginBottom: 16,
+          padding: '4px',
+          background: '#f0f3f4',
+          borderRadius: 12,
         }}
       >
-        ↑ Completed exercises with AARs directly satisfy{' '}
-        <strong>EMAP 4.11.2</strong>. AI drafts meet HSEEP doctrine
-        requirements.
-      </div>
-      {showForm && (
-        <div
-          style={{
-            background: B.purpleLight,
-            border: `1px solid ${B.purpleBorder}`,
-            borderRadius: 10,
-            padding: '16px 18px',
-            marginBottom: 14,
-          }}
-        >
-          <div
+        {[
+          { id: 'exercises', label: 'Exercises', count: data.exercises.length },
+          {
+            id: 'incidents',
+            label: 'Incidents & Activations',
+            count: incidents.length,
+          },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => {
+              setActiveTab(t.id);
+              setShowForm(false);
+            }}
             style={{
+              padding: '9px 18px',
+              borderRadius: 9,
+              border: 'none',
+              background: activeTab === t.id ? '#fff' : 'transparent',
+              color: activeTab === t.id ? B.text : B.faint,
               fontSize: 13,
-              fontWeight: 700,
-              color: B.text,
-              marginBottom: 12,
+              fontWeight: activeTab === t.id ? 700 : 500,
+              cursor: 'pointer',
+              fontFamily: "'DM Sans',sans-serif",
+              transition: 'all 0.15s ease',
+              boxShadow:
+                activeTab === t.id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
             }}
           >
-            New Exercise
-          </div>
+            {t.label}
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: activeTab === t.id ? B.teal : B.faint,
+                background: activeTab === t.id ? B.tealLight : '#e8ecee',
+                padding: '1px 6px',
+                borderRadius: 6,
+              }}
+            >
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'exercises' && (
+        <>
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: '2fr 1fr 1fr',
-              gap: 10,
-              marginBottom: 10,
+              background: `${B.purple}10`,
+              border: `1px solid ${B.purpleBorder}`,
+              borderLeft: `3px solid ${B.purple}`,
+              borderRadius: '0 8px 8px 0',
+              padding: '9px 14px',
+              marginBottom: 14,
+              fontSize: 12,
+              color: '#5b21b6',
             }}
           >
-            <div>
-              <Label>Exercise Name</Label>
-              <FInput
-                value={form.name}
-                onChange={(v) => setForm((p) => ({ ...p, name: v }))}
-                placeholder="Annual EOC Full-Scale Exercise"
-              />
-            </div>
-            <div>
-              <Label>Type</Label>
-              <FSel
-                value={form.type}
-                onChange={(v) => setForm((p) => ({ ...p, type: v }))}
+            Completed exercises with AARs directly satisfy{' '}
+            <strong>EMAP 4.11.2</strong>. AI drafts meet HSEEP doctrine
+            requirements.
+          </div>
+          {showForm && (
+            <div
+              style={{
+                background: B.purpleLight,
+                border: `1px solid ${B.purpleBorder}`,
+                borderRadius: 10,
+                padding: '16px 18px',
+                marginBottom: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: B.text,
+                  marginBottom: 12,
+                }}
               >
-                {HSEEP_TYPES.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </FSel>
-            </div>
-            <div>
-              <Label>Date</Label>
-              <FInput
-                type="date"
-                value={form.date}
-                onChange={(v) => setForm((p) => ({ ...p, date: v }))}
-              />
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Btn label="Create Exercise" onClick={createEx} primary />
-            <Btn label="Cancel" onClick={() => setShowForm(false)} />
-          </div>
-        </div>
-      )}
-      {data.exercises.length === 0 ? (
-        <Card style={{ textAlign: 'center', padding: '36px', color: B.faint }}>
-          No exercises yet — create your first exercise to start building EMAP
-          4.11 evidence
-        </Card>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[...data.exercises]
-            .sort((a, b) => b.date?.localeCompare(a.date))
-            .map((ex) => {
-              const sc = EXERCISE_STATUS[ex.status] || EXERCISE_STATUS.planned;
-              const openCAs = (ex.corrective || []).filter(
-                (c) => !c.closed
-              ).length;
-              const hasAAR = !!(ex.aarDraft || ex.aarFinal);
-              return (
-                <div
-                  key={ex.id}
-                  style={{
-                    background: B.card,
-                    border: `1px solid ${B.border}`,
-                    borderRadius: 9,
-                    padding: '13px 16px',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                  onClick={() => setSelectedId(ex.id)}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.borderColor = B.purple)
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.borderColor = B.border)
-                  }
-                >
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+                New Exercise
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 1fr 1fr',
+                  gap: 10,
+                  marginBottom: 10,
+                }}
+              >
+                <div>
+                  <Label>Exercise Name</Label>
+                  <FInput
+                    value={form.name}
+                    onChange={(v) => setForm((p) => ({ ...p, name: v }))}
+                    placeholder="Annual EOC Full-Scale Exercise"
+                  />
+                </div>
+                <div>
+                  <Label>Type</Label>
+                  <FSel
+                    value={form.type}
+                    onChange={(v) => setForm((p) => ({ ...p, type: v }))}
                   >
-                    <div style={{ flex: 1 }}>
+                    {HSEEP_TYPES.map((t) => (
+                      <option key={t}>{t}</option>
+                    ))}
+                  </FSel>
+                </div>
+                <div>
+                  <Label>Date</Label>
+                  <FInput
+                    type="date"
+                    value={form.date}
+                    onChange={(v) => setForm((p) => ({ ...p, date: v }))}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn label="Create Exercise" onClick={createEx} primary />
+                <Btn label="Cancel" onClick={() => setShowForm(false)} />
+              </div>
+            </div>
+          )}
+          {data.exercises.length === 0 ? (
+            <Card
+              style={{ textAlign: 'center', padding: '36px', color: B.faint }}
+            >
+              No exercises yet. Create your first exercise to start building
+              EMAP 4.11 evidence.
+            </Card>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[...data.exercises]
+                .sort((a, b) => b.date?.localeCompare(a.date))
+                .map((ex) => {
+                  const sc =
+                    EXERCISE_STATUS[ex.status] || EXERCISE_STATUS.planned;
+                  const openCAs = (ex.corrective || []).filter(
+                    (c) => !c.closed
+                  ).length;
+                  const hasAAR = !!(ex.aarDraft || ex.aarFinal);
+                  return (
+                    <div
+                      key={ex.id}
+                      style={{
+                        background: B.card,
+                        border: `1px solid ${B.border}`,
+                        borderRadius: 9,
+                        padding: '13px 16px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                      onClick={() => setSelectedId(ex.id)}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.borderColor = B.purple)
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.borderColor = B.border)
+                      }
+                    >
                       <div
                         style={{
                           display: 'flex',
-                          gap: 7,
                           alignItems: 'center',
-                          marginBottom: 3,
-                          flexWrap: 'wrap',
+                          gap: 10,
                         }}
                       >
-                        <span
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 700,
-                            color: B.text,
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              gap: 7,
+                              alignItems: 'center',
+                              marginBottom: 3,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: B.text,
+                              }}
+                            >
+                              {ex.name}
+                            </span>
+                            <Tag
+                              label={ex.type || 'Exercise'}
+                              color={B.purple}
+                              bg={B.purpleLight}
+                              border={B.purpleBorder}
+                            />
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: sc.color,
+                                background: sc.bg,
+                                padding: '2px 8px',
+                                borderRadius: 10,
+                                border: `1px solid ${sc.color}30`,
+                              }}
+                            >
+                              {sc.label}
+                            </span>
+                            {hasAAR && (
+                              <Tag
+                                label={ex.aarFinal ? 'AAR Final' : 'AAR Draft'}
+                                color={ex.aarFinal ? B.green : B.amber}
+                                bg={ex.aarFinal ? B.greenLight : B.amberLight}
+                                border={
+                                  ex.aarFinal ? B.greenBorder : B.amberBorder
+                                }
+                              />
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: B.faint,
+                              display: 'flex',
+                              gap: 12,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <span>{fmtDate(ex.date)}</span>
+                            {ex.location && <span>{ex.location}</span>}
+                            {ex.participantCount && (
+                              <span>{ex.participantCount} participants</span>
+                            )}
+                            {(ex.objectives || []).length > 0 && (
+                              <span>{ex.objectives.length} objectives</span>
+                            )}
+                            {openCAs > 0 && (
+                              <span style={{ color: B.red, fontWeight: 600 }}>
+                                {openCAs} open CAs
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeEx(ex.id);
                           }}
-                        >
-                          {ex.name}
-                        </span>
-                        <Tag
-                          label={ex.type || 'Exercise'}
-                          color={B.purple}
-                          bg={B.purpleLight}
-                          border={B.purpleBorder}
-                        />
-                        <span
                           style={{
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: sc.color,
-                            background: sc.bg,
-                            padding: '2px 8px',
-                            borderRadius: 10,
-                            border: `1px solid ${sc.color}30`,
+                            background: 'none',
+                            border: 'none',
+                            color: '#d1d5db',
+                            cursor: 'pointer',
+                            fontSize: 14,
+                            padding: '4px',
                           }}
+                          title="Delete"
                         >
-                          {sc.label}
-                        </span>
-                        {hasAAR && (
-                          <Tag
-                            label={ex.aarFinal ? 'AAR Final ✓' : 'AAR Draft'}
-                            color={ex.aarFinal ? B.green : B.amber}
-                            bg={ex.aarFinal ? B.greenLight : B.amberLight}
-                            border={ex.aarFinal ? B.greenBorder : B.amberBorder}
-                          />
-                        )}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: B.faint,
-                          display: 'flex',
-                          gap: 12,
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <span>{fmtDate(ex.date)}</span>
-                        {ex.location && <span>📍 {ex.location}</span>}
-                        {ex.participantCount && (
-                          <span>👥 {ex.participantCount} participants</span>
-                        )}
-                        {(ex.objectives || []).length > 0 && (
-                          <span>🎯 {ex.objectives.length} objectives</span>
-                        )}
-                        {openCAs > 0 && (
-                          <span style={{ color: B.red, fontWeight: 600 }}>
-                            ⚠ {openCAs} open CAs
-                          </span>
-                        )}
+                          x
+                        </button>
                       </div>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeEx(ex.id);
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#d1d5db',
-                        cursor: 'pointer',
-                        fontSize: 14,
-                        padding: '4px',
-                      }}
-                    >
-                      ×
-                    </button>
-                    <span style={{ color: B.border, fontSize: 14 }}>›</span>
-                  </div>
-                </div>
-              );
-            })}
-        </div>
+                  );
+                })}
+            </div>
+          )}
+        </>
       )}
+
+      {activeTab === 'incidents' && (
+        <>
+          <div
+            style={{
+              background: `${B.red}08`,
+              border: `1px solid ${B.redBorder}`,
+              borderLeft: `3px solid ${B.red}`,
+              borderRadius: '0 8px 8px 0',
+              padding: '9px 14px',
+              marginBottom: 14,
+              fontSize: 12,
+              color: '#991b1b',
+            }}
+          >
+            Real-world incidents with AARs demonstrate your improvement cycle
+            for <strong>EMAP 4.12</strong>. Corrective actions from incidents
+            feed directly into your CAP dashboard.
+          </div>
+          {showForm && (
+            <div
+              style={{
+                background: B.redLight,
+                border: `1px solid ${B.redBorder}`,
+                borderRadius: 10,
+                padding: '16px 18px',
+                marginBottom: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: B.text,
+                  marginBottom: 12,
+                }}
+              >
+                New Incident / Activation
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 1fr 1fr',
+                  gap: 10,
+                  marginBottom: 10,
+                }}
+              >
+                <div>
+                  <Label>Incident Name</Label>
+                  <FInput
+                    value={incForm.name}
+                    onChange={(v) => setIncForm((p) => ({ ...p, name: v }))}
+                    placeholder="2024 Creek Fire Response"
+                  />
+                </div>
+                <div>
+                  <Label>Incident Type</Label>
+                  <FSel
+                    value={incForm.type}
+                    onChange={(v) => setIncForm((p) => ({ ...p, type: v }))}
+                  >
+                    {INCIDENT_TYPES.map((t) => (
+                      <option key={t}>{t}</option>
+                    ))}
+                  </FSel>
+                </div>
+                <div>
+                  <Label>Date</Label>
+                  <FInput
+                    type="date"
+                    value={incForm.date}
+                    onChange={(v) => setIncForm((p) => ({ ...p, date: v }))}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn label="Create Incident" onClick={createInc} primary />
+                <Btn label="Cancel" onClick={() => setShowForm(false)} />
+              </div>
+            </div>
+          )}
+          {incidents.length === 0 ? (
+            <Card
+              style={{ textAlign: 'center', padding: '36px', color: B.faint }}
+            >
+              No incidents logged yet. Log real-world activations and write AARs
+              to strengthen your improvement cycle and satisfy EMAP 4.12.
+            </Card>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[...incidents]
+                .sort((a, b) => b.date?.localeCompare(a.date))
+                .map((inc) => {
+                  const sc =
+                    EXERCISE_STATUS[inc.status] || EXERCISE_STATUS.completed;
+                  const openCAs = (inc.corrective || []).filter(
+                    (c) => !c.closed
+                  ).length;
+                  const hasAAR = !!(inc.aarDraft || inc.aarFinal);
+                  return (
+                    <div
+                      key={inc.id}
+                      style={{
+                        background: B.card,
+                        border: `1px solid ${B.border}`,
+                        borderRadius: 9,
+                        padding: '13px 16px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                      onClick={() => setSelectedIncId(inc.id)}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.borderColor = B.red)
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.borderColor = B.border)
+                      }
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              gap: 7,
+                              alignItems: 'center',
+                              marginBottom: 3,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: B.text,
+                              }}
+                            >
+                              {inc.name}
+                            </span>
+                            <Tag
+                              label={inc.type || 'Incident'}
+                              color={B.red}
+                              bg={B.redLight}
+                              border={B.redBorder}
+                            />
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: sc.color,
+                                background: sc.bg,
+                                padding: '2px 8px',
+                                borderRadius: 10,
+                                border: `1px solid ${sc.color}30`,
+                              }}
+                            >
+                              {sc.label}
+                            </span>
+                            {hasAAR && (
+                              <Tag
+                                label={inc.aarFinal ? 'AAR Final' : 'AAR Draft'}
+                                color={inc.aarFinal ? B.green : B.amber}
+                                bg={inc.aarFinal ? B.greenLight : B.amberLight}
+                                border={
+                                  inc.aarFinal ? B.greenBorder : B.amberBorder
+                                }
+                              />
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: B.faint,
+                              display: 'flex',
+                              gap: 12,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <span>{fmtDate(inc.date)}</span>
+                            {inc.location && <span>{inc.location}</span>}
+                            {inc.participantCount && (
+                              <span>{inc.participantCount} responders</span>
+                            )}
+                            {openCAs > 0 && (
+                              <span style={{ color: B.red, fontWeight: 600 }}>
+                                {openCAs} open CAs
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeInc(inc.id);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#d1d5db',
+                            cursor: 'pointer',
+                            fontSize: 14,
+                            padding: '4px',
+                          }}
+                          title="Delete"
+                        >
+                          x
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </>
+      )}
+
       {sel && (
         <ExerciseDetail
           ex={sel}
@@ -4303,13 +5751,21 @@ function ExerciseManager({ data, setData }) {
           onClose={() => setSelectedId(null)}
         />
       )}
+      {selInc && (
+        <ExerciseDetail
+          ex={selInc}
+          onUpdate={(updated) => updateInc(selInc.id, updated)}
+          onClose={() => setSelectedIncId(null)}
+          isIncident
+        />
+      )}
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    EMPLOYEES & CREDENTIALS
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 const CERT_TYPES = [
   'ICS-100',
   'ICS-200',
@@ -4344,7 +5800,7 @@ const TASKBOOK_TYPES = [
   'Other FEMA Task Book',
 ];
 
-function EmployeeDetail({ emp, onUpdate, onClose }) {
+function EmployeeDetail({ emp, onUpdate, onClose, data }) {
   const [tab, setTab] = useState('profile');
   const [certForm, setCertForm] = useState({
     name: '',
@@ -4445,6 +5901,8 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
     { id: 'certs', label: 'Certifications' },
     { id: 'taskbooks', label: 'Task Books' },
     { id: 'training', label: 'Training History' },
+    { id: 'deployment', label: 'Deployment' },
+    { id: 'evaluation', label: 'Evaluation' },
   ];
   const expiringSoon = (emp.credentials || []).filter((c) => {
     const d = daysUntil(c.expires);
@@ -4517,7 +5975,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                 </div>
                 <div style={{ fontSize: 12, color: B.faint }}>
                   {emp.title || ''}
-                  {emp.title && emp.department ? ' · ' : ''}
+                  {emp.title && emp.department ? '  -  ' : ''}
                   {emp.department || ''}
                 </div>
               </div>
@@ -4535,7 +5993,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                     fontWeight: 600,
                   }}
                 >
-                  ⚠ {expiringSoon.length} expiring
+                  - {expiringSoon.length} expiring
                 </span>
               )}
               <button
@@ -4551,7 +6009,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                   lineHeight: 1,
                 }}
               >
-                ✕
+                x
               </button>
             </div>
           </div>
@@ -4583,7 +6041,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 22px 40px' }}>
-          {/* ─ PROFILE ─ */}
+          {/* - PROFILE - */}
           {tab === 'profile' && (
             <div>
               <div
@@ -4644,6 +6102,18 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                   />
                 </div>
                 <div>
+                  <Label>Availability</Label>
+                  <FSel
+                    value={emp.availability || 'full'}
+                    onChange={(v) => u('availability', v)}
+                  >
+                    <option value="full">Full Time (40h)</option>
+                    <option value="parttime">Part Time</option>
+                    <option value="oncall">On Call Only</option>
+                    <option value="limited">Limited</option>
+                  </FSel>
+                </div>
+                <div>
                   <Label>Date Hired</Label>
                   <FInput
                     type="date"
@@ -4662,7 +6132,135 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                     <option value="part_time">Part-Time</option>
                     <option value="volunteer">Volunteer</option>
                     <option value="contractor">Contractor</option>
+                    <option value="intern">Intern</option>
+                    <option value="dsw">Disaster Service Worker (DSW)</option>
                   </FSel>
+                </div>
+              </div>
+              <div
+                style={{
+                  marginBottom: 12,
+                  paddingTop: 12,
+                  borderTop: `1px solid ${B.border}`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: B.muted,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    marginBottom: 10,
+                  }}
+                >
+                  Billing & Cost
+                </div>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <Label>Hourly Rate ($)</Label>
+                    <FInput
+                      value={emp.hourlyRate || ''}
+                      onChange={(v) => u('hourlyRate', v)}
+                      placeholder="75.00"
+                    />
+                  </div>
+                  <div>
+                    <Label>Billable to Grant</Label>
+                    <FSel
+                      value={emp.billableGrant || ''}
+                      onChange={(v) => u('billableGrant', v)}
+                    >
+                      <option value="">Not billable</option>
+                      <option value="empg">EMPG</option>
+                      <option value="bsir">BSIR</option>
+                      <option value="uasi">UASI</option>
+                      <option value="hmgp">HMGP</option>
+                      <option value="shsp">SHSP</option>
+                      <option value="other">Other Grant</option>
+                    </FSel>
+                  </div>
+                  <div>
+                    <Label>FTE Allocation (%)</Label>
+                    <FInput
+                      value={emp.fteAllocation || ''}
+                      onChange={(v) => u('fteAllocation', v)}
+                      placeholder="100"
+                    />
+                  </div>
+                </div>
+                {emp.hourlyRate && (
+                  <div style={{ fontSize: 11, color: B.faint, marginTop: 6 }}>
+                    Annual cost estimate: $
+                    {(
+                      parseFloat(emp.hourlyRate || 0) *
+                      2080 *
+                      (parseFloat(emp.fteAllocation || 100) / 100)
+                    ).toLocaleString(undefined, {
+                      maximumFractionDigits: 0,
+                    })}{' '}
+                    ({emp.fteAllocation || 100}% FTE x ${emp.hourlyRate}/hr x
+                    2,080 hrs)
+                  </div>
+                )}
+              </div>
+              <div
+                style={{
+                  marginBottom: 12,
+                  paddingTop: 12,
+                  borderTop: `1px solid ${B.border}`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: B.muted,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    marginBottom: 10,
+                  }}
+                >
+                  Emergency Contact
+                </div>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 10,
+                    marginBottom: 12,
+                  }}
+                >
+                  <div>
+                    <Label>Contact Name</Label>
+                    <FInput
+                      value={emp.emergencyContact || ''}
+                      onChange={(v) => u('emergencyContact', v)}
+                      placeholder="Name"
+                    />
+                  </div>
+                  <div>
+                    <Label>Contact Phone</Label>
+                    <FInput
+                      value={emp.emergencyPhone || ''}
+                      onChange={(v) => u('emergencyPhone', v)}
+                      placeholder="(555) 000-0000"
+                    />
+                  </div>
+                  <div>
+                    <Label>Relationship</Label>
+                    <FInput
+                      value={emp.emergencyRelation || ''}
+                      onChange={(v) => u('emergencyRelation', v)}
+                      placeholder="Spouse, Parent..."
+                    />
+                  </div>
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
@@ -4670,7 +6268,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                 <FTextarea
                   value={emp.notes || ''}
                   onChange={(v) => u('notes', v)}
-                  placeholder="Additional notes about this employee…"
+                  placeholder="Additional notes about this employee..."
                   rows={3}
                 />
               </div>
@@ -4687,7 +6285,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
             </div>
           )}
 
-          {/* ─ CERTIFICATIONS ─ */}
+          {/* - CERTIFICATIONS - */}
           {tab === 'certs' && (
             <div>
               {expiringSoon.length > 0 && (
@@ -4708,11 +6306,11 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                       marginBottom: 4,
                     }}
                   >
-                    ⚠ Credentials Expiring Soon
+                    - Credentials Expiring Soon
                   </div>
                   {expiringSoon.map((c) => (
                     <div key={c.id} style={{ fontSize: 12, color: B.red }}>
-                      {c.name} —{' '}
+                      {c.name} -{' '}
                       {daysUntil(c.expires) < 0
                         ? 'EXPIRED'
                         : `${daysUntil(c.expires)} days`}
@@ -4773,7 +6371,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                       onChange={(v) =>
                         setCertForm((p) => ({ ...p, issuer: v }))
                       }
-                      placeholder="FEMA, State OES, IAEM…"
+                      placeholder="FEMA, State OES, IAEM..."
                     />
                   </div>
                   <div>
@@ -4898,7 +6496,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                             flexWrap: 'wrap',
                           }}
                         >
-                          {c.issuer && <span>🏛 {c.issuer}</span>}
+                          {c.issuer && <span>- {c.issuer}</span>}
                           {c.certNumber && <span>#{c.certNumber}</span>}
                           {c.issued && <span>Issued: {fmtDate(c.issued)}</span>}
                           {c.expires && (
@@ -4926,7 +6524,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                           fontSize: 14,
                         }}
                       >
-                        ×
+                        -
                       </button>
                     </div>
                   </div>
@@ -4935,7 +6533,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
             </div>
           )}
 
-          {/* ─ TASK BOOKS ─ */}
+          {/* - TASK BOOKS - */}
           {tab === 'taskbooks' && (
             <div>
               <div
@@ -4971,7 +6569,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                       value={tbForm.type}
                       onChange={(v) => setTbForm((p) => ({ ...p, type: v }))}
                     >
-                      <option value="">Select position…</option>
+                      <option value="">Select position...</option>
                       {TASKBOOK_TYPES.map((t) => (
                         <option key={t}>{t}</option>
                       ))}
@@ -5007,7 +6605,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                     fontSize: 13,
                   }}
                 >
-                  No task books yet — FEMA task books track position
+                  No task books yet - FEMA task books track position
                   qualification
                 </div>
               )}
@@ -5129,7 +6727,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                           fontSize: 14,
                         }}
                       >
-                        ×
+                        -
                       </button>
                     </div>
                     <div style={{ padding: '12px 14px' }}>
@@ -5137,7 +6735,7 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                         <FInput
                           value={newTask}
                           onChange={setNewTask}
-                          placeholder="Add task item…"
+                          placeholder="Add task item..."
                           style={{ fontSize: 12 }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -5237,7 +6835,257 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
             </div>
           )}
 
-          {/* ─ TRAINING HISTORY ─ */}
+          {/* - TRAINING HISTORY - */}
+          {tab === 'deployment' && (
+            <div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 12,
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    background: B.card,
+                    border: `1px solid ${B.border}`,
+                    borderRadius: 9,
+                    padding: '14px 16px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: B.muted,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      marginBottom: 10,
+                    }}
+                  >
+                    Deployment Status
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <Label>Deployable</Label>
+                    <FSel
+                      value={emp.deployable || 'yes'}
+                      onChange={(v) => u('deployable', v)}
+                    >
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                      <option value="limited">Limited</option>
+                    </FSel>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <Label>Currently Deployed</Label>
+                    <FSel
+                      value={emp.currentlyDeployed || 'no'}
+                      onChange={(v) => u('currentlyDeployed', v)}
+                    >
+                      <option value="no">No</option>
+                      <option value="yes">Yes</option>
+                    </FSel>
+                  </div>
+                  {emp.currentlyDeployed === 'yes' && (
+                    <>
+                      <div style={{ marginBottom: 10 }}>
+                        <Label>Deployment Location</Label>
+                        <FInput
+                          value={emp.deployLocation || ''}
+                          onChange={(v) => u('deployLocation', v)}
+                          placeholder="City, State or Incident Name"
+                        />
+                      </div>
+                      <div style={{ marginBottom: 10 }}>
+                        <Label>Point of Contact</Label>
+                        <FInput
+                          value={emp.deployPOC || ''}
+                          onChange={(v) => u('deployPOC', v)}
+                          placeholder="Name and phone"
+                        />
+                      </div>
+                      <div>
+                        <Label>Expected Return Date</Label>
+                        <FInput
+                          type="date"
+                          value={emp.deployReturn || ''}
+                          onChange={(v) => u('deployReturn', v)}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div
+                  style={{
+                    background: B.card,
+                    border: `1px solid ${B.border}`,
+                    borderRadius: 9,
+                    padding: '14px 16px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: B.muted,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      marginBottom: 10,
+                    }}
+                  >
+                    Deployment History
+                  </div>
+                  {(emp.deployHistory || []).length === 0 ? (
+                    <div
+                      style={{
+                        color: B.faint,
+                        fontSize: 12,
+                        textAlign: 'center',
+                        padding: '16px 0',
+                      }}
+                    >
+                      No deployments recorded
+                    </div>
+                  ) : (
+                    (emp.deployHistory || []).map((d, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          fontSize: 12,
+                          color: B.text,
+                          padding: '6px 0',
+                          borderBottom: `1px solid ${B.border}`,
+                        }}
+                      >
+                        {d.incident} - {fmtDate(d.start)} -{' '}
+                        {fmtDate(d.end) || 'Ongoing'}
+                      </div>
+                    ))
+                  )}
+                  <div style={{ marginTop: 12 }}>
+                    <Btn
+                      label="+ Log Deployment"
+                      small
+                      onClick={() => {
+                        const incident = prompt('Incident name:');
+                        if (incident)
+                          u('deployHistory', [
+                            ...(emp.deployHistory || []),
+                            { incident, start: today(), end: '', id: uid() },
+                          ]);
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'evaluation' && (
+            <div>
+              <div
+                style={{
+                  background: B.amberLight,
+                  border: `1px solid ${B.amberBorder}`,
+                  borderRadius: 9,
+                  padding: '12px 14px',
+                  marginBottom: 14,
+                  fontSize: 12,
+                  color: '#92400e',
+                }}
+              >
+                Evaluations should follow your agency HR policies. Records here
+                are for EM program tracking only.
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 12,
+                  marginBottom: 14,
+                }}
+              >
+                <div>
+                  <Label>Last Evaluation Date</Label>
+                  <FInput
+                    type="date"
+                    value={emp.lastEvalDate || ''}
+                    onChange={(v) => u('lastEvalDate', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Next Evaluation Due</Label>
+                  <FInput
+                    type="date"
+                    value={emp.nextEvalDate || ''}
+                    onChange={(v) => u('nextEvalDate', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Overall Rating</Label>
+                  <FSel
+                    value={emp.evalRating || ''}
+                    onChange={(v) => u('evalRating', v)}
+                  >
+                    <option value="">Select...</option>
+                    <option>Exceptional</option>
+                    <option>Exceeds Expectations</option>
+                    <option>Meets Expectations</option>
+                    <option>Needs Improvement</option>
+                    <option>Unsatisfactory</option>
+                  </FSel>
+                </div>
+                <div>
+                  <Label>Evaluator</Label>
+                  <FInput
+                    value={emp.evaluator || ''}
+                    onChange={(v) => u('evaluator', v)}
+                    placeholder="Supervisor name"
+                  />
+                </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <Label>Performance Summary</Label>
+                <FTextarea
+                  rows={3}
+                  value={emp.evalSummary || ''}
+                  onChange={(v) => u('evalSummary', v)}
+                  placeholder="Key achievements, strengths, and contributions during evaluation period..."
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <Label>Development Goals</Label>
+                <FTextarea
+                  rows={3}
+                  value={emp.evalGoals || ''}
+                  onChange={(v) => u('evalGoals', v)}
+                  placeholder="Training goals, career development objectives, areas for growth..."
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <Label>EM-Specific Competencies</Label>
+                <FTextarea
+                  rows={3}
+                  value={emp.evalCompetencies || ''}
+                  onChange={(v) => u('evalCompetencies', v)}
+                  placeholder="ICS proficiency, planning skills, interagency coordination, exercise participation..."
+                />
+              </div>
+              <Attachments
+                docs={emp.evalDocs || []}
+                onAdd={(doc) => u('evalDocs', [...(emp.evalDocs || []), doc])}
+                onRemove={(id) =>
+                  u(
+                    'evalDocs',
+                    (emp.evalDocs || []).filter((d) => d.id !== id)
+                  )
+                }
+                label="Evaluation Documents"
+              />
+            </div>
+          )}
+
           {tab === 'training' && (
             <div>
               <div
@@ -5309,8 +7157,8 @@ function EmployeeDetail({ emp, onUpdate, onClose }) {
                           </div>
                           <div style={{ fontSize: 11, color: B.faint }}>
                             {fmtDate(t.date)}
-                            {t.hours ? ` · ${t.hours}h` : ''}
-                            {t.cert ? ` · Cert #${t.cert}` : ''}
+                            {t.hours ? `  -  ${t.hours}h` : ''}
+                            {t.cert ? `  -  Cert #${t.cert}` : ''}
                           </div>
                         </div>
                         <Tag
@@ -5342,7 +7190,12 @@ function EmployeesView({ data, setData }) {
     title: '',
     department: '',
     email: '',
+    phone: '',
     status: 'active',
+    employeeType: 'active',
+    emergencyContact: '',
+    emergencyPhone: '',
+    deployable: false,
   });
 
   const employees = data.employees || [];
@@ -5365,7 +7218,12 @@ function EmployeesView({ data, setData }) {
       title: '',
       department: '',
       email: '',
+      phone: '',
       status: 'active',
+      employeeType: 'active',
+      emergencyContact: '',
+      emergencyPhone: '',
+      deployable: false,
     });
     setShowForm(false);
     setSelectedId(emp.id);
@@ -5439,7 +7297,7 @@ function EmployeesView({ data, setData }) {
             Employees & Credentials
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            {employees.length} personnel · {totalCerts} credentials ·{' '}
+            {employees.length} personnel - {totalCerts} credentials -{' '}
             {expiring > 0 ? (
               <span style={{ color: B.red, fontWeight: 600 }}>
                 {expiring} expiring
@@ -5449,6 +7307,7 @@ function EmployeesView({ data, setData }) {
             )}
           </p>
         </div>
+        <CoachBanner moduleId="employees" />
         <Btn label="+ Add Employee" onClick={() => setShowForm(true)} primary />
       </div>
       <div
@@ -5464,7 +7323,7 @@ function EmployeesView({ data, setData }) {
             label: 'Total Personnel',
             val: employees.length,
             color: B.indigo,
-            icon: '👥',
+            icon: '-',
           },
           {
             label: 'Certifications Tracked',
@@ -5476,7 +7335,7 @@ function EmployeesView({ data, setData }) {
             label: 'Expiring / Expired',
             val: expiring,
             color: expiring > 0 ? B.red : B.green,
-            icon: expiring > 0 ? '⚠' : '✓',
+            icon: expiring > 0 ? '-' : 'ok',
           },
         ].map((s) => (
           <Card key={s.label} style={{ padding: '14px 16px' }}>
@@ -5509,7 +7368,7 @@ function EmployeesView({ data, setData }) {
           <FInput
             value={search}
             onChange={setSearch}
-            placeholder="Search by name, title, department…"
+            placeholder="Search by name, title, department..."
             style={{ paddingLeft: 30 }}
           />
         </div>
@@ -5517,6 +7376,8 @@ function EmployeesView({ data, setData }) {
           ['all', 'All'],
           ['active', 'Active'],
           ['volunteer', 'Volunteer'],
+          ['intern', 'Intern'],
+          ['dsw', 'DSW'],
           ['expiring', 'Expiring Creds'],
         ].map(([f, lbl]) => (
           <button
@@ -5683,7 +7544,7 @@ function EmployeesView({ data, setData }) {
                     </div>
                     <div style={{ fontSize: 11, color: B.faint }}>
                       {emp.title || ''}
-                      {emp.title && emp.department ? ' · ' : ''}
+                      {emp.title && emp.department ? '  -  ' : ''}
                       {emp.department || ''}
                     </div>
                   </div>
@@ -5718,7 +7579,7 @@ function EmployeesView({ data, setData }) {
                     )}
                     {completedTBs > 0 && (
                       <Tag
-                        label={`✓ ${completedTBs} certified`}
+                        label={`ok ${completedTBs} certified`}
                         color={B.green}
                         bg={B.greenLight}
                         border={B.greenBorder}
@@ -5726,7 +7587,7 @@ function EmployeesView({ data, setData }) {
                     )}
                     {certExpiring > 0 && (
                       <Tag
-                        label={`⚠ ${certExpiring} expiring`}
+                        label={`- ${certExpiring} expiring`}
                         color={B.red}
                         bg={B.redLight}
                         border={B.redBorder}
@@ -5760,9 +7621,9 @@ function EmployeesView({ data, setData }) {
                       padding: '4px',
                     }}
                   >
-                    ×
+                    -
                   </button>
-                  <span style={{ color: B.border, fontSize: 14 }}>›</span>
+                  <span style={{ color: B.border, fontSize: 14 }}>-</span>
                 </div>
               </div>
             );
@@ -5781,9 +7642,9 @@ function EmployeesView({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    TRAINING MANAGER (with attachments)
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function TrainingManager({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -5854,14 +7715,15 @@ function TrainingManager({ data, setData }) {
       data.training.length > 0
         ? data.training
             .slice(-10)
-            .map((t) => `${t.person} · ${t.type} · ${t.date}`)
+            .map((t) => `${t.person}  -  ${t.type}  -  ${t.date}`)
             .join('\n')
         : 'None yet.';
     try {
       await callAI(
         SYS,
         `Training records:\n${s}\n\nAnalyze gaps vs EMAP 4.10. Recommend priorities for next 6 months.`,
-        (chunk) => setAiContent((p) => p + chunk)
+        (chunk) => setAiContent((p) => p + chunk),
+        'training_needs'
       );
     } catch {
       setAiContent('Error.');
@@ -5896,14 +7758,15 @@ function TrainingManager({ data, setData }) {
             Training Manager
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.10 · {data.training.length} records ·{' '}
+            EMAP 4.10 - {data.training.length} records -{' '}
             {[...new Set(data.training.map((t) => t.person))].length} personnel
           </p>
         </div>
+        <CoachBanner moduleId="training" />
         <div style={{ display: 'flex', gap: 8 }}>
           <Btn
             label="AI Needs Assessment"
-            icon="✦"
+            icon="-"
             onClick={runAi}
             loading={aiLoading}
           />
@@ -5977,7 +7840,7 @@ function TrainingManager({ data, setData }) {
                 value={form.type}
                 onChange={(v) => setForm((p) => ({ ...p, type: v }))}
               >
-                <option value="">Select…</option>
+                <option value="">Select...</option>
                 {TYPES.map((t) => (
                   <option key={t}>{t}</option>
                 ))}
@@ -6022,7 +7885,7 @@ function TrainingManager({ data, setData }) {
             <FInput
               value={form.notes}
               onChange={(v) => setForm((p) => ({ ...p, notes: v }))}
-              placeholder="Additional notes…"
+              placeholder="Additional notes..."
             />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -6035,7 +7898,7 @@ function TrainingManager({ data, setData }) {
         <FInput
           value={search}
           onChange={setSearch}
-          placeholder="Search personnel or training type…"
+          placeholder="Search personnel or training type..."
         />
       </div>
       {filtered.length === 0 ? (
@@ -6067,15 +7930,15 @@ function TrainingManager({ data, setData }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: B.text }}>
                     {t.person}{' '}
-                    <span style={{ color: B.faint, fontWeight: 400 }}>·</span>{' '}
+                    <span style={{ color: B.faint, fontWeight: 400 }}> - </span>{' '}
                     <span style={{ color: B.muted }}>{t.type}</span>
                   </div>
                   <div style={{ fontSize: 11, color: B.faint, marginTop: 2 }}>
                     {fmtDate(t.date)}
-                    {t.hours ? ` · ${t.hours}h` : ''}
-                    {t.cert ? ` · #${t.cert}` : ''}
+                    {t.hours ? `  -  ${t.hours}h` : ''}
+                    {t.cert ? `  -  #${t.cert}` : ''}
                     {(t.docs || []).length > 0
-                      ? ` · 📎 ${t.docs.length} file${
+                      ? `  -  📎 ${t.docs.length} file${
                           t.docs.length > 1 ? 's' : ''
                         }`
                       : ''}
@@ -6100,7 +7963,7 @@ function TrainingManager({ data, setData }) {
                     fontSize: 14,
                   }}
                 >
-                  ×
+                  -
                 </button>
                 <span
                   style={{
@@ -6111,7 +7974,7 @@ function TrainingManager({ data, setData }) {
                     transition: 'transform 0.2s',
                   }}
                 >
-                  ▼
+                  -
                 </span>
               </div>
               {expandedId === t.id && (
@@ -6127,7 +7990,7 @@ function TrainingManager({ data, setData }) {
                     <FTextarea
                       value={t.notes || ''}
                       onChange={(v) => updateRec(t.id, 'notes', v)}
-                      placeholder="Notes…"
+                      placeholder="Notes..."
                       rows={2}
                     />
                   </div>
@@ -6154,22 +8017,29 @@ function TrainingManager({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    PARTNERS (with attachments)
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function PartnerRegistry({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
-  const [expandedId, setExpandedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
   const [form, setForm] = useState({
     name: '',
     type: 'County Agency',
     contact: '',
+    contactTitle: '',
     phone: '',
     email: '',
+    address: '',
     agreementType: 'MOU',
     signed: today(),
     expires: '',
+    reviewDate: '',
     notes: '',
+    scope: '',
+    resourcesShared: '',
+    activationTrigger: '',
+    emapStandards: '4.7',
   });
   const [filter, setFilter] = useState('all');
   const TYPES = [
@@ -6195,30 +8065,19 @@ function PartnerRegistry({ data, setData }) {
       ],
     }));
     setForm({
-      name: '',
-      type: 'County Agency',
-      contact: '',
-      phone: '',
-      email: '',
-      agreementType: 'MOU',
-      signed: today(),
-      expires: '',
-      notes: '',
+      name: '', type: 'County Agency', contact: '', contactTitle: '', phone: '', email: '', address: '',
+      agreementType: 'MOU', signed: today(), expires: '', reviewDate: '', notes: '', scope: '',
+      resourcesShared: '', activationTrigger: '', emapStandards: '4.7',
     });
     setShowForm(false);
   };
-  const remove = (id) =>
-    setData((prev) => ({
-      ...prev,
-      partners: prev.partners.filter((p) => p.id !== id),
-    }));
+  const remove = (id) => {
+    setData((prev) => ({ ...prev, partners: prev.partners.filter((p) => p.id !== id) }));
+    if (selectedId === id) setSelectedId(null);
+  };
   const updatePartner = (id, field, val) =>
-    setData((prev) => ({
-      ...prev,
-      partners: prev.partners.map((p) =>
-        p.id === id ? { ...p, [field]: val } : p
-      ),
-    }));
+    setData((prev) => ({ ...prev, partners: prev.partners.map((p) => p.id === id ? { ...p, [field]: val } : p) }));
+  const sel = selectedId ? data.partners.find(p => p.id === selectedId) : null;
   const expiring = data.partners.filter((p) => {
     const d = daysUntil(p.expires);
     return d !== null && d >= 0 && d < 90;
@@ -6262,9 +8121,10 @@ function PartnerRegistry({ data, setData }) {
             Partner & Agreement Registry
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.7 · {data.partners.length} agreements
+            EMAP 4.7 - {data.partners.length} agreements
           </p>
         </div>
+        <CoachBanner moduleId="partners" />
         <Btn label="+ Add Partner" onClick={() => setShowForm(true)} primary />
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
@@ -6315,307 +8175,118 @@ function PartnerRegistry({ data, setData }) {
         ))}
       </div>
       {showForm && (
-        <div
-          style={{
-            background: B.blueLight,
-            border: `1px solid ${B.blueBorder}`,
-            borderRadius: 10,
-            padding: '16px 18px',
-            marginBottom: 14,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: B.text,
-              marginBottom: 12,
-            }}
-          >
-            Add Partner
+        <div style={{ background: B.blueLight, border: `1px solid ${B.blueBorder}`, borderRadius: 10, padding: '16px 18px', marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: B.text, marginBottom: 12 }}>Add Partner / Agreement</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <div><Label>Organization Name</Label><FInput value={form.name} onChange={v => setForm(p => ({ ...p, name: v }))} placeholder="Partner organization" /></div>
+            <div><Label>Type</Label><FSel value={form.type} onChange={v => setForm(p => ({ ...p, type: v }))}>{TYPES.map(t => <option key={t}>{t}</option>)}</FSel></div>
+            <div><Label>Agreement Type</Label><FSel value={form.agreementType} onChange={v => setForm(p => ({ ...p, agreementType: v }))}>{AGR.map(t => <option key={t}>{t}</option>)}</FSel></div>
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '2fr 1fr 1fr',
-              gap: 10,
-              marginBottom: 10,
-            }}
-          >
-            <div>
-              <Label>Organization Name</Label>
-              <FInput
-                value={form.name}
-                onChange={(v) => setForm((p) => ({ ...p, name: v }))}
-                placeholder="Partner organization"
-              />
-            </div>
-            <div>
-              <Label>Type</Label>
-              <FSel
-                value={form.type}
-                onChange={(v) => setForm((p) => ({ ...p, type: v }))}
-              >
-                {TYPES.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </FSel>
-            </div>
-            <div>
-              <Label>Agreement Type</Label>
-              <FSel
-                value={form.agreementType}
-                onChange={(v) => setForm((p) => ({ ...p, agreementType: v }))}
-              >
-                {AGR.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </FSel>
-            </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <div><Label>Contact Name</Label><FInput value={form.contact} onChange={v => setForm(p => ({ ...p, contact: v }))} placeholder="Name" /></div>
+            <div><Label>Title</Label><FInput value={form.contactTitle} onChange={v => setForm(p => ({ ...p, contactTitle: v }))} placeholder="Title" /></div>
+            <div><Label>Phone</Label><FInput value={form.phone} onChange={v => setForm(p => ({ ...p, phone: v }))} placeholder="Phone" /></div>
+            <div><Label>Email</Label><FInput value={form.email} onChange={v => setForm(p => ({ ...p, email: v }))} placeholder="Email" /></div>
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr 1fr',
-              gap: 10,
-              marginBottom: 10,
-            }}
-          >
-            <div>
-              <Label>Contact</Label>
-              <FInput
-                value={form.contact}
-                onChange={(v) => setForm((p) => ({ ...p, contact: v }))}
-                placeholder="Name"
-              />
-            </div>
-            <div>
-              <Label>Phone</Label>
-              <FInput
-                value={form.phone}
-                onChange={(v) => setForm((p) => ({ ...p, phone: v }))}
-                placeholder="Phone"
-              />
-            </div>
-            <div>
-              <Label>Signed</Label>
-              <FInput
-                type="date"
-                value={form.signed}
-                onChange={(v) => setForm((p) => ({ ...p, signed: v }))}
-              />
-            </div>
-            <div>
-              <Label>Expires</Label>
-              <FInput
-                type="date"
-                value={form.expires}
-                onChange={(v) => setForm((p) => ({ ...p, expires: v }))}
-              />
-            </div>
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <Label>Notes</Label>
-            <FInput
-              value={form.notes}
-              onChange={(v) => setForm((p) => ({ ...p, notes: v }))}
-              placeholder="Scope, capabilities…"
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <div><Label>Date Signed</Label><FInput type="date" value={form.signed} onChange={v => setForm(p => ({ ...p, signed: v }))} /></div>
+            <div><Label>Expiration Date</Label><FInput type="date" value={form.expires} onChange={v => setForm(p => ({ ...p, expires: v }))} /></div>
+            <div><Label>Next Review Date</Label><FInput type="date" value={form.reviewDate} onChange={v => setForm(p => ({ ...p, reviewDate: v }))} /></div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn label="Save" onClick={save} primary />
+            <Btn label="Save Partner" onClick={save} primary />
             <Btn label="Cancel" onClick={() => setShowForm(false)} />
           </div>
         </div>
       )}
-      {filtered.length === 0 ? (
-        <Card style={{ textAlign: 'center', padding: '32px', color: B.faint }}>
-          No partner agreements yet
-        </Card>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {filtered.map((p) => {
-            const days = daysUntil(p.expires);
-            const urgColor =
-              days === null
-                ? B.green
-                : days < 0
-                ? B.red
-                : days < 30
-                ? B.red
-                : days < 90
-                ? B.amber
-                : B.green;
-            return (
-              <div
-                key={p.id}
-                style={{
-                  background: B.card,
-                  border: `1px solid ${
-                    days !== null && days < 90 ? B.amberBorder : B.border
-                  }`,
-                  borderRadius: 9,
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 12,
-                    alignItems: 'center',
-                    padding: '13px 16px',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() =>
-                    setExpandedId(expandedId === p.id ? null : p.id)
-                  }
-                >
-                  <div
-                    style={{
-                      width: 34,
-                      height: 34,
-                      background: B.blueLight,
-                      borderRadius: 8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 13,
-                      color: B.blue,
-                      flexShrink: 0,
-                    }}
-                  >
-                    ⊕
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        gap: 7,
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        marginBottom: 3,
-                      }}
-                    >
-                      <span
-                        style={{ fontSize: 13, fontWeight: 700, color: B.text }}
-                      >
-                        {p.name}
-                      </span>
-                      <Tag
-                        label={p.agreementType}
-                        color={B.blue}
-                        bg={B.blueLight}
-                        border={B.blueBorder}
-                      />
-                      <Tag
-                        label={p.type}
-                        color={B.muted}
-                        bg="#f8fafc"
-                        border={B.border}
-                      />
+      <div style={{ display: 'flex', gap: 16 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {filtered.length === 0 ? (
+            <Card style={{ textAlign: 'center', padding: '32px', color: B.faint }}>No partner agreements yet</Card>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {filtered.map(p => {
+                const days = daysUntil(p.expires);
+                const urgColor = days === null ? B.green : days < 0 ? B.red : days < 30 ? B.red : days < 90 ? B.amber : B.green;
+                const isActive = selectedId === p.id;
+                return (
+                  <div key={p.id} onClick={() => setSelectedId(isActive ? null : p.id)} style={{
+                    background: B.card, border: `1px solid ${isActive ? B.teal : days !== null && days < 90 ? B.amberBorder : B.border}`,
+                    borderRadius: 9, padding: '13px 16px', cursor: 'pointer', transition: 'all 0.15s',
+                    borderLeft: isActive ? `3px solid ${B.teal}` : `3px solid transparent`,
+                  }}>
+                    <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap', marginBottom: 3 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: B.text }}>{p.name}</span>
+                      <Tag label={p.agreementType} color={B.blue} bg={B.blueLight} border={B.blueBorder} />
+                      <Tag label={p.type} color={B.muted} bg="#f8fafc" border={B.border} />
                     </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        gap: 12,
-                        fontSize: 11,
-                        color: B.faint,
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      {p.contact && <span>👤 {p.contact}</span>}
+                    <div style={{ display: 'flex', gap: 12, fontSize: 11, color: B.faint, flexWrap: 'wrap' }}>
+                      {p.contact && <span>{p.contact}{p.contactTitle ? `, ${p.contactTitle}` : ''}</span>}
                       <span>Signed: {fmtDate(p.signed)}</span>
-                      {p.expires && (
-                        <span
-                          style={{
-                            color: urgColor,
-                            fontWeight: days !== null && days < 90 ? 700 : 400,
-                          }}
-                        >
-                          Expires: {fmtDate(p.expires)}
-                          {days !== null && days < 90
-                            ? ` (${days < 0 ? 'EXPIRED' : `${days}d`})`
-                            : ''}
-                        </span>
-                      )}
-                      {(p.docs || []).length > 0 && (
-                        <span>
-                          📎 {p.docs.length} file{p.docs.length > 1 ? 's' : ''}
-                        </span>
-                      )}
+                      {p.expires && <span style={{ color: urgColor, fontWeight: days !== null && days < 90 ? 700 : 400 }}>
+                        Expires: {fmtDate(p.expires)}{days !== null && days < 90 ? ` (${days < 0 ? 'EXPIRED' : `${days}d`})` : ''}
+                      </span>}
+                      {(p.docs || []).length > 0 && <span>📎 {p.docs.length}</span>}
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      remove(p.id);
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#d1d5db',
-                      cursor: 'pointer',
-                      fontSize: 14,
-                    }}
-                  >
-                    ×
-                  </button>
-                  <span
-                    style={{
-                      color: B.faint,
-                      fontSize: 10,
-                      transform:
-                        expandedId === p.id ? 'rotate(180deg)' : 'rotate(0)',
-                      transition: 'transform 0.2s',
-                    }}
-                  >
-                    ▼
-                  </span>
-                </div>
-                {expandedId === p.id && (
-                  <div
-                    style={{
-                      padding: '12px 16px',
-                      borderTop: `1px solid #f4f7f8`,
-                      background: '#fafcfc',
-                    }}
-                  >
-                    <div style={{ marginBottom: 10 }}>
-                      <Label>Notes / Scope</Label>
-                      <FTextarea
-                        value={p.notes || ''}
-                        onChange={(v) => updatePartner(p.id, 'notes', v)}
-                        rows={2}
-                        placeholder="Scope of agreement, capabilities…"
-                      />
-                    </div>
-                    <Attachments
-                      docs={p.docs || []}
-                      onAdd={(doc) =>
-                        updatePartner(p.id, 'docs', [...(p.docs || []), doc])
-                      }
-                      onRemove={(id) =>
-                        updatePartner(
-                          p.id,
-                          'docs',
-                          (p.docs || []).filter((d) => d.id !== id)
-                        )
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
-      )}
+        {sel && (
+          <div style={{ width: 380, flexShrink: 0, position: 'sticky', top: 68, alignSelf: 'flex-start' }}>
+            <Card style={{ padding: 0, overflow: 'hidden' }}>
+              <div style={{ background: B.blueLight, padding: '16px 20px', borderBottom: `1px solid ${B.blueBorder}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: B.text, marginBottom: 4 }}>{sel.name}</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <Tag label={sel.agreementType} color={B.blue} bg="#fff" border={B.blueBorder} />
+                      <Tag label={sel.type} color={B.muted} bg="#fff" border={B.border} />
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedId(null)} style={{ background: 'none', border: 'none', color: B.faint, cursor: 'pointer', fontSize: 16 }}>✕</button>
+                </div>
+              </div>
+              <div style={{ padding: '16px 20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                  <div><Label>Contact</Label><FInput value={sel.contact || ''} onChange={v => updatePartner(sel.id, 'contact', v)} placeholder="Name" /></div>
+                  <div><Label>Title</Label><FInput value={sel.contactTitle || ''} onChange={v => updatePartner(sel.id, 'contactTitle', v)} placeholder="Title" /></div>
+                  <div><Label>Phone</Label><FInput value={sel.phone || ''} onChange={v => updatePartner(sel.id, 'phone', v)} placeholder="Phone" /></div>
+                  <div><Label>Email</Label><FInput value={sel.email || ''} onChange={v => updatePartner(sel.id, 'email', v)} placeholder="Email" /></div>
+                </div>
+                <div style={{ marginBottom: 14 }}><Label>Address</Label><FInput value={sel.address || ''} onChange={v => updatePartner(sel.id, 'address', v)} placeholder="Mailing address" /></div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
+                  <div><Label>Signed</Label><FInput type="date" value={sel.signed || ''} onChange={v => updatePartner(sel.id, 'signed', v)} /></div>
+                  <div><Label>Expires</Label><FInput type="date" value={sel.expires || ''} onChange={v => updatePartner(sel.id, 'expires', v)} /></div>
+                  <div><Label>Review Date</Label><FInput type="date" value={sel.reviewDate || ''} onChange={v => updatePartner(sel.id, 'reviewDate', v)} /></div>
+                </div>
+                <div style={{ marginBottom: 14 }}><Label>Scope of Agreement</Label><FTextarea value={sel.scope || ''} onChange={v => updatePartner(sel.id, 'scope', v)} rows={2} placeholder="What does this agreement cover? Mutual aid capabilities, shared resources..." /></div>
+                <div style={{ marginBottom: 14 }}><Label>Resources Shared</Label><FInput value={sel.resourcesShared || ''} onChange={v => updatePartner(sel.id, 'resourcesShared', v)} placeholder="e.g. Heavy equipment, shelter facilities, personnel" /></div>
+                <div style={{ marginBottom: 14 }}><Label>Activation Trigger</Label><FInput value={sel.activationTrigger || ''} onChange={v => updatePartner(sel.id, 'activationTrigger', v)} placeholder="e.g. Declaration of emergency, mutual aid request" /></div>
+                <div style={{ marginBottom: 14 }}><Label>EMAP Standards</Label><FInput value={sel.emapStandards || ''} onChange={v => updatePartner(sel.id, 'emapStandards', v)} placeholder="e.g. 4.7.1, 4.7.3" /></div>
+                <div style={{ marginBottom: 14 }}><Label>Notes</Label><FTextarea value={sel.notes || ''} onChange={v => updatePartner(sel.id, 'notes', v)} rows={2} placeholder="Additional notes..." /></div>
+                <Attachments
+                  docs={sel.docs || []}
+                  onAdd={doc => updatePartner(sel.id, 'docs', [...(sel.docs || []), doc])}
+                  onRemove={id => updatePartner(sel.id, 'docs', (sel.docs || []).filter(d => d.id !== id))}
+                />
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${B.border}` }}>
+                  <button onClick={() => { remove(sel.id); }} style={{ fontSize: 11, color: B.red, background: 'none', border: `1px solid ${B.redBorder}`, borderRadius: 6, padding: '5px 12px', cursor: 'pointer' }}>Remove Partner</button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    PLAN LIBRARY (with attachments)
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function PlanLibrary({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
@@ -6711,10 +8382,11 @@ function PlanLibrary({ data, setData }) {
             Plan Library
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.4, 4.5, 4.8 · {data.plans.length} plans ·{' '}
+            EMAP 4.4, 4.5, 4.8 - {data.plans.length} plans -{' '}
             {data.plans.filter((p) => p.status === 'current').length} current
           </p>
         </div>
+        <CoachBanner moduleId="plans" />
         <Btn label="+ Add Plan" onClick={() => setShowForm(true)} primary />
       </div>
       {showForm && (
@@ -6881,7 +8553,7 @@ function PlanLibrary({ data, setData }) {
                       flexShrink: 0,
                     }}
                   >
-                    ◈
+                    -
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
@@ -6928,7 +8600,7 @@ function PlanLibrary({ data, setData }) {
                         flexWrap: 'wrap',
                       }}
                     >
-                      {plan.owner && <span>👤 {plan.owner}</span>}
+                      {plan.owner && <span>- {plan.owner}</span>}
                       <span>Reviewed: {fmtDate(plan.lastReview)}</span>
                       {plan.nextReview && (
                         <span
@@ -6975,7 +8647,7 @@ function PlanLibrary({ data, setData }) {
                       fontSize: 14,
                     }}
                   >
-                    ×
+                    -
                   </button>
                   <span
                     style={{
@@ -6986,17 +8658,84 @@ function PlanLibrary({ data, setData }) {
                       transition: 'transform 0.2s',
                     }}
                   >
-                    ▼
+                    -
                   </span>
                 </div>
                 {expandedId === plan.id && (
                   <div
                     style={{
-                      padding: '12px 16px',
+                      padding: '16px 16px',
                       borderTop: `1px solid #f4f7f8`,
                       background: '#fafcfc',
                     }}
                   >
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '2fr 1fr 1fr',
+                        gap: 10,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <div>
+                        <Label>Plan Name</Label>
+                        <FInput
+                          value={plan.name}
+                          onChange={(v) => update(plan.id, 'name', v)}
+                          placeholder="Plan name"
+                        />
+                      </div>
+                      <div>
+                        <Label>Version</Label>
+                        <FInput
+                          value={plan.version || ''}
+                          onChange={(v) => update(plan.id, 'version', v)}
+                          placeholder="1.0"
+                        />
+                      </div>
+                      <div>
+                        <Label>Owner</Label>
+                        <FInput
+                          value={plan.owner || ''}
+                          onChange={(v) => update(plan.id, 'owner', v)}
+                          placeholder="EM Director"
+                        />
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 10,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <div>
+                        <Label>Last Reviewed</Label>
+                        <FInput
+                          type="date"
+                          value={plan.lastReview || ''}
+                          onChange={(v) => update(plan.id, 'lastReview', v)}
+                        />
+                      </div>
+                      <div>
+                        <Label>Next Review Due</Label>
+                        <FInput
+                          type="date"
+                          value={plan.nextReview || ''}
+                          onChange={(v) => update(plan.id, 'nextReview', v)}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <Label>Notes</Label>
+                      <FTextarea
+                        rows={2}
+                        value={plan.notes || ''}
+                        onChange={(v) => update(plan.id, 'notes', v)}
+                        placeholder="Plan scope, key contacts, last major update summary..."
+                      />
+                    </div>
                     <Attachments
                       docs={plan.docs || []}
                       onAdd={(doc) =>
@@ -7021,53 +8760,103 @@ function PlanLibrary({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    RESOURCES (with attachments)
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function ResourcesView({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
+  const [activeTab, setActiveTab] = useState('inventory');
+  const [selectedId, setSelectedId] = useState(null);
+  const [filter, setFilter] = useState('all');
   const [form, setForm] = useState({
     name: '',
     category: 'Equipment',
-    qty: '',
+    qty: '1',
     location: '',
     condition: 'Good',
+    status: 'available',
+    serialNumber: '',
+    acquisitionDate: '',
+    acquisitionCost: '',
+    fundingSource: '',
+    deployable: true,
+    assignedTo: '',
+    femaEquipType: '',
+    aelNumber: '',
+    usefulLife: '',
+    federalSharePct: '75',
+    grantProgram: '',
+    make: '',
+    model: '',
   });
   const CATS = [
     'Equipment',
     'Vehicles',
     'Communications',
     'Generators',
-    'Personnel',
+    'Shelter / Facilities',
+    'Medical / EMS',
+    'PPE / Safety',
+    'Water / Food Cache',
+    'IT / Technology',
     'Supplies',
-    'Facilities',
-    'Technology',
     'Other',
   ];
   const CONDS = ['Excellent', 'Good', 'Fair', 'Needs Repair', 'Out of Service'];
+  const STATUS_MAP = {
+    available: { label: 'Available', color: B.green, bg: B.greenLight },
+    deployed: { label: 'Deployed', color: B.blue, bg: B.blueLight },
+    maintenance: { label: 'Maintenance', color: B.amber, bg: B.amberLight },
+    reserved: { label: 'Reserved', color: B.purple, bg: B.purpleLight },
+    out_of_service: { label: 'Out of Service', color: B.red, bg: B.redLight },
+  };
+
   const save = () => {
     if (!form.name) return;
     setData((prev) => ({
       ...prev,
       resources: [
         ...prev.resources,
-        { ...form, id: uid(), docs: [], addedAt: Date.now() },
+        {
+          ...form,
+          id: uid(),
+          docs: [],
+          deploymentLog: [],
+          inventoryLog: [],
+          addedAt: Date.now(),
+        },
       ],
     }));
     setForm({
       name: '',
       category: 'Equipment',
-      qty: '',
+      qty: '1',
       location: '',
       condition: 'Good',
+      status: 'available',
+      serialNumber: '',
+      acquisitionDate: '',
+      acquisitionCost: '',
+      fundingSource: '',
+      deployable: true,
+      assignedTo: '',
+      femaEquipType: '',
+      aelNumber: '',
+      usefulLife: '',
+      federalSharePct: '75',
+      grantProgram: '',
+      make: '',
+      model: '',
     });
     setShowForm(false);
   };
-  const remove = (id) =>
+  const remove = (id) => {
     setData((prev) => ({
       ...prev,
       resources: prev.resources.filter((r) => r.id !== id),
     }));
+    if (selectedId === id) setSelectedId(null);
+  };
   const updateRes = (id, f, v) =>
     setData((prev) => ({
       ...prev,
@@ -7081,8 +8870,123 @@ function ResourcesView({ data, setData }) {
       : c === 'Fair'
       ? B.amber
       : B.red;
+
+  const resources = data.resources || [];
+  const filtered =
+    filter === 'all'
+      ? resources
+      : resources.filter((r) =>
+          filter === 'deployed'
+            ? r.status === 'deployed'
+            : filter === 'available'
+            ? r.status === 'available'
+            : filter === 'needs_attention'
+            ? r.condition === 'Needs Repair' ||
+              r.condition === 'Out of Service' ||
+              r.status === 'out_of_service'
+            : filter === 'deployable'
+            ? r.deployable !== false
+            : true
+        );
+  const deployed = resources.filter((r) => r.status === 'deployed').length;
+  const available = resources.filter((r) => r.status === 'available').length;
+  const needsAttention = resources.filter(
+    (r) => r.condition === 'Needs Repair' || r.condition === 'Out of Service'
+  ).length;
+  const totalValue = resources.reduce(
+    (a, r) => a + parseFloat(r.acquisitionCost || 0) * parseInt(r.qty || 1),
+    0
+  );
+  const needsInventory = resources.filter((r) => {
+    const last = r.lastInventoryDate;
+    if (!last) return true;
+    const d = new Date(last);
+    const now = new Date();
+    return (now - d) / (1000 * 60 * 60 * 24) > 365;
+  });
+
+  // Deploy / Return functions
+  const deployResource = (id, location, incident, assignee) => {
+    setData((prev) => ({
+      ...prev,
+      resources: prev.resources.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              status: 'deployed',
+              deployedTo: location,
+              deployedIncident: incident,
+              deployedAssignee: assignee,
+              deployedDate: today(),
+              deploymentLog: [
+                ...(r.deploymentLog || []),
+                {
+                  id: uid(),
+                  action: 'deployed',
+                  location,
+                  incident,
+                  assignee,
+                  date: today(),
+                  ts: Date.now(),
+                },
+              ],
+            }
+          : r
+      ),
+    }));
+  };
+  const returnResource = (id, condition) => {
+    setData((prev) => ({
+      ...prev,
+      resources: prev.resources.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              status: 'available',
+              condition: condition || r.condition,
+              deployedTo: '',
+              deployedIncident: '',
+              deployedAssignee: '',
+              deployedDate: '',
+              deploymentLog: [
+                ...(r.deploymentLog || []),
+                {
+                  id: uid(),
+                  action: 'returned',
+                  condition,
+                  date: today(),
+                  ts: Date.now(),
+                },
+              ],
+            }
+          : r
+      ),
+    }));
+  };
+  // Inventory verification
+  const verifyInventory = (id, verifiedBy, notes) => {
+    setData((prev) => ({
+      ...prev,
+      resources: prev.resources.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              lastInventoryDate: today(),
+              lastInventoryBy: verifiedBy,
+              inventoryLog: [
+                ...(r.inventoryLog || []),
+                { id: uid(), date: today(), verifiedBy, notes, ts: Date.now() },
+              ],
+            }
+          : r
+      ),
+    }));
+  };
+
+  const sel = selectedId ? resources.find((r) => r.id === selectedId) : null;
+
   return (
-    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 960 }}>
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 1100 }}>
       <div
         style={{
           display: 'flex',
@@ -7103,11 +9007,120 @@ function ResourcesView({ data, setData }) {
             Resource Inventory
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.7 · {data.resources.length} items
+            EMAP 4.7 - {resources.length} items - {deployed} deployed -{' '}
+            {available} available
+            {totalValue > 0
+              ? `  -  $${totalValue.toLocaleString()} total value`
+              : ''}
           </p>
         </div>
-        <Btn label="+ Add Resource" onClick={() => setShowForm(true)} primary />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Btn label="+ Add Resource" onClick={() => setShowForm(true)} primary />
+          {resources.length > 0 && <Btn label="Export All (CSV)" onClick={() => {
+            const headers = ['Name','Make','Model','Serial/Tag','Category','Qty','Location','Condition','Status','AEL Number','FEMA Equipment Type','Acquisition Date','Acquisition Cost','Federal Share %','Grant Program','Useful Life (yrs)','Funding Source','Deployable','Deployed To','Incident'];
+            const rows = resources.map(r => [
+              r.name, r.make || '', r.model || '', r.serialNumber || '', r.category, r.qty,
+              r.location || '', r.condition, r.status, r.aelNumber || '', r.femaEquipType || '',
+              r.acquisitionDate || '', r.acquisitionCost || '', r.federalSharePct || '',
+              r.grantProgram || '', r.usefulLife || '', r.fundingSource || '',
+              r.deployable !== false ? 'Yes' : 'No', r.deployedTo || '', r.deployedIncident || ''
+            ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+            const csv = [headers.join(','), ...rows].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `resource_inventory_${today()}.csv`;
+            a.click();
+          }} />}
+        </div>
       </div>
+      <CoachBanner moduleId="resources" />
+
+      {/* Stats bar */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(5,1fr)',
+          gap: 10,
+          marginBottom: 16,
+        }}
+      >
+        {[
+          { label: 'Total Assets', val: resources.length, color: B.blue },
+          { label: 'Available', val: available, color: B.green },
+          { label: 'Deployed', val: deployed, color: B.blue },
+          {
+            label: 'Needs Attention',
+            val: needsAttention,
+            color: needsAttention > 0 ? B.red : B.green,
+          },
+          {
+            label: 'Needs Inventory',
+            val: needsInventory.length,
+            color: needsInventory.length > 0 ? B.amber : B.green,
+          },
+        ].map((s) => (
+          <Card
+            key={s.label}
+            style={{ padding: '10px 12px', textAlign: 'center' }}
+          >
+            <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>
+              {s.val}
+            </div>
+            <div style={{ fontSize: 10, color: B.faint, marginTop: 2 }}>
+              {s.label}
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Tab switcher */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 4,
+          marginBottom: 16,
+          padding: '4px',
+          background: '#f0f3f4',
+          borderRadius: 12,
+        }}
+      >
+        {[
+          { id: 'inventory', label: 'Inventory' },
+          { id: 'deployed', label: `Deployed (${deployed})` },
+          {
+            id: 'annual',
+            label: `Annual Inventory ${
+              needsInventory.length > 0
+                ? '(' + needsInventory.length + ' due)'
+                : ''
+            }`,
+          },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 9,
+              border: 'none',
+              background: activeTab === t.id ? '#fff' : 'transparent',
+              color: activeTab === t.id ? B.text : B.faint,
+              fontSize: 13,
+              fontWeight: activeTab === t.id ? 700 : 500,
+              cursor: 'pointer',
+              fontFamily: "'DM Sans',sans-serif",
+              transition: 'all 0.15s ease',
+              boxShadow:
+                activeTab === t.id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Add form */}
       {showForm && (
         <div
           style={{
@@ -7120,18 +9133,28 @@ function ResourcesView({ data, setData }) {
         >
           <div
             style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: B.text,
+              marginBottom: 12,
+            }}
+          >
+            Add Resource / Asset
+          </div>
+          <div
+            style={{
               display: 'grid',
-              gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr',
+              gridTemplateColumns: '2fr 1fr 1fr',
               gap: 10,
               marginBottom: 10,
             }}
           >
             <div>
-              <Label>Name</Label>
+              <Label>Name / Description</Label>
               <FInput
                 value={form.name}
                 onChange={(v) => setForm((p) => ({ ...p, name: v }))}
-                placeholder="Resource name"
+                placeholder="e.g. Honda EU7000 Generator"
               />
             </div>
             <div>
@@ -7150,7 +9173,24 @@ function ResourcesView({ data, setData }) {
               <FInput
                 value={form.qty}
                 onChange={(v) => setForm((p) => ({ ...p, qty: v }))}
-                placeholder="Qty"
+                placeholder="1"
+              />
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr 1fr',
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <div>
+              <Label>Serial / Tag #</Label>
+              <FInput
+                value={form.serialNumber}
+                onChange={(v) => setForm((p) => ({ ...p, serialNumber: v }))}
+                placeholder="SN or asset tag"
               />
             </div>
             <div>
@@ -7158,7 +9198,7 @@ function ResourcesView({ data, setData }) {
               <FInput
                 value={form.location}
                 onChange={(v) => setForm((p) => ({ ...p, location: v }))}
-                placeholder="Location"
+                placeholder="Warehouse, Station 1..."
               />
             </div>
             <div>
@@ -7172,197 +9212,1157 @@ function ResourcesView({ data, setData }) {
                 ))}
               </FSel>
             </div>
+            <div>
+              <Label>Deployable Asset</Label>
+              <FSel
+                value={form.deployable ? 'yes' : 'no'}
+                onChange={(v) =>
+                  setForm((p) => ({ ...p, deployable: v === 'yes' }))
+                }
+              >
+                <option value="yes">Yes - Deployable</option>
+                <option value="no">No - Fixed</option>
+              </FSel>
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <div>
+              <Label>Acquisition Date</Label>
+              <FInput
+                type="date"
+                value={form.acquisitionDate}
+                onChange={(v) => setForm((p) => ({ ...p, acquisitionDate: v }))}
+              />
+            </div>
+            <div>
+              <Label>Acquisition Cost ($)</Label>
+              <FInput
+                value={form.acquisitionCost}
+                onChange={(v) => setForm((p) => ({ ...p, acquisitionCost: v }))}
+                placeholder="5000"
+              />
+            </div>
+            <div>
+              <Label>Funding Source</Label>
+              <FSel
+                value={form.fundingSource}
+                onChange={(v) => setForm((p) => ({ ...p, fundingSource: v }))}
+              >
+                <option value="">General Fund</option>
+                <option value="empg">EMPG</option>
+                <option value="hmgp">HMGP</option>
+                <option value="uasi">UASI</option>
+                <option value="bric">BRIC</option>
+                <option value="shsp">SHSP</option>
+                <option value="donated">Donated</option>
+                <option value="other">Other Grant</option>
+              </FSel>
+            </div>
+          </div>
+          <div style={{ borderTop: `1px solid ${B.border}`, paddingTop: 12, marginTop: 4, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: B.faint, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>FEMA Reimbursement Info</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <div>
+                <Label>Make</Label>
+                <FInput value={form.make} onChange={(v) => setForm((p) => ({ ...p, make: v }))} placeholder="e.g. Motorola" />
+              </div>
+              <div>
+                <Label>Model</Label>
+                <FInput value={form.model} onChange={(v) => setForm((p) => ({ ...p, model: v }))} placeholder="e.g. APX 8000" />
+              </div>
+              <div>
+                <Label>AEL Number</Label>
+                <FInput value={form.aelNumber} onChange={(v) => setForm((p) => ({ ...p, aelNumber: v }))} placeholder="e.g. 06CP-01-PORT" />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
+              <div>
+                <Label>FEMA Equipment Type</Label>
+                <FSel value={form.femaEquipType} onChange={(v) => setForm((p) => ({ ...p, femaEquipType: v }))}>
+                  <option value="">Select...</option>
+                  <option value="communications">Communications</option>
+                  <option value="cyber">Cyber Security</option>
+                  <option value="decontam">Decontamination</option>
+                  <option value="detection">Detection</option>
+                  <option value="explosive">Explosive Device</option>
+                  <option value="fire">Fire</option>
+                  <option value="info_tech">Information Technology</option>
+                  <option value="interop">Interoperable Comms</option>
+                  <option value="medical">Medical</option>
+                  <option value="ppe">PPE</option>
+                  <option value="power">Power / Generators</option>
+                  <option value="search_rescue">Search & Rescue</option>
+                  <option value="vehicle">Vehicles</option>
+                  <option value="watercraft">Watercraft</option>
+                  <option value="other">Other</option>
+                </FSel>
+              </div>
+              <div>
+                <Label>Grant Program</Label>
+                <FInput value={form.grantProgram} onChange={(v) => setForm((p) => ({ ...p, grantProgram: v }))} placeholder="e.g. FY24 EMPG" />
+              </div>
+              <div>
+                <Label>Federal Share %</Label>
+                <FInput value={form.federalSharePct} onChange={(v) => setForm((p) => ({ ...p, federalSharePct: v }))} placeholder="75" />
+              </div>
+              <div>
+                <Label>Useful Life (years)</Label>
+                <FInput value={form.usefulLife} onChange={(v) => setForm((p) => ({ ...p, usefulLife: v }))} placeholder="e.g. 5" />
+              </div>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn label="Save" onClick={save} primary small />
+            <Btn label="Add Resource" onClick={save} primary small />
             <Btn label="Cancel" onClick={() => setShowForm(false)} small />
           </div>
         </div>
       )}
-      {data.resources.length === 0 ? (
-        <Card style={{ textAlign: 'center', padding: '32px', color: B.faint }}>
-          No resources tracked yet
-        </Card>
-      ) : (
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr
+
+      {/* INVENTORY TAB */}
+      {activeTab === 'inventory' && (
+        <>
+          <div
+            style={{
+              display: 'flex',
+              gap: 6,
+              marginBottom: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            {[
+              ['all', 'All'],
+              ['available', 'Available'],
+              ['deployed', 'Deployed'],
+              ['deployable', 'Deployable'],
+              ['needs_attention', 'Needs Attention'],
+            ].map(([f, lbl]) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
                 style={{
-                  background: '#f8fcfc',
-                  borderBottom: `1px solid ${B.border}`,
+                  padding: '6px 12px',
+                  borderRadius: 7,
+                  border: `1px solid ${filter === f ? B.teal : B.border}`,
+                  background: filter === f ? B.tealLight : B.card,
+                  color: filter === f ? B.tealDark : B.muted,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: "'DM Sans',sans-serif",
                 }}
               >
-                {[
-                  'Resource',
-                  'Category',
-                  'Qty',
-                  'Location',
-                  'Condition',
-                  'Attachments',
-                  '',
-                ].map((h) => (
-                  <th
-                    key={h}
+                {lbl} (
+                {f === 'all'
+                  ? resources.length
+                  : f === 'available'
+                  ? available
+                  : f === 'deployed'
+                  ? deployed
+                  : f === 'deployable'
+                  ? resources.filter((r) => r.deployable !== false).length
+                  : needsAttention}
+                )
+              </button>
+            ))}
+          </div>
+          {filtered.length === 0 ? (
+            <Card
+              style={{ textAlign: 'center', padding: '32px', color: B.faint }}
+            >
+              No resources match this filter
+            </Card>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {filtered.map((r) => {
+                const st = STATUS_MAP[r.status] || STATUS_MAP.available;
+                return (
+                  <div
+                    key={r.id}
                     style={{
-                      padding: '9px 13px',
-                      fontSize: 10,
-                      color: B.faint,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
-                      fontWeight: 700,
-                      textAlign: 'left',
+                      background: B.card,
+                      border: `1px solid ${B.border}`,
+                      borderRadius: 9,
+                      padding: '12px 14px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
                     }}
+                    onClick={() => setSelectedId(r.id)}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.borderColor = B.teal)
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.borderColor = B.border)
+                    }
                   >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.resources.map((r, i) => (
-                <tr
-                  key={r.id}
-                  style={{
-                    borderBottom: `1px solid #f4f8f9`,
-                    background: i % 2 === 0 ? '#fff' : '#fafcfc',
-                  }}
-                >
-                  <td
-                    style={{
-                      padding: '9px 13px',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: B.text,
-                    }}
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 7,
+                            alignItems: 'center',
+                            marginBottom: 3,
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: B.text,
+                            }}
+                          >
+                            {r.name}
+                          </span>
+                          <Tag
+                            label={r.category}
+                            color={B.muted}
+                            bg="#f0f3f4"
+                            border={B.border}
+                          />
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: st.color,
+                              background: st.bg,
+                              padding: '2px 8px',
+                              borderRadius: 10,
+                              border: `1px solid ${st.color}30`,
+                            }}
+                          >
+                            {st.label}
+                          </span>
+                          {r.deployable !== false && (
+                            <span
+                              style={{
+                                fontSize: 9,
+                                color: B.blue,
+                                fontWeight: 600,
+                              }}
+                            >
+                              DEPLOYABLE
+                            </span>
+                          )}
+                          <Tag
+                            label={r.condition}
+                            color={cc(r.condition)}
+                            bg={
+                              cc(r.condition) === B.green
+                                ? B.greenLight
+                                : cc(r.condition) === B.amber
+                                ? B.amberLight
+                                : B.redLight
+                            }
+                            border={B.border}
+                          />
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: B.faint,
+                            display: 'flex',
+                            gap: 12,
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          {r.serialNumber && <span>#{r.serialNumber}</span>}
+                          {r.location && <span>{r.location}</span>}
+                          {r.qty && parseInt(r.qty) > 1 && (
+                            <span>Qty: {r.qty}</span>
+                          )}
+                          {r.status === 'deployed' && r.deployedTo && (
+                            <span style={{ color: B.blue, fontWeight: 600 }}>
+                              @ {r.deployedTo}
+                            </span>
+                          )}
+                          {r.acquisitionCost && (
+                            <span>
+                              ${parseFloat(r.acquisitionCost).toLocaleString()}
+                            </span>
+                          )}
+                          {r.fundingSource && (
+                            <span style={{ textTransform: 'uppercase' }}>
+                              {r.fundingSource}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          remove(r.id);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#d1d5db',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          padding: '4px',
+                        }}
+                        title="Delete"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* DEPLOYED TAB */}
+      {activeTab === 'deployed' && (
+        <>
+          <div
+            style={{
+              background: `${B.blue}08`,
+              border: `1px solid ${B.blueBorder}`,
+              borderLeft: `3px solid ${B.blue}`,
+              borderRadius: '0 8px 8px 0',
+              padding: '9px 14px',
+              marginBottom: 14,
+              fontSize: 12,
+              color: '#1e40af',
+            }}
+          >
+            Track where your deployable assets are right now. Click any resource
+            in the Inventory tab to deploy or return it.
+          </div>
+          {deployed > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <Btn label="Export Deployed Equipment (CSV)" onClick={() => {
+                const deployedRes = resources.filter(r => r.status === 'deployed');
+                const headers = ['Name','Make','Model','Serial/Tag','Category','Qty','AEL Number','FEMA Equipment Type','Acquisition Cost','Federal Share %','Grant Program','Useful Life (yrs)','Funding Source','Deployed To','Incident','Assigned To','Deploy Date','Condition'];
+                const rows = deployedRes.map(r => [
+                  r.name, r.make || '', r.model || '', r.serialNumber || '', r.category, r.qty,
+                  r.aelNumber || '', r.femaEquipType || '', r.acquisitionCost || '', r.federalSharePct || '',
+                  r.grantProgram || '', r.usefulLife || '', r.fundingSource || '',
+                  r.deployedTo || '', r.deployedIncident || '', r.deployedAssignee || '',
+                  r.deployedDate || '', r.condition
+                ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+                const csv = [headers.join(','), ...rows].join('\n');
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `deployed_equipment_${today()}.csv`;
+                a.click();
+              }} small />
+            </div>
+          )}
+          {deployed === 0 ? (
+            <Card
+              style={{ textAlign: 'center', padding: '32px', color: B.faint }}
+            >
+              No resources currently deployed. Click a resource in the Inventory
+              tab to deploy it.
+            </Card>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {resources
+                .filter((r) => r.status === 'deployed')
+                .map((r) => (
+                  <Card
+                    key={r.id}
+                    style={{ borderLeft: `3px solid ${B.blue}` }}
                   >
-                    {r.name}
-                  </td>
-                  <td
-                    style={{
-                      padding: '9px 13px',
-                      fontSize: 12,
-                      color: B.muted,
-                    }}
-                  >
-                    {r.category}
-                  </td>
-                  <td
-                    style={{
-                      padding: '9px 13px',
-                      fontSize: 12,
-                      color: B.muted,
-                    }}
-                  >
-                    {r.qty || '—'}
-                  </td>
-                  <td
-                    style={{
-                      padding: '9px 13px',
-                      fontSize: 12,
-                      color: B.muted,
-                    }}
-                  >
-                    {r.location || '—'}
-                  </td>
-                  <td style={{ padding: '9px 13px' }}>
-                    <Tag
-                      label={r.condition}
-                      color={cc(r.condition)}
-                      bg={
-                        cc(r.condition) === B.green
-                          ? B.greenLight
-                          : cc(r.condition) === B.amber
-                          ? B.amberLight
-                          : B.redLight
-                      }
-                      border={B.border}
-                    />
-                  </td>
-                  <td style={{ padding: '9px 13px' }}>
-                    <Attachments
-                      docs={r.docs || []}
-                      onAdd={(doc) =>
-                        updateRes(r.id, 'docs', [...(r.docs || []), doc])
-                      }
-                      onRemove={(id) =>
-                        updateRes(
-                          r.id,
-                          'docs',
-                          (r.docs || []).filter((d) => d.id !== id)
-                        )
-                      }
-                      compact
-                    />
-                  </td>
-                  <td style={{ padding: '9px 13px' }}>
-                    <button
-                      onClick={() => remove(r.id)}
+                    <div
                       style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#d1d5db',
-                        cursor: 'pointer',
-                        fontSize: 14,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
                       }}
                     >
-                      ×
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: B.text,
+                            marginBottom: 3,
+                          }}
+                        >
+                          {r.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: B.faint,
+                            display: 'flex',
+                            gap: 10,
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          {r.deployedTo && (
+                            <span style={{ fontWeight: 600, color: B.blue }}>
+                              Location: {r.deployedTo}
+                            </span>
+                          )}
+                          {r.deployedIncident && (
+                            <span>Incident: {r.deployedIncident}</span>
+                          )}
+                          {r.deployedAssignee && (
+                            <span>Assigned to: {r.deployedAssignee}</span>
+                          )}
+                          {r.deployedDate && (
+                            <span>Since: {fmtDate(r.deployedDate)}</span>
+                          )}
+                        </div>
+                      </div>
+                      <Btn
+                        label="Return"
+                        onClick={() => returnResource(r.id)}
+                        small
+                      />
+                    </div>
+                  </Card>
+                ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ANNUAL INVENTORY TAB */}
+      {activeTab === 'annual' && (
+        <>
+          <div
+            style={{
+              background: `${B.amber}08`,
+              border: `1px solid ${B.amberBorder}`,
+              borderLeft: `3px solid ${B.amber}`,
+              borderRadius: '0 8px 8px 0',
+              padding: '9px 14px',
+              marginBottom: 14,
+              fontSize: 12,
+              color: '#92400e',
+            }}
+          >
+            Many grants (EMPG, HMGP) and county purchasing require annual
+            physical inventory of assets. Items not verified in 12+ months are
+            flagged. Click each to verify.
+          </div>
+          {totalValue > 0 && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr 1fr',
+                gap: 10,
+                marginBottom: 16,
+              }}
+            >
+              <Card style={{ padding: '12px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: B.blue }}>
+                  ${totalValue.toLocaleString()}
+                </div>
+                <div style={{ fontSize: 10, color: B.faint, marginTop: 2 }}>
+                  Total Asset Value
+                </div>
+              </Card>
+              <Card style={{ padding: '12px 14px', textAlign: 'center' }}>
+                <div
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 800,
+                    color: needsInventory.length > 0 ? B.amber : B.green,
+                  }}
+                >
+                  {needsInventory.length}
+                </div>
+                <div style={{ fontSize: 10, color: B.faint, marginTop: 2 }}>
+                  Need Verification
+                </div>
+              </Card>
+              <Card style={{ padding: '12px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: B.green }}>
+                  {resources.length - needsInventory.length}
+                </div>
+                <div style={{ fontSize: 10, color: B.faint, marginTop: 2 }}>
+                  Verified (12 mo)
+                </div>
+              </Card>
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {resources.map((r) => {
+              const overdue = needsInventory.includes(r);
+              const lastDate = r.lastInventoryDate;
+              return (
+                <div
+                  key={r.id}
+                  style={{
+                    background: B.card,
+                    border: `1px solid ${overdue ? B.amberBorder : B.border}`,
+                    borderLeft: `3px solid ${overdue ? B.amber : B.green}`,
+                    borderRadius: '0 9px 9px 0',
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 8,
+                        alignItems: 'center',
+                        marginBottom: 2,
+                      }}
+                    >
+                      <span
+                        style={{ fontSize: 13, fontWeight: 600, color: B.text }}
+                      >
+                        {r.name}
+                      </span>
+                      {r.serialNumber && (
+                        <span style={{ fontSize: 11, color: B.faint }}>
+                          #{r.serialNumber}
+                        </span>
+                      )}
+                      {r.fundingSource && (
+                        <Tag
+                          label={r.fundingSource.toUpperCase()}
+                          color={B.blue}
+                          bg={B.blueLight}
+                          border={B.blueBorder}
+                        />
+                      )}
+                      {r.acquisitionCost && (
+                        <span style={{ fontSize: 11, color: B.muted }}>
+                          ${parseFloat(r.acquisitionCost).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: B.faint }}>
+                      {lastDate ? (
+                        <>
+                          Last verified: {fmtDate(lastDate)}
+                          {r.lastInventoryBy ? ` by ${r.lastInventoryBy}` : ''}
+                        </>
+                      ) : (
+                        <span style={{ color: B.amber, fontWeight: 600 }}>
+                          Never inventoried
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {overdue ? (
+                    <Btn
+                      label="Verify Now"
+                      onClick={() => {
+                        const by = prompt('Verified by (your name):');
+                        if (by)
+                          verifyInventory(
+                            r.id,
+                            by,
+                            'Annual inventory verification'
+                          );
+                      }}
+                      primary
+                      small
+                    />
+                  ) : (
+                    <Tag
+                      label="Current"
+                      color={B.green}
+                      bg={B.greenLight}
+                      border={B.greenBorder}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {resources.length > 0 && (
+            <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
+              <Btn
+                label="Verify All Resources"
+                onClick={() => {
+                  const by = prompt('Verified by (your name):');
+                  if (by)
+                    resources.forEach((r) =>
+                      verifyInventory(r.id, by, 'Bulk annual inventory')
+                    );
+                }}
+                primary
+              />
+              <Btn
+                label="Export Inventory Report"
+                onClick={() => {
+                  const lines = [
+                    'ANNUAL INVENTORY REPORT',
+                    'Date: ' + new Date().toLocaleDateString(),
+                    'Organization: ' + (data.orgName || ''),
+                    '',
+                    'Name | Serial/Tag | Category | Qty | Location | Condition | Acquisition Cost | Funding Source | Last Verified',
+                    '---',
+                    '',
+                  ];
+                  resources.forEach((r) => {
+                    lines.push(
+                      `${r.name} | ${r.serialNumber || 'N/A'} | ${
+                        r.category
+                      } | ${r.qty || 1} | ${r.location || 'N/A'} | ${
+                        r.condition
+                      } | $${r.acquisitionCost || 'N/A'} | ${(
+                        r.fundingSource || 'general fund'
+                      ).toUpperCase()} | ${
+                        r.lastInventoryDate
+                          ? fmtDate(r.lastInventoryDate)
+                          : 'Never'
+                      }`
+                    );
+                  });
+                  lines.push(
+                    '',
+                    'Total Assets: ' + resources.length,
+                    'Total Value: $' + totalValue.toLocaleString(),
+                    'Items Needing Verification: ' + needsInventory.length
+                  );
+                  const blob = new Blob([lines.join('\n')], {
+                    type: 'text/plain',
+                  });
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `inventory-report-${today()}.txt`;
+                  a.click();
+                }}
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Resource Detail Panel */}
+      {sel && (
+        <>
+          <div
+            onClick={() => setSelectedId(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15,23,42,0.3)',
+              zIndex: 49,
+              animation: 'fadeIn 0.15s',
+            }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              right: 0,
+              width: 560,
+              height: '100vh',
+              background: B.card,
+              borderLeft: `1px solid ${B.border}`,
+              zIndex: 50,
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'slideIn 0.25s cubic-bezier(0.4,0,0.2,1)',
+              boxShadow: '-20px 0 60px rgba(0,0,0,0.08)',
+            }}
+          >
+            <div
+              style={{
+                padding: '16px 20px',
+                borderBottom: `1px solid ${B.border}`,
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: B.text }}>
+                    {sel.name}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 6,
+                      marginTop: 4,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <Tag
+                      label={sel.category}
+                      color={B.muted}
+                      bg="#f0f3f4"
+                      border={B.border}
+                    />
+                    <Tag
+                      label={
+                        (STATUS_MAP[sel.status] || STATUS_MAP.available).label
+                      }
+                      color={
+                        (STATUS_MAP[sel.status] || STATUS_MAP.available).color
+                      }
+                      bg={(STATUS_MAP[sel.status] || STATUS_MAP.available).bg}
+                      border={B.border}
+                    />
+                    {sel.deployable !== false && (
+                      <Tag
+                        label="Deployable"
+                        color={B.blue}
+                        bg={B.blueLight}
+                        border={B.blueBorder}
+                      />
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedId(null)}
+                  style={{
+                    background: '#f4f7f8',
+                    border: `1px solid ${B.border}`,
+                    borderRadius: 7,
+                    color: B.muted,
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    padding: '4px 9px',
+                    lineHeight: 1,
+                  }}
+                >
+                  x
+                </button>
+              </div>
+            </div>
+            <div
+              style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px' }}
+            >
+              {/* Quick Actions */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  marginBottom: 16,
+                  flexWrap: 'wrap',
+                }}
+              >
+                {sel.status !== 'deployed' && sel.deployable !== false && (
+                  <Btn
+                    label="Deploy"
+                    onClick={() => {
+                      const loc = prompt('Deploy to location:');
+                      if (loc) {
+                        const inc = prompt('Incident/Event (optional):') || '';
+                        const who = prompt('Assigned to (optional):') || '';
+                        deployResource(sel.id, loc, inc, who);
+                      }
+                    }}
+                    primary
+                    small
+                  />
+                )}
+                {sel.status === 'deployed' && (
+                  <Btn
+                    label="Return to Inventory"
+                    onClick={() => {
+                      const cond =
+                        prompt(
+                          'Condition on return (Excellent/Good/Fair/Needs Repair):'
+                        ) || sel.condition;
+                      returnResource(sel.id, cond);
+                    }}
+                    small
+                  />
+                )}
+                <Btn
+                  label="Verify Inventory"
+                  onClick={() => {
+                    const by = prompt('Verified by:');
+                    if (by) verifyInventory(sel.id, by, 'Manual verification');
+                  }}
+                  small
+                />
+              </div>
+
+              {/* Details */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 10,
+                  marginBottom: 14,
+                }}
+              >
+                <div>
+                  <Label>Name</Label>
+                  <FInput
+                    value={sel.name || ''}
+                    onChange={(v) => updateRes(sel.id, 'name', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Serial / Asset Tag</Label>
+                  <FInput
+                    value={sel.serialNumber || ''}
+                    onChange={(v) => updateRes(sel.id, 'serialNumber', v)}
+                    placeholder="SN-001"
+                  />
+                </div>
+                <div>
+                  <Label>Category</Label>
+                  <FSel
+                    value={sel.category}
+                    onChange={(v) => updateRes(sel.id, 'category', v)}
+                  >
+                    {CATS.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </FSel>
+                </div>
+                <div>
+                  <Label>Qty</Label>
+                  <FInput
+                    value={sel.qty || ''}
+                    onChange={(v) => updateRes(sel.id, 'qty', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Location</Label>
+                  <FInput
+                    value={sel.location || ''}
+                    onChange={(v) => updateRes(sel.id, 'location', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Condition</Label>
+                  <FSel
+                    value={sel.condition}
+                    onChange={(v) => updateRes(sel.id, 'condition', v)}
+                  >
+                    {CONDS.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </FSel>
+                </div>
+                <div>
+                  <Label>Acquisition Date</Label>
+                  <FInput
+                    type="date"
+                    value={sel.acquisitionDate || ''}
+                    onChange={(v) => updateRes(sel.id, 'acquisitionDate', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Acquisition Cost ($)</Label>
+                  <FInput
+                    value={sel.acquisitionCost || ''}
+                    onChange={(v) => updateRes(sel.id, 'acquisitionCost', v)}
+                    placeholder="5000"
+                  />
+                </div>
+                <div>
+                  <Label>Funding Source</Label>
+                  <FSel
+                    value={sel.fundingSource || ''}
+                    onChange={(v) => updateRes(sel.id, 'fundingSource', v)}
+                  >
+                    <option value="">General Fund</option>
+                    <option value="empg">EMPG</option>
+                    <option value="hmgp">HMGP</option>
+                    <option value="uasi">UASI</option>
+                    <option value="bric">BRIC</option>
+                    <option value="shsp">SHSP</option>
+                    <option value="donated">Donated</option>
+                    <option value="other">Other</option>
+                  </FSel>
+                </div>
+                <div>
+                  <Label>Assigned To</Label>
+                  <FInput
+                    value={sel.assignedTo || ''}
+                    onChange={(v) => updateRes(sel.id, 'assignedTo', v)}
+                    placeholder="Person or unit"
+                  />
+                </div>
+              </div>
+
+              {/* Deployment status */}
+              {sel.status === 'deployed' && (
+                <Card
+                  style={{
+                    marginBottom: 14,
+                    borderLeft: `3px solid ${B.blue}`,
+                    borderRadius: '0 14px 14px 0',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: B.blue,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Currently Deployed
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: B.muted,
+                      display: 'flex',
+                      gap: 12,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    {sel.deployedTo && (
+                      <span>
+                        Location: <strong>{sel.deployedTo}</strong>
+                      </span>
+                    )}
+                    {sel.deployedIncident && (
+                      <span>Incident: {sel.deployedIncident}</span>
+                    )}
+                    {sel.deployedAssignee && (
+                      <span>Assigned: {sel.deployedAssignee}</span>
+                    )}
+                    {sel.deployedDate && (
+                      <span>Since: {fmtDate(sel.deployedDate)}</span>
+                    )}
+                  </div>
+                </Card>
+              )}
+
+              {/* Deployment History */}
+              {(sel.deploymentLog || []).length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: B.muted,
+                      marginBottom: 8,
+                    }}
+                  >
+                    Deployment History
+                  </div>
+                  {[...(sel.deploymentLog || [])]
+                    .reverse()
+                    .slice(0, 10)
+                    .map((log) => (
+                      <div
+                        key={log.id}
+                        style={{
+                          fontSize: 11,
+                          color: B.faint,
+                          padding: '5px 0',
+                          borderBottom: `1px solid #f4f8f9`,
+                          display: 'flex',
+                          gap: 8,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: 600,
+                            color: log.action === 'deployed' ? B.blue : B.green,
+                          }}
+                        >
+                          {log.action === 'deployed' ? 'Deployed' : 'Returned'}
+                        </span>
+                        <span>{fmtDate(log.date)}</span>
+                        {log.location && <span>@ {log.location}</span>}
+                        {log.assignee && <span>to {log.assignee}</span>}
+                        {log.condition && (
+                          <span>Condition: {log.condition}</span>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              {/* Inventory History */}
+              <div style={{ marginBottom: 14 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: B.muted,
+                    marginBottom: 4,
+                  }}
+                >
+                  Inventory Verification
+                </div>
+                <div style={{ fontSize: 11, color: B.faint, marginBottom: 8 }}>
+                  Last:{' '}
+                  {sel.lastInventoryDate ? (
+                    `${fmtDate(sel.lastInventoryDate)}${
+                      sel.lastInventoryBy ? ' by ' + sel.lastInventoryBy : ''
+                    }`
+                  ) : (
+                    <span style={{ color: B.amber }}>Never verified</span>
+                  )}
+                </div>
+                {(sel.inventoryLog || []).length > 0 &&
+                  [...(sel.inventoryLog || [])]
+                    .reverse()
+                    .slice(0, 5)
+                    .map((log) => (
+                      <div
+                        key={log.id}
+                        style={{
+                          fontSize: 11,
+                          color: B.faint,
+                          padding: '3px 0',
+                        }}
+                      >
+                        {fmtDate(log.date)} - {log.verifiedBy}
+                        {log.notes ? ' - ' + log.notes : ''}
+                      </div>
+                    ))}
+              </div>
+
+              {/* Docs */}
+              <Attachments
+                docs={sel.docs || []}
+                onAdd={(doc) =>
+                  updateRes(sel.id, 'docs', [...(sel.docs || []), doc])
+                }
+                onRemove={(id) =>
+                  updateRes(
+                    sel.id,
+                    'docs',
+                    (sel.docs || []).filter((d) => d.id !== id)
+                  )
+                }
+              />
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    SIDEBAR
-═══════════════════════════════════════════════════════ */
-function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
+------------------------------------------------------- */
+function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapsed, onToggleCollapse }) {
+  const sidebarCanvasRef = useRef(null);
+  const sidebarAnimRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = sidebarCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let W, H, nodes;
+    const resize = () => {
+      W = canvas.width = canvas.offsetWidth;
+      H = canvas.height = canvas.offsetHeight;
+      const count = Math.max(18, Math.floor((W * H) / 4200));
+      nodes = Array.from({ length: count }, () => ({
+        x: Math.random() * W, y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.18, vy: (Math.random() - 0.5) * 0.18,
+        r: Math.random() * 1.2 + 0.5,
+        gold: Math.random() < 0.1,
+      }));
+    };
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      const MAX = 80;
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dx = nodes[i].x - nodes[j].x;
+          const dy = nodes[i].y - nodes[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < MAX) {
+            ctx.strokeStyle = `rgba(62,207,207,${(1 - dist / MAX) * 0.09})`;
+            ctx.lineWidth = 0.3;
+            ctx.beginPath();
+            ctx.moveTo(nodes[i].x, nodes[i].y);
+            ctx.lineTo(nodes[j].x, nodes[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+      nodes.forEach(n => {
+        ctx.fillStyle = n.gold
+          ? 'rgba(196,154,60,0.18)'
+          : 'rgba(62,207,207,0.15)';
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        ctx.fill();
+        n.x += n.vx; n.y += n.vy;
+        if (n.x < 0 || n.x > W) n.vx *= -1;
+        if (n.y < 0 || n.y > H) n.vy *= -1;
+      });
+      sidebarAnimRef.current = requestAnimationFrame(draw);
+    };
+    resize();
+    draw();
+    window.addEventListener('resize', resize);
+    return () => {
+      cancelAnimationFrame(sidebarAnimRef.current);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
   const nav = [
     {
-      group: 'Overview',
+      group: '',
       items: [
         { id: 'dashboard', icon: '⊞', label: 'Dashboard' },
-        { id: 'calendar', icon: '⊟', label: 'Program Calendar' },
-        { id: 'activity', icon: '◎', label: 'Activity Log' },
-      ],
-    },
-    {
-      group: 'Accreditation',
-      items: [
-        { id: 'accreditation', icon: '★', label: 'EMAP Standards' },
-        { id: 'journey', icon: '◎', label: 'Accreditation Journey' },
-        { id: 'intake', icon: '⊙', label: 'Bulk Doc Intake', highlight: true },
-        { id: 'package', icon: '◧', label: 'Package Builder', highlight: true },
-        { id: 'thira', icon: '◈', label: 'THIRA/SPR' },
-        { id: 'cap', icon: '◎', label: 'Corrective Actions' },
-        { id: 'reports', icon: '◧', label: 'Reports' },
+        { id: 'settings', icon: '◧', label: 'My Program' },
       ],
     },
     {
       group: 'Program Ops',
       items: [
+        { id: 'thira', icon: '◉', label: 'Hazard Analysis' },
+        { id: 'plans', icon: '◉', label: 'Plans & SOPs' },
+        { id: 'partners', icon: '◉', label: 'Partners & MOUs' },
+        { id: 'resources', icon: '◉', label: 'Resources' },
+        { id: 'employees', icon: '◉', label: 'Personnel' },
         { id: 'training', icon: '◉', label: 'Training' },
-        { id: 'exercises', icon: '◎', label: 'Exercises & AARs' },
-        { id: 'plans', icon: '◈', label: 'Plan Library' },
-        { id: 'partners', icon: '⊕', label: 'Partners & MOUs' },
-        { id: 'resources', icon: '⊗', label: 'Resources' },
-        { id: 'employees', icon: '◈', label: 'Employees' },
-        { id: 'grants', icon: '$', label: 'Grant Tracker' },
+        { id: 'exercises', icon: '◉', label: 'Exercises & AARs' },
+        { id: 'grants', icon: '◉', label: 'Grants & Funding' },
       ],
     },
     {
-      group: 'AI',
-      items: [{ id: 'assistant', icon: null, label: 'AI Assistant', ai: true }],
+      group: 'Compliance',
+      items: [
+        { id: 'accreditation', icon: '✓', label: 'EMAP Standards' },
+        { id: 'journey', icon: '→', label: 'Accreditation Journey' },
+        { id: 'package', icon: '▤', label: 'Package Builder' },
+        { id: 'cap', icon: '⚑', label: 'Corrective Actions' },
+      ],
     },
     {
-      group: 'Config',
-      items: [{ id: 'settings', icon: '◧', label: 'Settings' }],
+      group: 'AI Tools',
+      items: [
+        { id: 'sage', icon: null, label: 'SAGE', ai: true },
+        { id: 'assistant', icon: null, label: 'AI Assistant', ai: true },
+        { id: 'intake', icon: '↑', label: 'Bulk Doc Intake' },
+        { id: 'templates', icon: '✦', label: 'Doc Templates' },
+        { id: 'evidence', icon: '↓', label: 'Evidence Export' },
+      ],
+    },
+    {
+      group: 'Advanced',
+      items: [
+        { id: 'recovery', icon: '↻', label: 'Recovery Planning' },
+        { id: 'mutualaid', icon: '◎', label: 'Mutual Aid' },
+        { id: 'reports', icon: '▤', label: 'Reports' },
+        { id: 'calendar', icon: '▦', label: 'Calendar' },
+        { id: 'activity', icon: '◷', label: 'Activity Log' },
+      ],
     },
   ];
   const counts = {
@@ -7387,8 +10387,10 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
   );
   return (
     <aside
+      role="navigation"
+      aria-label="Main navigation"
       style={{
-        width: 244,
+        width: collapsed ? 64 : 244,
         background: B.sidebar,
         display: 'flex',
         flexDirection: 'column',
@@ -7397,12 +10399,31 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
         left: 0,
         height: '100vh',
         zIndex: 40,
+        transition: 'width 0.2s ease',
+        overflow: 'hidden',
       }}
     >
+      {/* Live node network canvas */}
+      <canvas
+        ref={sidebarCanvasRef}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 0,
+          opacity: collapsed ? 0.4 : 0.7,
+          transition: 'opacity 0.2s ease',
+        }}
+      />
+      {/* All sidebar content sits above canvas */}
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div
         style={{
-          padding: '20px 18px 16px',
+          padding: collapsed ? '16px 12px' : '20px 18px 16px',
           borderBottom: `1px solid ${B.sidebarBorder}`,
+          transition: 'padding 0.2s ease',
         }}
       >
         <div
@@ -7410,7 +10431,8 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
             display: 'flex',
             alignItems: 'center',
             gap: 11,
-            marginBottom: 14,
+            marginBottom: collapsed ? 0 : 14,
+            justifyContent: collapsed ? 'center' : 'flex-start',
           }}
         >
           <div
@@ -7425,42 +10447,33 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
               flexShrink: 0,
             }}
           >
-            <BrainIcon size={22} color={B.teal} strokeWidth={1.3} />
+            <BrainIcon size={22} strokeWidth={1.3} />
           </div>
-          <Wordmark dark size="sm" />
-          {notifCount > 0 && (
-            <span
-              style={{
-                marginLeft: 'auto',
-                background: B.red,
-                color: '#fff',
-                borderRadius: 10,
-                fontSize: 9,
-                padding: '2px 5px',
-                fontWeight: 700,
-                flexShrink: 0,
-              }}
-            >
-              {notifCount}
-            </span>
-          )}
+          {!collapsed && <Wordmark dark size="sm" />}
         </div>
-        <div
+        {!collapsed && <div
           onClick={onEditOrg}
           style={{
             background: B.sidebarMid,
-            borderRadius: 8,
-            padding: '10px 12px',
+            borderRadius: 10,
+            padding: '12px 14px',
             cursor: 'pointer',
             border: `1px solid ${B.sidebarBorder}`,
+            transition: 'border-color 0.15s',
           }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.borderColor = 'rgba(27,201,196,0.3)')
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.borderColor = B.sidebarBorder)
+          }
         >
           <div
             style={{
-              fontSize: 12,
+              fontSize: 12.5,
               fontWeight: 700,
               color: '#e2e8f0',
-              marginBottom: 6,
+              marginBottom: 8,
             }}
           >
             {orgName || 'My Organization'}
@@ -7469,7 +10482,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
             style={{
               display: 'flex',
               justifyContent: 'space-between',
-              marginBottom: 4,
+              marginBottom: 5,
             }}
           >
             <span
@@ -7484,7 +10497,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
             </span>
             <span
               style={{
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: 700,
                 color:
                   overall.pct > 79
@@ -7497,132 +10510,141 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
               {overall.pct}%
             </span>
           </div>
-          <div style={{ height: 3, background: '#2E3439', borderRadius: 2 }}>
+          <div
+            style={{
+              height: 4,
+              background: '#2E3439',
+              borderRadius: 3,
+              overflow: 'hidden',
+            }}
+          >
             <div
               style={{
                 height: '100%',
                 width: `${overall.pct}%`,
                 background: `linear-gradient(90deg,${B.teal},${B.tealDark})`,
-                borderRadius: 2,
+                borderRadius: 3,
                 transition: 'width 0.8s ease',
               }}
             />
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 7 }}>
             <span style={{ fontSize: 9, color: '#34d399' }}>
-              ✓{overall.compliant}
+              {overall.compliant} done
             </span>
             <span style={{ fontSize: 9, color: '#fbbf24' }}>
-              ◑{overall.in_progress}
+              {overall.in_progress} active
             </span>
             <span style={{ fontSize: 9, color: '#f87171' }}>
-              !{overall.needs_review}
+              {overall.needs_review} review
             </span>
-            <span style={{ fontSize: 9, color: B.sidebarBorder }}>
-              ○{overall.not_started}
+            <span style={{ fontSize: 9, color: '#4A5568' }}>
+              {overall.not_started} todo
             </span>
           </div>
-        </div>
+        </div>}
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 0' }}>
-        {nav.map((g) => (
-          <div key={g.group}>
-            <div
-              style={{
-                padding: '8px 18px 3px',
-                fontSize: 9,
-                color: B.sidebarBorder,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                fontWeight: 700,
-              }}
-            >
-              {g.group}
-            </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: collapsed ? '8px 4px' : '8px 0' }}>
+        {nav.map((g, gi) => (
+          <div key={g.group || 'top'}>
+            {g.group && !collapsed && (
+              <div
+                style={{
+                  padding: '14px 18px 5px',
+                  fontSize: 9,
+                  color: '#4A5568',
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                {g.group}
+                <div
+                  style={{
+                    flex: 1,
+                    height: 1,
+                    background: B.sidebarBorder,
+                    opacity: 0.5,
+                  }}
+                />
+              </div>
+            )}
+            {g.group && collapsed && gi > 0 && (
+              <div style={{ height: 1, background: B.sidebarBorder, margin: '6px 8px', opacity: 0.4 }} />
+            )}
             {g.items.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setView(item.id)}
+                title={collapsed ? item.label : undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  width: 'calc(100% - 12px)',
-                  margin: '1px 6px',
-                  padding: '7px 10px',
-                  borderRadius: 7,
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  gap: collapsed ? 0 : 9,
+                  width: collapsed ? 'calc(100% - 8px)' : 'calc(100% - 16px)',
+                  margin: collapsed ? '1px 4px' : '1px 8px',
+                  padding: collapsed ? '10px 0' : '8px 12px',
+                  borderRadius: 6,
                   background:
-                    view === item.id ? 'rgba(27,201,196,0.12)' : 'none',
-                  border: `1px solid ${
-                    view === item.id ? 'rgba(27,201,196,0.3)' : 'transparent'
-                  }`,
+                    view === item.id ? 'rgba(27,201,196,0.08)' : 'none',
+                  border: 'none',
+                  borderLeft: collapsed ? 'none' : (view === item.id ? `3px solid ${B.teal}` : '3px solid transparent'),
                   color:
                     view === item.id
                       ? B.teal
                       : item.ai
-                      ? B.teal
+                      ? '#6EDCD8'
                       : B.sidebarMuted,
                   cursor: 'pointer',
-                  fontSize: 12,
+                  fontSize: 12.5,
                   fontFamily: "'DM Sans',sans-serif",
                   textAlign: 'left',
-                  transition: 'all 0.12s',
+                  transition: 'all 0.15s ease',
+                  fontWeight: view === item.id ? 600 : 400,
+                }}
+                onMouseEnter={(e) => {
+                  if (view !== item.id)
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                }}
+                onMouseLeave={(e) => {
+                  if (view !== item.id)
+                    e.currentTarget.style.background = 'none';
                 }}
               >
                 {item.ai ? (
                   <BrainIcon
-                    size={13}
-                    color={view === item.id ? B.teal : '#6A8090'}
-                    strokeWidth={1.2}
+                    size={14}
+                    color={view === item.id ? B.teal : '#6EDCD8'}
+                    strokeWidth={1.3}
                   />
                 ) : (
-                  <span style={{ fontSize: 11, opacity: 0.8 }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      opacity: 0.5,
+                      width: 16,
+                      textAlign: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
                     {item.icon}
                   </span>
                 )}
-                {item.label}
-                {counts[item.id] > 0 && (
+                {!collapsed && <span style={{ flex: 1 }}>{item.label}</span>}
+                {!collapsed && item.ai && view !== item.id && (
                   <span
                     style={{
-                      marginLeft: 'auto',
-                      background:
-                        view === item.id ? 'rgba(27,201,196,0.2)' : '#2E3439',
-                      color: view === item.id ? B.teal : B.sidebarMuted,
-                      borderRadius: 8,
-                      fontSize: 9,
-                      padding: '1px 5px',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {counts[item.id]}
-                  </span>
-                )}
-                {item.highlight && !counts[item.id] && view !== item.id && (
-                  <span
-                    style={{
-                      marginLeft: 'auto',
-                      fontSize: 9,
-                      color: B.amber,
-                      background: 'rgba(245,158,11,0.12)',
-                      padding: '1px 5px',
-                      borderRadius: 5,
-                      border: '1px solid rgba(245,158,11,0.2)',
-                      fontWeight: 700,
-                    }}
-                  >
-                    NEW
-                  </span>
-                )}
-                {item.ai && view !== item.id && (
-                  <span
-                    style={{
-                      marginLeft: 'auto',
-                      fontSize: 9,
+                      fontSize: 8,
                       color: B.teal,
                       background: 'rgba(27,201,196,0.1)',
-                      padding: '1px 5px',
-                      borderRadius: 5,
-                      border: `1px solid rgba(27,201,196,0.2)`,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontWeight: 700,
+                      letterSpacing: '0.05em',
                     }}
                   >
                     AI
@@ -7633,37 +10655,66 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg }) {
           </div>
         ))}
       </div>
+      {(() => {
+        const plan = getPlanLimits(data.plan || 'solo');
+        const used = getAIUsageCount();
+        const pctUsed = plan.aiCallsPerMonth === Infinity ? 0 : Math.min(100, Math.round((used / plan.aiCallsPerMonth) * 100));
+        return (
+          <div style={{ padding: collapsed ? '8px 10px' : '10px 18px', borderTop: `1px solid ${B.sidebarBorder}` }} title={`AI: ${used}/${plan.aiCallsPerMonth === Infinity ? '∞' : plan.aiCallsPerMonth}`}>
+            {!collapsed && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontSize: 9, color: '#4A5568', textTransform: 'uppercase', letterSpacing: '0.1em' }}>AI Usage</span>
+              <span style={{ fontSize: 9, color: pctUsed > 80 ? '#f59e0b' : '#4A5568', fontWeight: 600 }}>
+                {plan.aiCallsPerMonth === Infinity ? `${used} calls` : `${used} / ${plan.aiCallsPerMonth}`}
+              </span>
+            </div>}
+            {plan.aiCallsPerMonth !== Infinity && (
+              <div style={{ height: 3, background: '#2E3439', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', width: `${pctUsed}%`,
+                  background: pctUsed > 90 ? B.red : pctUsed > 70 ? B.amber : B.teal,
+                  borderRadius: 2, transition: 'width 0.5s ease',
+                }} />
+              </div>
+            )}
+          </div>
+        );
+      })()}
       <div
         style={{
-          padding: '10px 18px',
+          padding: collapsed ? '10px 8px' : '10px 18px',
           borderTop: `1px solid ${B.sidebarBorder}`,
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
+          justifyContent: collapsed ? 'center' : 'space-between',
+          gap: 7,
         }}
       >
-        <BrainIcon size={11} color={B.sidebarBorder} strokeWidth={1} />
-        <span
-          style={{
-            fontSize: 9,
-            color: B.sidebarBorder,
-            letterSpacing: '0.06em',
+        {!collapsed && <>
+          <BrainIcon size={12} color={'#4A5568'} strokeWidth={1} />
+          <span style={{ fontSize: 9, color: '#4A5568', letterSpacing: '0.06em', flex: 1 }}>PLANRR</span>
+        </>}
+        {onToggleCollapse && (
+          <button onClick={onToggleCollapse} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} style={{
+            background: 'none', border: 'none', color: '#4A5568', cursor: 'pointer', fontSize: 14,
+            padding: '4px', borderRadius: 4, transition: 'color 0.15s',
           }}
-        >
-          PLANRR · EMAP EMS 5-2022 · ANSI
-        </span>
+            onMouseEnter={e => e.currentTarget.style.color = B.teal}
+            onMouseLeave={e => e.currentTarget.style.color = '#4A5568'}
+          >{collapsed ? '»' : '«'}</button>
+        )}
       </div>
+      </div>{/* /z-index wrapper */}
     </aside>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    DASHBOARD
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    CALENDAR, REPORTS, AI ASSISTANT
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function ProgramCalendar({ data }) {
   const items = useMemo(() => {
     const all = [];
@@ -7673,7 +10724,7 @@ function ProgramCalendar({ data }) {
           date: e.date,
           label: e.name,
           color: B.purple,
-          icon: '◎',
+          icon: '-',
           id: e.id,
         });
     });
@@ -7683,7 +10734,7 @@ function ProgramCalendar({ data }) {
           date: p.expires,
           label: `MOU Expires: ${p.name}`,
           color: daysUntil(p.expires) < 30 ? B.red : B.amber,
-          icon: '⊕',
+          icon: '-',
           id: 'm' + p.id,
         });
     });
@@ -7693,7 +10744,7 @@ function ProgramCalendar({ data }) {
           date: p.nextReview,
           label: `Review Due: ${p.name}`,
           color: daysUntil(p.nextReview) < 0 ? B.red : B.green,
-          icon: '◈',
+          icon: '-',
           id: 'p' + p.id,
         });
     });
@@ -7701,9 +10752,9 @@ function ProgramCalendar({ data }) {
       if (t.date)
         all.push({
           date: t.date,
-          label: `Training: ${t.person} — ${t.type}`,
+          label: `Training: ${t.person} - ${t.type}`,
           color: B.teal,
-          icon: '◉',
+          icon: '-',
           id: 't' + t.id,
         });
     });
@@ -7742,7 +10793,7 @@ function ProgramCalendar({ data }) {
           Program Calendar
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          Exercises · Plan reviews · MOU expirations · Training · Credential
+          Exercises - Plan reviews - MOU expirations - Training - Credential
           renewals
         </p>
       </div>
@@ -7758,7 +10809,7 @@ function ProgramCalendar({ data }) {
               marginBottom: 10,
             }}
           >
-            Upcoming — 180 days
+            Upcoming - 180 days
           </div>
           {upcoming.length === 0 ? (
             <Card
@@ -7931,7 +10982,7 @@ function ReportsView({ data, orgName }) {
     brand.headerLine1 || orgName || 'Emergency Management Program';
   const headerLine2 = brand.headerLine2 || '';
   const footerText =
-    brand.footerDisclaimer || `${orgName || 'EM Program'} · EMAP EMS 5-2022`;
+    brand.footerDisclaimer || `${orgName || 'EM Program'}  -  EMAP EMS 5-2022`;
   const poweredBy =
     brand.showPoweredBy !== false
       ? brand.poweredByText || 'Powered by PLANRR.ai'
@@ -7939,7 +10990,7 @@ function ReportsView({ data, orgName }) {
   const preparedBy = brand.preparedBy || data.emName || data.emTitle || '';
   const subtitle =
     brand.reportSubtitle ||
-    'Emergency Management Program — EMAP Compliance Report';
+    'Emergency Management Program - EMAP Compliance Report';
 
   const generate = async () => {
     setLoading(true);
@@ -7964,7 +11015,8 @@ function ReportsView({ data, orgName }) {
         }. Hazards profiled: ${
           (data.thira?.hazards || []).length
         }. Sections: ${breakdown}. Suitable for senior leadership and EMAP assessors.`,
-        (chunk) => setExec((p) => p + chunk)
+        (chunk) => setExec((p) => p + chunk),
+        'exec_summary'
       );
     } catch {
       setExec('Error.');
@@ -7996,7 +11048,7 @@ function ReportsView({ data, orgName }) {
 
   return (
     <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 1040 }}>
-      {/* ── Screen: topbar ── */}
+      {/* -- Screen: topbar -- */}
       <div
         style={{
           display: 'flex',
@@ -8018,8 +11070,10 @@ function ReportsView({ data, orgName }) {
             Compliance Report
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP EMS 5-2022 · {today2}
-            {brand.logoBase64 ? '' : ' · Add your logo in Settings → Branding'}
+            EMAP EMS 5-2022 - {today2}
+            {brand.logoBase64
+              ? ''
+              : '  -  Add your logo in My Program → Branding'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -8038,12 +11092,12 @@ function ReportsView({ data, orgName }) {
               fontFamily: "'DM Sans',sans-serif",
             }}
           >
-            🖨 Print / Export PDF
+            - Print / Export PDF
           </button>
         </div>
       </div>
 
-      {/* ── PRINT COVER PAGE (visible on screen too as preview) ── */}
+      {/* -- PRINT COVER PAGE (visible on screen too as preview) -- */}
       <div className="print-cover" style={{ marginBottom: 20 }}>
         {/* Branded header bar */}
         <div
@@ -8230,7 +11284,7 @@ function ReportsView({ data, orgName }) {
         </div>
       </div>
 
-      {/* ── AI Executive Summary ── */}
+      {/* -- AI Executive Summary -- */}
       <div
         style={{
           border: `1px solid ${B.border}`,
@@ -8264,7 +11318,7 @@ function ReportsView({ data, orgName }) {
             AI Executive Summary
           </div>
           <Btn
-            label={loading ? '⟳ Writing…' : 'Generate with AI'}
+            label={loading ? '- Writing...' : 'Generate with AI'}
             onClick={generate}
             loading={loading}
             primary
@@ -8277,7 +11331,7 @@ function ReportsView({ data, orgName }) {
             className="no-print"
           >
             Generate a professional executive summary from your live compliance
-            data — ready for leadership or accreditation submission.
+            data - ready for leadership or accreditation submission.
           </p>
         )}
         {exec && (
@@ -8307,7 +11361,7 @@ function ReportsView({ data, orgName }) {
         )}
       </div>
 
-      {/* ── Section grid ── */}
+      {/* -- Section grid -- */}
       <div style={{ marginBottom: 6 }}>
         <div
           className="print-section-bar"
@@ -8318,7 +11372,7 @@ function ReportsView({ data, orgName }) {
           }}
         >
           <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
-            EMAP Standards Status — All 17 Sections
+            EMAP Standards Status - All 17 Sections
           </span>
         </div>
         <div
@@ -8385,7 +11439,7 @@ function ReportsView({ data, orgName }) {
         </div>
       </div>
 
-      {/* ── Print footer (hidden on screen, shown when printing via CSS) ── */}
+      {/* -- Print footer (hidden on screen, shown when printing via CSS) -- */}
       <div
         style={{
           marginTop: 28,
@@ -8419,8 +11473,8 @@ function ReportsView({ data, orgName }) {
           }}
         >
           Tip: Upload your agency logo in{' '}
-          <strong style={{ color: B.text }}>Settings → Branding</strong> to add
-          it to exports, along with your accent color and footer disclaimer.
+          <strong style={{ color: B.text }}>My Program → Branding</strong> to
+          add it to exports, along with your accent color and footer disclaimer.
         </div>
       )}
     </div>
@@ -8435,7 +11489,7 @@ function AiAssistantView({ data, orgName }) {
   const [msgs, setMsgs] = useState([
     {
       role: 'assistant',
-      content: `Hi — I'm your EMAP and EM program expert in PLANRR.\n\nFull context: ${
+      content: `Hi - I'm your EMAP and EM program expert in PLANRR.\n\nFull context: ${
         overall.compliant
       }/${overall.total} standards compliant, ${
         data.training.length
@@ -8499,7 +11553,7 @@ function AiAssistantView({ data, orgName }) {
     'What are my biggest compliance gaps?',
     'Design a tabletop exercise',
     'What do EMAP assessors look for?',
-    'AAR requirements — HSEEP vs EMAP?',
+    'AAR requirements - HSEEP vs EMAP?',
     'How do I prepare my accreditation package?',
     'What credentials does an EM director need?',
   ];
@@ -8537,7 +11591,7 @@ function AiAssistantView({ data, orgName }) {
             AI Assistant
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 1 }}>
-            EMAP expert · knows your full program · Plan Smartr
+            EMAP expert - knows your full program - Plan Smartr
           </p>
         </div>
       </div>
@@ -8662,7 +11716,7 @@ function AiAssistantView({ data, orgName }) {
           <FInput
             value={input}
             onChange={setInput}
-            placeholder="Ask anything about EMAP or your EM program…"
+            placeholder="Ask anything about EMAP or your EM program..."
             style={{ fontSize: 13 }}
           />
           <button
@@ -8685,7 +11739,7 @@ function AiAssistantView({ data, orgName }) {
               fontWeight: 700,
             }}
           >
-            ↑
+            -
           </button>
         </div>
       </Card>
@@ -8693,9 +11747,9 @@ function AiAssistantView({ data, orgName }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    GRANT TRACKER
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 const GRANT_TYPES = [
   'EMPG',
   'BSIR',
@@ -8719,6 +11773,330 @@ const GRANT_STATUS = {
   closed: { label: 'Closed', color: B.faint, bg: '#f8fafc' },
   suspended: { label: 'Suspended', color: B.red, bg: B.redLight },
 };
+
+/* --- GRANT WORK LOG ---------------------------------- */
+function GrantWorkLog({ grant, onUpdate, employees }) {
+  const deliverables = grant.deliverables || [];
+  const [form, setForm] = useState({
+    date: today(),
+    description: '',
+    hours: '',
+    person: '',
+    type: 'Meeting',
+    deliverableId: '',
+    costOverride: '',
+  });
+  const entries = grant.workLog || [];
+
+  // Find employee billable rate
+  const getRate = (personName) => {
+    if (!employees || !personName) return 0;
+    const emp = employees.find(
+      (e) => e.name?.toLowerCase() === personName.toLowerCase()
+    );
+    return parseFloat(emp?.hourlyRate || 0);
+  };
+
+  const addEntry = () => {
+    if (!form.description) return;
+    const rate = form.costOverride
+      ? parseFloat(form.costOverride)
+      : getRate(form.person);
+    const cost = rate * parseFloat(form.hours || 0);
+    onUpdate('workLog', [
+      ...entries,
+      { ...form, id: uid(), addedAt: Date.now(), rate, cost },
+    ]);
+    setForm({
+      date: today(),
+      description: '',
+      hours: '',
+      person: '',
+      type: 'Meeting',
+      deliverableId: '',
+      costOverride: '',
+    });
+  };
+  const removeEntry = (id) =>
+    onUpdate(
+      'workLog',
+      entries.filter((e) => e.id !== id)
+    );
+  const totalHours = entries.reduce((a, e) => a + parseFloat(e.hours || 0), 0);
+  const totalCost = entries.reduce((a, e) => a + parseFloat(e.cost || 0), 0);
+  return (
+    <div>
+      <div
+        style={{
+          background: B.card,
+          border: `1px solid ${B.border}`,
+          borderRadius: 9,
+          padding: '14px 16px',
+          marginBottom: 14,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: B.muted,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            marginBottom: 10,
+          }}
+        >
+          Log Entry
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr 1fr',
+            gap: 8,
+            marginBottom: 8,
+          }}
+        >
+          <div>
+            <Label>Date</Label>
+            <FInput
+              type="date"
+              value={form.date}
+              onChange={(v) => setForm((p) => ({ ...p, date: v }))}
+            />
+          </div>
+          <div>
+            <Label>Type</Label>
+            <FSel
+              value={form.type}
+              onChange={(v) => setForm((p) => ({ ...p, type: v }))}
+            >
+              <option>Meeting</option>
+              <option>Site Visit</option>
+              <option>Planning</option>
+              <option>Admin</option>
+              <option>Training</option>
+              <option>Exercise</option>
+              <option>Reporting</option>
+              <option>Procurement</option>
+              <option>Other</option>
+            </FSel>
+          </div>
+          <div>
+            <Label>Person</Label>
+            <FInput
+              value={form.person}
+              onChange={(v) => setForm((p) => ({ ...p, person: v }))}
+              placeholder="Staff name"
+            />
+          </div>
+          <div>
+            <Label>Hours</Label>
+            <FInput
+              value={form.hours}
+              onChange={(v) => setForm((p) => ({ ...p, hours: v }))}
+              placeholder="1.5"
+            />
+          </div>
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '2fr 1fr 1fr',
+            gap: 8,
+            marginBottom: 8,
+          }}
+        >
+          <div>
+            <Label>Description</Label>
+            <FInput
+              value={form.description}
+              onChange={(v) => setForm((p) => ({ ...p, description: v }))}
+              placeholder="Meeting with state agency re: quarterly report..."
+            />
+          </div>
+          <div>
+            <Label>Deliverable</Label>
+            <FSel
+              value={form.deliverableId}
+              onChange={(v) => setForm((p) => ({ ...p, deliverableId: v }))}
+            >
+              <option value="">None</option>
+              {deliverables.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.item.slice(0, 40)}
+                  {d.item.length > 40 ? '...' : ''}
+                </option>
+              ))}
+            </FSel>
+          </div>
+          <div>
+            <Label>Cost Override ($)</Label>
+            <FInput
+              value={form.costOverride}
+              onChange={(v) => setForm((p) => ({ ...p, costOverride: v }))}
+              placeholder={
+                form.person ? `Auto: $${getRate(form.person)}/hr` : 'Rate'
+              }
+            />
+          </div>
+        </div>
+        {form.hours && (form.costOverride || getRate(form.person) > 0) && (
+          <div
+            style={{
+              fontSize: 11,
+              color: B.teal,
+              marginBottom: 8,
+              fontWeight: 600,
+            }}
+          >
+            Cost: {parseFloat(form.hours || 0)} hrs x $
+            {form.costOverride || getRate(form.person)}/hr = $
+            {(
+              parseFloat(form.hours || 0) *
+              (parseFloat(form.costOverride) || getRate(form.person))
+            ).toFixed(2)}
+          </div>
+        )}
+        <Btn label="Log Entry" onClick={addEntry} primary small />
+      </div>
+      {(totalHours > 0 || totalCost > 0) && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 10,
+            marginBottom: 12,
+          }}
+        >
+          <div
+            style={{
+              background: `${B.green}10`,
+              border: `1px solid ${B.greenBorder}`,
+              borderRadius: 7,
+              padding: '8px 14px',
+              fontSize: 12,
+              color: '#166534',
+              fontWeight: 600,
+            }}
+          >
+            {totalHours.toFixed(1)} hours logged across {entries.length} entries
+          </div>
+          <div
+            style={{
+              background: `${B.teal}10`,
+              border: `1px solid ${B.tealBorder}`,
+              borderRadius: 7,
+              padding: '8px 14px',
+              fontSize: 12,
+              color: B.tealDark,
+              fontWeight: 600,
+            }}
+          >
+            $
+            {totalCost.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}{' '}
+            labor cost
+          </div>
+        </div>
+      )}
+      {entries.length === 0 ? (
+        <div
+          style={{
+            background: '#f8fafc',
+            borderRadius: 8,
+            padding: '20px',
+            textAlign: 'center',
+            color: B.faint,
+            fontSize: 13,
+          }}
+        >
+          No work log entries yet. Log hours to track labor costs against this
+          grant.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[...entries].reverse().map((e) => {
+            const dlName = e.deliverableId
+              ? deliverables.find((d) => d.id === e.deliverableId)?.item
+              : '';
+            return (
+              <div
+                key={e.id}
+                style={{
+                  background: B.card,
+                  border: `1px solid ${B.border}`,
+                  borderRadius: 8,
+                  padding: '10px 13px',
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'flex-start',
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: B.text,
+                      marginBottom: 2,
+                    }}
+                  >
+                    {e.description}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: B.faint,
+                      display: 'flex',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span>{fmtDate(e.date)}</span>
+                    <span>{e.type}</span>
+                    {e.person && <span>{e.person}</span>}
+                    {e.hours && <span>{e.hours}h</span>}
+                    {e.cost > 0 && (
+                      <span style={{ color: B.teal, fontWeight: 600 }}>
+                        ${parseFloat(e.cost).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  {dlName && (
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: B.green,
+                        marginTop: 3,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Deliverable: {dlName.slice(0, 50)}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => removeEntry(e.id)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#d1d5db',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    padding: '2px 6px',
+                  }}
+                >
+                  x
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function GrantDetail({ grant, onUpdate, onClose }) {
   const [tab, setTab] = useState('overview');
@@ -8768,7 +12146,8 @@ function GrantDetail({ grant, onUpdate, onClose }) {
         }\nNotes: ${
           grant.notes || 'none'
         }\n\nProvide: (1) what this grant type typically allows for EM programs, (2) common compliance pitfalls, (3) how this ties to EMAP standards, (4) recommended deliverables if not already listed.`,
-        (chunk) => setAiText((p) => p + chunk)
+        (chunk) => setAiText((p) => p + chunk),
+        'grant_guidance'
       );
     } catch {
       setAiText('Connection error.');
@@ -8783,6 +12162,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'deliverables', label: `Deliverables (${totalDel})` },
+    { id: 'worklog', label: 'Work Log' },
     { id: 'budget', label: 'Budget & Match' },
     { id: 'ai', label: 'AI Guidance' },
   ];
@@ -8880,7 +12260,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                 lineHeight: 1,
               }}
             >
-              ✕
+              x
             </button>
           </div>
           <div style={{ display: 'flex', gap: 2 }}>
@@ -8931,7 +12311,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                 <div>
                   <Label>Grant Type</Label>
                   <FSel value={grant.type || ''} onChange={(v) => u('type', v)}>
-                    <option value="">Select type…</option>
+                    <option value="">Select type...</option>
                     {GRANT_TYPES.map((t) => (
                       <option key={t}>{t}</option>
                     ))}
@@ -8997,7 +12377,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                   value={grant.description || ''}
                   onChange={(v) => u('description', v)}
                   rows={3}
-                  placeholder="What this grant funds…"
+                  placeholder="What this grant funds..."
                 />
               </div>
               <div style={{ marginBottom: 12 }}>
@@ -9040,7 +12420,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                 <FInput
                   value={dlText}
                   onChange={setDlText}
-                  placeholder="Add deliverable or reporting requirement…"
+                  placeholder="Add deliverable or reporting requirement..."
                   style={{ fontSize: 12 }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') addDel();
@@ -9059,10 +12439,10 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                   }}
                 >
                   <span style={{ color: B.green, fontWeight: 600 }}>
-                    ✓ {completedDel} done
+                    ok {completedDel} done
                   </span>
                   <span style={{ color: B.amber, fontWeight: 600 }}>
-                    ○ {totalDel - completedDel} remaining
+                    o {totalDel - completedDel} remaining
                   </span>
                   <div
                     style={{
@@ -9101,13 +12481,20 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                     fontSize: 13,
                   }}
                 >
-                  No deliverables yet — add reporting requirements and
+                  No deliverables yet - add reporting requirements and
                   milestones
                 </div>
               )}
               {(grant.deliverables || []).map((d) => {
                 const dueDays = daysUntil(d.due);
                 const urgent = dueDays !== null && dueDays < 14 && !d.done;
+                const dlExpense = parseFloat(d.expense || 0);
+                const dlLoggedCost = (grant.workLog || [])
+                  .filter((w) => w.deliverableId === d.id)
+                  .reduce((a, w) => a + parseFloat(w.cost || 0), 0);
+                const dlLoggedHrs = (grant.workLog || [])
+                  .filter((w) => w.deliverableId === d.id)
+                  .reduce((a, w) => a + parseFloat(w.hours || 0), 0);
                 return (
                   <div
                     key={d.id}
@@ -9162,6 +12549,17 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                           border={B.redBorder}
                         />
                       )}
+                      {(dlExpense > 0 || dlLoggedCost > 0) && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            color: B.teal,
+                            fontWeight: 600,
+                          }}
+                        >
+                          ${(dlExpense + dlLoggedCost).toLocaleString()}
+                        </span>
+                      )}
                       <button
                         onClick={() => removeDel(d.id)}
                         style={{
@@ -9172,36 +12570,72 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                           fontSize: 13,
                         }}
                       >
-                        ×
+                        x
                       </button>
                     </div>
                     {!d.done && (
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 2fr',
-                          gap: 8,
-                          marginLeft: 24,
-                        }}
-                      >
-                        <div>
-                          <Label>Due Date</Label>
-                          <FInput
-                            type="date"
-                            value={d.due || ''}
-                            onChange={(v) => updateDel(d.id, 'due', v)}
-                            style={{ fontSize: 11, padding: '5px 8px' }}
-                          />
+                      <div style={{ marginLeft: 24, marginBottom: 4 }}>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr 1fr',
+                            gap: 8,
+                            marginBottom: 8,
+                          }}
+                        >
+                          <div>
+                            <Label>Due Date</Label>
+                            <FInput
+                              type="date"
+                              value={d.due || ''}
+                              onChange={(v) => updateDel(d.id, 'due', v)}
+                              style={{ fontSize: 11, padding: '5px 8px' }}
+                            />
+                          </div>
+                          <div>
+                            <Label>Direct Expense ($)</Label>
+                            <FInput
+                              value={d.expense || ''}
+                              onChange={(v) => updateDel(d.id, 'expense', v)}
+                              placeholder="0.00"
+                              style={{ fontSize: 11, padding: '5px 8px' }}
+                            />
+                          </div>
+                          <div>
+                            <Label>Notes</Label>
+                            <FInput
+                              value={d.notes || ''}
+                              onChange={(v) => updateDel(d.id, 'notes', v)}
+                              placeholder="Notes..."
+                              style={{ fontSize: 11, padding: '5px 8px' }}
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <Label>Notes</Label>
-                          <FInput
-                            value={d.notes || ''}
-                            onChange={(v) => updateDel(d.id, 'notes', v)}
-                            placeholder="Notes…"
-                            style={{ fontSize: 11, padding: '5px 8px' }}
-                          />
-                        </div>
+                        {dlLoggedHrs > 0 && (
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: B.faint,
+                              marginBottom: 6,
+                            }}
+                          >
+                            {dlLoggedHrs.toFixed(1)}h logged in work log = $
+                            {dlLoggedCost.toFixed(2)} labor
+                          </div>
+                        )}
+                        <Attachments
+                          docs={d.docs || []}
+                          onAdd={(doc) =>
+                            updateDel(d.id, 'docs', [...(d.docs || []), doc])
+                          }
+                          onRemove={(id) =>
+                            updateDel(
+                              d.id,
+                              'docs',
+                              (d.docs || []).filter((x) => x.id !== id)
+                            )
+                          }
+                        />
                       </div>
                     )}
                   </div>
@@ -9209,162 +12643,385 @@ function GrantDetail({ grant, onUpdate, onClose }) {
               })}
             </div>
           )}
-          {tab === 'budget' && (
+          {tab === 'worklog' && (
             <div>
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 12,
-                  marginBottom: 16,
+                  background: B.greenLight,
+                  border: `1px solid ${B.greenBorder}`,
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  marginBottom: 12,
+                  fontSize: 12,
+                  color: '#166534',
                 }}
               >
-                <div>
-                  <Label>Award Amount ($)</Label>
-                  <FInput
-                    value={grant.amount || ''}
-                    onChange={(v) => u('amount', v)}
-                    placeholder="250000"
-                  />
-                </div>
-                <div>
-                  <Label>Non-Federal Match (%)</Label>
-                  <FInput
-                    value={grant.matchPct || ''}
-                    onChange={(v) => u('matchPct', v)}
-                    placeholder="25"
-                  />
-                </div>
+                Log meetings, site visits, and hours billed to this grant. EMPG
+                requires personnel time documentation.
               </div>
-              {totalBudget > 0 && (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr 1fr',
-                    gap: 10,
-                    marginBottom: 16,
-                  }}
-                >
-                  {[
-                    {
-                      label: 'Federal Award',
-                      val: `$${totalBudget.toLocaleString()}`,
-                      color: B.green,
-                    },
-                    {
-                      label: 'Match Required',
-                      val: `$${matchAmt.toLocaleString()}`,
-                      color: B.amber,
-                    },
-                    {
-                      label: 'Total Project',
-                      val: `$${(totalBudget + matchAmt).toLocaleString()}`,
-                      color: B.blue,
-                    },
-                  ].map((s) => (
-                    <Card
-                      key={s.label}
-                      style={{ padding: '12px 14px', textAlign: 'center' }}
+              <GrantWorkLog
+                grant={grant}
+                onUpdate={u}
+                employees={grant._employees}
+              />
+            </div>
+          )}
+          {tab === 'budget' &&
+            (() => {
+              const laborCost = (grant.workLog || []).reduce(
+                (a, e) => a + parseFloat(e.cost || 0),
+                0
+              );
+              const directExpenses = (grant.deliverables || []).reduce(
+                (a, d) => a + parseFloat(d.expense || 0),
+                0
+              );
+              const manualExpended = parseFloat(grant.expended || 0);
+              const calculatedExpended = laborCost + directExpenses;
+              const totalExpended = Math.max(
+                manualExpended,
+                calculatedExpended
+              );
+              const expendPct =
+                totalBudget > 0
+                  ? Math.round((totalExpended / totalBudget) * 100)
+                  : 0;
+              return (
+                <div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 12,
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div>
+                      <Label>Award Amount ($)</Label>
+                      <FInput
+                        value={grant.amount || ''}
+                        onChange={(v) => u('amount', v)}
+                        placeholder="250000"
+                      />
+                    </div>
+                    <div>
+                      <Label>Non-Federal Match (%)</Label>
+                      <FInput
+                        value={grant.matchPct || ''}
+                        onChange={(v) => u('matchPct', v)}
+                        placeholder="25"
+                      />
+                    </div>
+                  </div>
+                  {totalBudget > 0 && (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr 1fr',
+                        gap: 10,
+                        marginBottom: 16,
+                      }}
                     >
-                      <div
+                      {[
+                        {
+                          label: 'Federal Award',
+                          val: `$${totalBudget.toLocaleString()}`,
+                          color: B.green,
+                        },
+                        {
+                          label: 'Match Required',
+                          val: `$${matchAmt.toLocaleString()}`,
+                          color: B.amber,
+                        },
+                        {
+                          label: 'Total Project',
+                          val: `$${(totalBudget + matchAmt).toLocaleString()}`,
+                          color: B.blue,
+                        },
+                      ].map((s) => (
+                        <Card
+                          key={s.label}
+                          style={{ padding: '12px 14px', textAlign: 'center' }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 18,
+                              fontWeight: 800,
+                              color: s.color,
+                            }}
+                          >
+                            {s.val}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: B.faint,
+                              marginTop: 3,
+                            }}
+                          >
+                            {s.label}
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Expenditure breakdown */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: B.text,
+                        marginBottom: 10,
+                      }}
+                    >
+                      Funds Expended
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                        gap: 10,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <Card
                         style={{
-                          fontSize: 18,
-                          fontWeight: 800,
-                          color: s.color,
-                        }}
-                      >
-                        {s.val}
-                      </div>
-                      <div
-                        style={{ fontSize: 11, color: B.faint, marginTop: 3 }}
-                      >
-                        {s.label}
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
-              <div style={{ marginBottom: 12 }}>
-                <Label>Match Source / Notes</Label>
-                <FTextarea
-                  value={grant.matchNotes || ''}
-                  onChange={(v) => u('matchNotes', v)}
-                  rows={3}
-                  placeholder="Describe how the non-federal match will be met (in-kind, cash, etc.)…"
-                />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <Label>Budget Narrative / Notes</Label>
-                <FTextarea
-                  value={grant.budgetNotes || ''}
-                  onChange={(v) => u('budgetNotes', v)}
-                  rows={4}
-                  placeholder="Budget breakdown, expenditure tracking notes…"
-                />
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 10,
-                }}
-              >
-                <div>
-                  <Label>Funds Expended ($)</Label>
-                  <FInput
-                    value={grant.expended || ''}
-                    onChange={(v) => u('expended', v)}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <Label>Expenditure Rate</Label>
-                  {grant.amount && grant.expended ? (
-                    <div style={{ marginTop: 5 }}>
-                      <div
-                        style={{
-                          height: 6,
-                          background: '#edf2f4',
-                          borderRadius: 3,
-                          overflow: 'hidden',
+                          padding: '12px 14px',
+                          textAlign: 'center',
+                          background: `${B.teal}08`,
                         }}
                       >
                         <div
                           style={{
-                            height: '100%',
-                            width: `${Math.min(
-                              100,
-                              Math.round(
-                                (parseFloat(grant.expended) /
-                                  parseFloat(grant.amount)) *
-                                  100
-                              )
-                            )}%`,
+                            fontSize: 18,
+                            fontWeight: 800,
+                            color: B.teal,
+                          }}
+                        >
+                          $
+                          {laborCost.toLocaleString(undefined, {
+                            maximumFractionDigits: 0,
+                          })}
+                        </div>
+                        <div
+                          style={{ fontSize: 10, color: B.faint, marginTop: 3 }}
+                        >
+                          Labor (from Work Log)
+                        </div>
+                      </Card>
+                      <Card
+                        style={{
+                          padding: '12px 14px',
+                          textAlign: 'center',
+                          background: `${B.amber}08`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 800,
+                            color: B.amber,
+                          }}
+                        >
+                          $
+                          {directExpenses.toLocaleString(undefined, {
+                            maximumFractionDigits: 0,
+                          })}
+                        </div>
+                        <div
+                          style={{ fontSize: 10, color: B.faint, marginTop: 3 }}
+                        >
+                          Direct (from Deliverables)
+                        </div>
+                      </Card>
+                      <Card
+                        style={{
+                          padding: '12px 14px',
+                          textAlign: 'center',
+                          background: `${B.green}08`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 800,
+                            color: B.green,
+                          }}
+                        >
+                          $
+                          {totalExpended.toLocaleString(undefined, {
+                            maximumFractionDigits: 0,
+                          })}
+                        </div>
+                        <div
+                          style={{ fontSize: 10, color: B.faint, marginTop: 3 }}
+                        >
+                          Total Expended
+                        </div>
+                      </Card>
+                      <Card
+                        style={{ padding: '12px 14px', textAlign: 'center' }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 800,
+                            color:
+                              totalBudget > 0
+                                ? expendPct > 90
+                                  ? B.red
+                                  : expendPct > 70
+                                  ? B.amber
+                                  : B.teal
+                                : B.faint,
+                          }}
+                        >
+                          {expendPct}%
+                        </div>
+                        <div
+                          style={{ fontSize: 10, color: B.faint, marginTop: 3 }}
+                        >
+                          Burn Rate
+                        </div>
+                      </Card>
+                    </div>
+                    {totalBudget > 0 && (
+                      <div
+                        style={{
+                          height: 8,
+                          background: '#edf2f4',
+                          borderRadius: 4,
+                          overflow: 'hidden',
+                          marginBottom: 8,
+                        }}
+                      >
+                        <div style={{ height: '100%', display: 'flex' }}>
+                          <div
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.round((laborCost / totalBudget) * 100)
+                              )}%`,
+                              background: B.teal,
+                              transition: 'width 0.5s',
+                            }}
+                          />
+                          <div
+                            style={{
+                              width: `${Math.min(
+                                100 -
+                                  Math.round((laborCost / totalBudget) * 100),
+                                Math.round((directExpenses / totalBudget) * 100)
+                              )}%`,
+                              background: B.amber,
+                              transition: 'width 0.5s',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 12,
+                        fontSize: 11,
+                        color: B.faint,
+                      }}
+                    >
+                      <span>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: 8,
+                            height: 8,
+                            borderRadius: 2,
                             background: B.teal,
-                            borderRadius: 3,
+                            marginRight: 4,
                           }}
                         />
-                      </div>
-                      <div
-                        style={{ fontSize: 11, color: B.muted, marginTop: 3 }}
-                      >
-                        {Math.round(
-                          (parseFloat(grant.expended) /
-                            parseFloat(grant.amount)) *
-                            100
-                        )}
-                        % expended
+                        Labor
+                      </span>
+                      <span>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: 8,
+                            height: 8,
+                            borderRadius: 2,
+                            background: B.amber,
+                            marginRight: 4,
+                          }}
+                        />
+                        Direct expenses
+                      </span>
+                      <span>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: 8,
+                            height: 8,
+                            borderRadius: 2,
+                            background: '#edf2f4',
+                            marginRight: 4,
+                          }}
+                        />
+                        Remaining
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div>
+                      <Label>Manual Override - Expended ($)</Label>
+                      <FInput
+                        value={grant.expended || ''}
+                        onChange={(v) => u('expended', v)}
+                        placeholder="Auto-calculated above"
+                      />
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-end',
+                        paddingBottom: 2,
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: B.faint }}>
+                        Use this to override the auto-calculation if needed. The
+                        higher of manual or calculated is used.
                       </div>
                     </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: B.faint, marginTop: 8 }}>
-                      Enter amounts above
-                    </div>
-                  )}
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <Label>Match Source / Notes</Label>
+                    <FTextarea
+                      value={grant.matchNotes || ''}
+                      onChange={(v) => u('matchNotes', v)}
+                      rows={3}
+                      placeholder="Describe how the non-federal match will be met (in-kind, cash, etc.)..."
+                    />
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <Label>Budget Narrative / Notes</Label>
+                    <FTextarea
+                      value={grant.budgetNotes || ''}
+                      onChange={(v) => u('budgetNotes', v)}
+                      rows={4}
+                      placeholder="Budget breakdown, expenditure tracking notes..."
+                    />
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              );
+            })()}
           {tab === 'ai' && (
             <div>
               <div
@@ -9396,7 +13053,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
                   type.
                 </div>
                 <Btn
-                  label={aiLoad ? '⟳ Analyzing…' : 'Analyze This Grant'}
+                  label={aiLoad ? '- Analyzing...' : 'Analyze This Grant'}
                   onClick={runAi}
                   loading={aiLoad}
                   primary
@@ -9433,6 +13090,7 @@ function GrantDetail({ grant, onUpdate, onClose }) {
 function GrantTracker({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [grantPartnerOpen, setGrantPartnerOpen] = useState(false);
   const [form, setForm] = useState({
     name: '',
     type: 'EMPG',
@@ -9506,12 +13164,51 @@ function GrantTracker({ data, setData }) {
             Grant Tracker
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            {grants.length} grants · ${totalActive.toLocaleString()} active
-            federal funding · EMAP 3.4, 4.7
+            {grants.length} grants - ${totalActive.toLocaleString()} active
+            federal funding - EMAP 3.4, 4.7
           </p>
         </div>
-        <Btn label="+ Add Grant" onClick={() => setShowForm(true)} primary />
+        <CoachBanner moduleId="grants" />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Btn label="+ Add Grant" onClick={() => setShowForm(true)} primary />
+          <Btn label="AI: Quick EMPG Narrative" onClick={async () => {
+            const prompt = buildGrantNarrativePrompt(data, 'empg');
+            let result = '';
+            try {
+              await callAI(SYS, prompt, (chunk) => { result += chunk; }, 'grant_guidance');
+              const blob = new Blob([result], { type: 'text/plain' });
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = `EMPG_Narrative_${(data.orgName || 'draft').replace(/\s/g, '_')}.txt`;
+              a.click();
+            } catch (e) {
+              alert(e.message || 'Error generating narrative');
+            }
+          }} />
+          <Btn label="🤝 Build Grant Narrative" onClick={() => setGrantPartnerOpen(true)} />
+        </div>
       </div>
+      {grantPartnerOpen && (
+        <div style={{ marginBottom: 16 }}>
+          <SAGE
+            title="Grant Narrative Builder"
+            icon="💰"
+            systemPrompt="You are a grant writing specialist for emergency management programs, experienced with EMPG, HSGP, BRIC, and HMGP applications. Guide the EM director through building a compelling grant narrative by asking about their program needs, current capabilities, proposed activities, budget justification, and performance measures. Tie everything to EMAP standards and FEMA core capabilities."
+            orgContext={`Organization: ${data.orgName || 'Unknown'}. State: ${data.state || 'Unknown'}. Jurisdiction: ${data.jurisdiction || 'Unknown'}. EMAP compliance: ${Object.values(data.standards || {}).filter(s => s.status === 'compliant').length}/73. Active grants: ${(data.grants || []).filter(g => g.status === 'active').length}. Personnel: ${(data.employees || []).length}. Exercises: ${(data.exercises || []).length}. Training records: ${(data.training || []).length}.`}
+            initialMessage={`Let's build your grant narrative together. I'll help you craft a compelling application.\n\nFirst — which grant program are you applying for? (EMPG, HSGP/SHSP, BRIC, HMGP, or other?) And what's the primary need you're trying to address?`}
+            completeLabel="Generate Grant Narrative"
+            onComplete={(result) => {
+              const blob = new Blob([result], { type: 'text/plain' });
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = `Grant_Narrative_${(data.orgName || 'draft').replace(/\s/g, '_')}.txt`;
+              a.click();
+              setGrantPartnerOpen(false);
+            }}
+            onClose={() => setGrantPartnerOpen(false)}
+          />
+        </div>
+      )}
       {grants.length > 0 && (
         <div
           style={{
@@ -9584,7 +13281,7 @@ function GrantTracker({ data, setData }) {
           color: '#065f46',
         }}
       >
-        ↑ Grant records support <strong>EMAP 3.4 (Admin & Finance)</strong> —
+        - Grant records support <strong>EMAP 3.4 (Admin & Finance)</strong> -
         tracking funding sources demonstrates programmatic financial management
         capability.
       </div>
@@ -9673,7 +13370,7 @@ function GrantTracker({ data, setData }) {
       )}
       {grants.length === 0 ? (
         <Card style={{ textAlign: 'center', padding: '36px', color: B.faint }}>
-          No grants tracked yet — add EMPG, UASI, HMGP, and other funding
+          No grants tracked yet - add EMPG, UASI, HMGP, and other funding
           sources to demonstrate EMAP 3.4 compliance
         </Card>
       ) : (
@@ -9815,7 +13512,7 @@ function GrantTracker({ data, setData }) {
                             fontWeight: 600,
                           }}
                         >
-                          {expiredDels > 0 ? '⚠ ' : ''}
+                          {expiredDels > 0 ? '- ' : ''}
                           {openDels} deliverable{openDels > 1 ? 's' : ''} open
                         </span>
                       )}
@@ -9835,9 +13532,9 @@ function GrantTracker({ data, setData }) {
                       padding: 4,
                     }}
                   >
-                    ×
+                    -
                   </button>
-                  <span style={{ color: B.border, fontSize: 14 }}>›</span>
+                  <span style={{ color: B.border, fontSize: 14 }}>-</span>
                 </div>
               </div>
             );
@@ -9846,8 +13543,11 @@ function GrantTracker({ data, setData }) {
       )}
       {sel && (
         <GrantDetail
-          grant={sel}
-          onUpdate={(updated) => updateGrant(sel.id, updated)}
+          grant={{ ...sel, _employees: data.employees || [] }}
+          onUpdate={(updated) => {
+            const { _employees, ...clean } = updated;
+            updateGrant(sel.id, clean);
+          }}
           onClose={() => setSelectedId(null)}
         />
       )}
@@ -9855,30 +13555,30 @@ function GrantTracker({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    THIRA/SPR
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 const HAZARD_TYPES = [
-  'Natural — Earthquake',
-  'Natural — Flood',
-  'Natural — Wildfire',
-  'Natural — Extreme Heat',
-  'Natural — Severe Storm / Tornado',
-  'Natural — Hurricane / Tropical Storm',
-  'Natural — Landslide / Debris Flow',
-  'Natural — Drought',
-  'Natural — Tsunami',
-  'Natural — Winter Storm / Ice',
-  'Technological — Dam / Levee Failure',
-  'Technological — HAZMAT Fixed Facility',
-  'Technological — HAZMAT Transportation',
-  'Technological — Power Outage / Utility Failure',
-  'Technological — Cyber Attack',
-  'Technological — Nuclear / Radiological',
-  'Human-Caused — Terrorism / IED',
-  'Human-Caused — Active Shooter / Mass Casualty',
-  'Human-Caused — Civil Unrest',
-  'Human-Caused — Public Health Emergency',
+  'Natural - Earthquake',
+  'Natural - Flood',
+  'Natural - Wildfire',
+  'Natural - Extreme Heat',
+  'Natural - Severe Storm / Tornado',
+  'Natural - Hurricane / Tropical Storm',
+  'Natural - Landslide / Debris Flow',
+  'Natural - Drought',
+  'Natural - Tsunami',
+  'Natural - Winter Storm / Ice',
+  'Technological - Dam / Levee Failure',
+  'Technological - HAZMAT Fixed Facility',
+  'Technological - HAZMAT Transportation',
+  'Technological - Power Outage / Utility Failure',
+  'Technological - Cyber Attack',
+  'Technological - Nuclear / Radiological',
+  'Human-Caused - Terrorism / IED',
+  'Human-Caused - Active Shooter / Mass Casualty',
+  'Human-Caused - Civil Unrest',
+  'Human-Caused - Public Health Emergency',
   'Other',
 ];
 const CORE_CAPS = [
@@ -9891,6 +13591,9 @@ const CORE_CAPS = [
   'Interdiction & Disruption',
   'Screening, Search & Detection',
   'Access Control & ID Verification',
+  'Physical Protective Measures',
+  'Risk Management for Protection Programs & Activities',
+  'Supply Chain Integrity & Security',
   'Critical Transportation',
   'Environmental Response / Health & Safety',
   'Fatality Management Services',
@@ -9898,9 +13601,8 @@ const CORE_CAPS = [
   'Logistics & Supply Chain Mgmt',
   'Mass Care Services',
   'Mass Search & Rescue',
-  'On-scene Security & Protection',
+  'On-scene Security, Protection & Law Enforcement',
   'Operational Communications',
-  'Public & Private Services & Resources',
   'Public Health, Healthcare & EMS',
   'Situational Assessment',
   'Infrastructure Systems',
@@ -9919,7 +13621,7 @@ function ThiraView({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     name: '',
-    type: 'Natural — Flood',
+    type: 'Natural - Flood',
     probability: 3,
     magnitude: 3,
     caps: [],
@@ -9954,7 +13656,7 @@ function ThiraView({ data, setData }) {
     update({ hazards: [...(thira.hazards || []), h], lastUpdated: today() });
     setForm({
       name: '',
-      type: 'Natural — Flood',
+      type: 'Natural - Flood',
       probability: 3,
       magnitude: 3,
       caps: [],
@@ -10006,7 +13708,8 @@ function ThiraView({ data, setData }) {
         }:\nHazards: ${hazList || 'none entered'}\nState: ${
           data.state || 'unknown'
         }\n\nProvide: (1) analysis of the hazard profile and highest-risk threats, (2) core capabilities most likely to be stressed, (3) recommended capability targets, (4) how this feeds into EMAP 4.1 compliance and annual SPR submission, (5) any hazards common to this region that may be missing.`,
-        (chunk) => setAiText((p) => p + chunk)
+        (chunk) => setAiText((p) => p + chunk),
+        'thira_analysis'
       );
     } catch {
       setAiText('Connection error.');
@@ -10044,7 +13747,7 @@ function ThiraView({ data, setData }) {
       const content = [];
       const prompt = `You are reading a THIRA or SPR document for "${
         data.orgName || 'this jurisdiction'
-      }".\n\nExtract ALL hazards/threats identified in this document.\nReturn ONLY valid JSON, no other text:\n{\n  "jurisdiction":"name from doc",\n  "docDate":"date if found",\n  "hazards":[\n    {\n      "name":"specific hazard name as written",\n      "type":"Natural — Flood|Natural — Wildfire|Natural — Earthquake|Natural — Severe Storm / Tornado|Natural — Extreme Heat|Natural — Hurricane / Tropical Storm|Natural — Landslide / Debris Flow|Natural — Drought|Natural — Winter Storm / Ice|Technological — Dam / Levee Failure|Technological — HAZMAT Fixed Facility|Technological — HAZMAT Transportation|Technological — Power Outage / Utility Failure|Technological — Cyber Attack|Human-Caused — Terrorism / IED|Human-Caused — Active Shooter / Mass Casualty|Human-Caused — Civil Unrest|Human-Caused — Public Health Emergency|Other",\n      "probability":3,\n      "magnitude":3,\n      "notes":"any context, data, or description from the document"\n    }\n  ]\n}\n\nFor probability and magnitude use 1-5 scale. Extract from the document if provided, otherwise make a reasonable estimate based on the hazard type and any context. Extract as many hazards as possible — be thorough.`;
+      }".\n\nExtract ALL hazards/threats identified in this document.\nReturn ONLY valid JSON, no other text:\n{\n  "jurisdiction":"name from doc",\n  "docDate":"date if found",\n  "hazards":[\n    {\n      "name":"specific hazard name as written",\n      "type":"Natural - Flood|Natural - Wildfire|Natural - Earthquake|Natural - Severe Storm / Tornado|Natural - Extreme Heat|Natural - Hurricane / Tropical Storm|Natural - Landslide / Debris Flow|Natural - Drought|Natural - Winter Storm / Ice|Technological - Dam / Levee Failure|Technological - HAZMAT Fixed Facility|Technological - HAZMAT Transportation|Technological - Power Outage / Utility Failure|Technological - Cyber Attack|Human-Caused - Terrorism / IED|Human-Caused - Active Shooter / Mass Casualty|Human-Caused - Civil Unrest|Human-Caused - Public Health Emergency|Other",\n      "probability":3,\n      "magnitude":3,\n      "notes":"any context, data, or description from the document"\n    }\n  ]\n}\n\nFor probability and magnitude use 1-5 scale. Extract from the document if provided, otherwise make a reasonable estimate based on the hazard type and any context. Extract as many hazards as possible - be thorough.`;
 
       if (fd.type === 'pdf') {
         content.push({
@@ -10070,22 +13773,33 @@ function ThiraView({ data, setData }) {
       }
 
       const res = await fetch(
-        'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/ai-proxy',
+        SB_URL + '/functions/v1/ai-proxy',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SB_KEY },
           body: JSON.stringify({
             operation: 'bulk_intake',
+            model_tier: 'strong',
+            stream: false,
+            system: 'You are a THIRA/SPR hazard extraction expert. Analyze documents and extract hazard data. Return only valid JSON.',
             content,
             max_tokens: 1400,
           }),
         }
       );
-      if (!res.ok) throw new Error('API error');
-      const json = await res.json();
-      const parsed = JSON.parse(
-        (json.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim()
-      );
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(errBody || `API error (${res.status})`);
+      }
+      const rawText = await res.text();
+      let json;
+      try { json = JSON.parse(rawText); } catch { throw new Error('Invalid AI response'); }
+      const aiText = (json.content?.[0]?.text || '{}').replace(/```json\s?|```/g, '').trim();
+      let parsed;
+      try { parsed = JSON.parse(aiText); } catch {
+        const m = aiText.match(/\{[\s\S]*\}/);
+        parsed = m ? JSON.parse(m[0]) : {};
+      }
       const extracted = parsed.hazards || [];
 
       if (extracted.length === 0) {
@@ -10111,7 +13825,7 @@ function ThiraView({ data, setData }) {
       const updated = [...existing, ...newHazards];
       update({ hazards: updated, lastUpdated: today() });
       setImportResult(
-        `✓ Extracted ${newHazards.length} hazard${
+        `ok Extracted ${newHazards.length} hazard${
           newHazards.length !== 1 ? 's' : ''
         } from "${file.name}"${
           extracted.length - newHazards.length > 0
@@ -10156,7 +13870,7 @@ function ThiraView({ data, setData }) {
           data.orgName || 'this jurisdiction'
         } in ${data.state || 'the state'}.\n\nJurisdiction type: ${
           data.jurisdiction || 'Unknown'
-        }\nPrimary EM: ${data.emName || 'Unknown'} · ${
+        }\nPrimary EM: ${data.emName || 'Unknown'}  -  ${
           data.emTitle || ''
         }\nDate: ${new Date().toLocaleDateString('en-US', {
           year: 'numeric',
@@ -10166,9 +13880,10 @@ function ThiraView({ data, setData }) {
           fmtDate(thira.lastUpdated) || 'N/A'
         }\n\nHAZARDS PROFILED:\n${
           hazList ||
-          'No hazards entered yet — add hazards first for a complete document.'
-        }\n\nGenerate a formal government document with these sections:\n\n1. EXECUTIVE SUMMARY\n   - Jurisdiction overview, purpose, summary of highest-risk hazards\n\n2. METHODOLOGY\n   - FEMA CPG 201 Third Edition compliance statement\n   - Process used to identify and assess threats and hazards\n   - Stakeholder engagement summary\n\n3. THREAT AND HAZARD IDENTIFICATION\n   - Table format: Hazard | Category | Probability | Magnitude | Risk Score\n   - Brief description of each identified hazard for this jurisdiction\n\n4. RISK ASSESSMENT\n   - Analysis of each high-risk hazard (Risk Score ≥ 12)\n   - Consequence analysis: impacts on public, responders, infrastructure, economy\n   - Vulnerability assessment\n\n5. CAPABILITY TARGETS\n   - Core capabilities stressed by identified hazards\n   - Current capability gaps\n   - Recommended capability targets aligned with CPG 201\n\n6. SPR — STAKEHOLDER PREPAREDNESS REVIEW\n   - Program strengths\n   - Areas for improvement\n   - Corrective actions and milestones\n   - Resources and investment priorities\n\n7. MAINTENANCE AND UPDATE SCHEDULE\n   - Annual review process\n   - Triggers for off-cycle updates\n\nUse formal government document tone. Be specific to the jurisdiction and hazards provided. Include EMAP 4.1 compliance notes where relevant.`,
-        (chunk) => setGenDoc((p) => p + chunk)
+          'No hazards entered yet - add hazards first for a complete document.'
+        }\n\nGenerate a formal government document with these sections:\n\n1. EXECUTIVE SUMMARY\n   - Jurisdiction overview, purpose, summary of highest-risk hazards\n\n2. METHODOLOGY\n   - FEMA CPG 201 Third Edition compliance statement\n   - Process used to identify and assess threats and hazards\n   - Stakeholder engagement summary\n\n3. THREAT AND HAZARD IDENTIFICATION\n   - Table format: Hazard | Category | Probability | Magnitude | Risk Score\n   - Brief description of each identified hazard for this jurisdiction\n\n4. RISK ASSESSMENT\n   - Analysis of each high-risk hazard (Risk Score - 12)\n   - Consequence analysis: impacts on public, responders, infrastructure, economy\n   - Vulnerability assessment\n\n5. CAPABILITY TARGETS\n   - Core capabilities stressed by identified hazards\n   - Current capability gaps\n   - Recommended capability targets aligned with CPG 201\n\n6. SPR - STAKEHOLDER PREPAREDNESS REVIEW\n   - Program strengths\n   - Areas for improvement\n   - Corrective actions and milestones\n   - Resources and investment priorities\n\n7. MAINTENANCE AND UPDATE SCHEDULE\n   - Annual review process\n   - Triggers for off-cycle updates\n\nUse formal government document tone. Be specific to the jurisdiction and hazards provided. Include EMAP 4.1 compliance notes where relevant.`,
+        (chunk) => setGenDoc((p) => p + chunk),
+        'spr_generation'
       );
     } catch {
       setGenDoc('Error generating document.');
@@ -10214,25 +13929,30 @@ function ThiraView({ data, setData }) {
             THIRA/SPR
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            Threat & Hazard Identification · Stakeholder Preparedness Review ·
-            EMAP 4.1 · {(thira.hazards || []).length} hazards
+            Threat & Hazard Identification - Stakeholder Preparedness Review -
+            EMAP 4.1 - {(thira.hazards || []).length} hazards
             {thira.lastUpdated
-              ? ` · Updated ${fmtDate(thira.lastUpdated)}`
+              ? `  -  Updated ${fmtDate(thira.lastUpdated)}`
               : ''}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Btn
-            label="✦ AI Analysis"
+            label="- AI Analysis"
             onClick={() => {
               setTab('hazards');
               runAi();
             }}
             loading={aiLoad}
           />
+          <Btn
+            label="🤝 Guided THIRA Build"
+            onClick={() => setTab('partner')}
+          />
           <Btn label="+ Add Hazard" onClick={() => setShowForm(true)} primary />
         </div>
       </div>
+      <CoachBanner moduleId="thira" />
 
       {/* Tabs */}
       <div
@@ -10266,7 +13986,7 @@ function ThiraView({ data, setData }) {
         ))}
       </div>
 
-      {/* ── HAZARD PROFILE TAB ── */}
+      {/* -- HAZARD PROFILE TAB -- */}
       {tab === 'hazards' && (
         <div>
           <div
@@ -10281,7 +14001,7 @@ function ThiraView({ data, setData }) {
               color: '#1e40af',
             }}
           >
-            ↑ THIRA/SPR directly satisfies <strong>EMAP 4.1</strong>. FEMA
+            - THIRA/SPR directly satisfies <strong>EMAP 4.1</strong>. FEMA
             requires annual submission via the THIRA/SPR tool. Use the{' '}
             <strong>Import Document</strong> tab to pull hazards from an
             existing document, or <strong>Generate SPR Document</strong> to
@@ -10351,7 +14071,7 @@ function ThiraView({ data, setData }) {
                   <FInput
                     value={form.name}
                     onChange={(v) => setForm((p) => ({ ...p, name: v }))}
-                    placeholder="100-year Flood — Sacramento River"
+                    placeholder="100-year Flood - Sacramento River"
                   />
                 </div>
                 <div>
@@ -10366,7 +14086,7 @@ function ThiraView({ data, setData }) {
                   </FSel>
                 </div>
                 <div>
-                  <Label>Probability (1–5)</Label>
+                  <Label>Probability (1-5)</Label>
                   <FSel
                     value={form.probability}
                     onChange={(v) => setForm((p) => ({ ...p, probability: v }))}
@@ -10379,7 +14099,7 @@ function ThiraView({ data, setData }) {
                   </FSel>
                 </div>
                 <div>
-                  <Label>Magnitude (1–5)</Label>
+                  <Label>Magnitude (1-5)</Label>
                   <FSel
                     value={form.magnitude}
                     onChange={(v) => setForm((p) => ({ ...p, magnitude: v }))}
@@ -10397,7 +14117,7 @@ function ThiraView({ data, setData }) {
                 <FInput
                   value={form.notes}
                   onChange={(v) => setForm((p) => ({ ...p, notes: v }))}
-                  placeholder="Historical context, data sources, frequency…"
+                  placeholder="Historical context, data sources, frequency..."
                 />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -10483,7 +14203,7 @@ function ThiraView({ data, setData }) {
                           wordBreak: 'break-word',
                         }}
                       >
-                        {h.name.split('—').pop().trim()}
+                        {h.name.split('-').pop().trim()}
                       </div>
                     </div>
                   );
@@ -10593,7 +14313,7 @@ function ThiraView({ data, setData }) {
                                   fontWeight: 600,
                                 }}
                               >
-                                {h.type.split('—')[0].trim()}
+                                {h.type.split('-')[0].trim()}
                               </span>
                               {(h.caps || []).length > 0 && (
                                 <span>
@@ -10602,7 +14322,7 @@ function ThiraView({ data, setData }) {
                               )}
                               {h.notes && (
                                 <span style={{ color: B.teal }}>
-                                  ✎ has notes
+                                  - has notes
                                 </span>
                               )}
                             </div>
@@ -10620,7 +14340,7 @@ function ThiraView({ data, setData }) {
                               fontSize: 13,
                             }}
                           >
-                            ×
+                            -
                           </button>
                           <span
                             style={{
@@ -10632,7 +14352,7 @@ function ThiraView({ data, setData }) {
                               transition: 'transform 0.2s',
                             }}
                           >
-                            ▼
+                            -
                           </span>
                         </div>
                         {expanded && (
@@ -10766,7 +14486,7 @@ function ThiraView({ data, setData }) {
                               <FTextarea
                                 value={h.notes || ''}
                                 onChange={(v) => updateHazard(h.id, 'notes', v)}
-                                placeholder="Historical events, frequency data, source documentation, vulnerability notes…"
+                                placeholder="Historical events, frequency data, source documentation, vulnerability notes..."
                                 rows={2}
                               />
                             </div>
@@ -10781,7 +14501,7 @@ function ThiraView({ data, setData }) {
         </div>
       )}
 
-      {/* ── IMPORT DOCUMENT TAB ── */}
+      {/* -- IMPORT DOCUMENT TAB -- */}
       {tab === 'import' && (
         <div>
           <div
@@ -10797,7 +14517,7 @@ function ThiraView({ data, setData }) {
             }}
           >
             <strong>Have an existing THIRA or SPR document?</strong> Drop it
-            here — AI will read through it, extract every hazard, and
+            here - AI will read through it, extract every hazard, and
             automatically populate your hazard profile. Supports PDF, Word,
             images, or plain text. Duplicate hazards are skipped.
           </div>
@@ -10841,21 +14561,21 @@ function ThiraView({ data, setData }) {
                     display: 'inline-block',
                   }}
                 >
-                  ⟳
+                  -
                 </div>
                 <div
                   style={{ fontSize: 14, fontWeight: 700, color: B.tealDark }}
                 >
-                  Reading document and extracting hazards…
+                  Reading document and extracting hazards...
                 </div>
                 <div style={{ fontSize: 12, color: B.faint }}>
-                  This may take 15–30 seconds
+                  This may take 15-30 seconds
                 </div>
               </div>
             ) : (
               <>
                 <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.35 }}>
-                  📄
+                  -
                 </div>
                 <div
                   style={{
@@ -10872,7 +14592,7 @@ function ThiraView({ data, setData }) {
                   listing your jurisdiction's hazards
                 </div>
                 <div style={{ fontSize: 11, color: '#d1d8db' }}>
-                  PDF · Word · Images · Text files
+                  PDF - Word - Images - Text files
                 </div>
               </>
             )}
@@ -10890,28 +14610,28 @@ function ThiraView({ data, setData }) {
             <div
               style={{
                 padding: '12px 16px',
-                background: importResult.startsWith('✓')
+                background: importResult.startsWith('ok')
                   ? B.greenLight
                   : B.redLight,
                 border: `1px solid ${
-                  importResult.startsWith('✓') ? B.greenBorder : B.redBorder
+                  importResult.startsWith('ok') ? B.greenBorder : B.redBorder
                 }`,
                 borderRadius: 9,
                 fontSize: 13,
-                color: importResult.startsWith('✓') ? '#065f46' : B.red,
+                color: importResult.startsWith('ok') ? '#065f46' : B.red,
                 display: 'flex',
                 gap: 10,
                 alignItems: 'center',
               }}
             >
               <span style={{ fontSize: 18, flexShrink: 0 }}>
-                {importResult.startsWith('✓') ? '✓' : '⚠'}
+                {importResult.startsWith('ok') ? 'ok' : '-'}
               </span>
               <div>
                 <div style={{ fontWeight: 700, marginBottom: 2 }}>
                   {importResult}
                 </div>
-                {importResult.startsWith('✓') && (
+                {importResult.startsWith('ok') && (
                   <div style={{ fontSize: 11, opacity: 0.8 }}>
                     Review the imported hazards in the{' '}
                     <button
@@ -10927,7 +14647,7 @@ function ThiraView({ data, setData }) {
                     >
                       Hazard Profile tab
                     </button>{' '}
-                    — adjust probability and magnitude scores and tag the
+                    - adjust probability and magnitude scores and tag the
                     affected core capabilities.
                   </div>
                 )}
@@ -10980,7 +14700,7 @@ function ThiraView({ data, setData }) {
         </div>
       )}
 
-      {/* ── GENERATE SPR DOCUMENT TAB ── */}
+      {/* -- GENERATE SPR DOCUMENT TAB -- */}
       {tab === 'generate' && (
         <div>
           <div
@@ -10996,7 +14716,7 @@ function ThiraView({ data, setData }) {
             }}
           >
             AI generates a complete, formal THIRA/SPR document using your hazard
-            profile data — including executive summary, risk assessment,
+            profile data - including executive summary, risk assessment,
             capability targets, and SPR narrative. The document follows FEMA CPG
             201 Third Edition structure and satisfies <strong>EMAP 4.1</strong>.
           </div>
@@ -11012,7 +14732,7 @@ function ThiraView({ data, setData }) {
                 color: '#92400e',
               }}
             >
-              ⚠ Add hazards to your profile first for a complete document. The
+              - Add hazards to your profile first for a complete document. The
               generator will produce a template but it will be generic without
               hazard data.
             </div>
@@ -11046,11 +14766,11 @@ function ThiraView({ data, setData }) {
             >
               <BrainIcon size={15} color="#fff" strokeWidth={1.4} />
               {genLoad
-                ? '⟳ Generating SPR Document…'
+                ? '- Generating SPR Document...'
                 : 'Generate THIRA/SPR Document'}
             </button>
             {genDoc && !genLoad && (
-              <Btn label="↓ Download .txt" onClick={downloadSpar} />
+              <Btn label="- Download .txt" onClick={downloadSpar} />
             )}
             {genDoc && !genLoad && (
               <Btn label="Regenerate" onClick={generateSpar} />
@@ -11077,11 +14797,11 @@ function ThiraView({ data, setData }) {
                   color: B.purple,
                 }}
               >
-                ⟳
+                -
               </span>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: B.purple }}>
-                  Writing your THIRA/SPR document…
+                  Writing your THIRA/SPR document...
                 </div>
                 <div style={{ fontSize: 11, color: B.faint }}>
                   Generating all sections including risk assessment, capability
@@ -11120,10 +14840,10 @@ function ThiraView({ data, setData }) {
                   }}
                 >
                   <BrainIcon size={13} color={B.purple} strokeWidth={1.4} />
-                  {data.orgName || 'Your Organization'} — THIRA/SPR Document
+                  {data.orgName || 'Your Organization'} - THIRA/SPR Document
                 </div>
                 <div style={{ display: 'flex', gap: 7 }}>
-                  <Btn label="↓ Download .txt" onClick={downloadSpar} small />
+                  <Btn label="- Download .txt" onClick={downloadSpar} small />
                   <button
                     onClick={() => {
                       navigator.clipboard?.writeText(genDoc);
@@ -11195,20 +14915,35 @@ function ThiraView({ data, setData }) {
                 {(thira.hazards || []).length > 0
                   ? `${(thira.hazards || []).length} hazard${
                       (thira.hazards || []).length > 1 ? 's' : ''
-                    } profiled · AI will build the complete document around your data`
+                    } profiled  -  AI will build the complete document around your data`
                   : 'Add hazards to your profile first for the most complete and specific document'}
               </div>
             </div>
           )}
         </div>
       )}
+      {tab === 'partner' && (
+        <SAGE
+          title="THIRA/SPR Builder"
+          icon="🎯"
+          systemPrompt="You are a FEMA CPG 201-certified hazard analyst helping build a THIRA/SPR. Guide the EM director through identifying threats and hazards for their jurisdiction, assessing probability and magnitude, identifying core capabilities at risk, setting capability targets, and planning the Stakeholder Preparedness Review. Ask about local geography, climate, infrastructure, demographics, and recent incident history."
+          orgContext={`Organization: ${data.orgName || 'Unknown'}. State: ${data.state || 'Unknown'}. Jurisdiction: ${data.jurisdiction || 'Unknown'}. Current hazards: ${(data.thira?.hazards || []).map(h => h.name).join(', ') || 'None profiled yet'}.`}
+          initialMessage={`Let's build your THIRA/SPR together. I'll help you identify and assess the threats and hazards specific to your jurisdiction.\n\nFirst — tell me about your community. What type of area are you? (urban, suburban, rural, coastal, etc.) And what's the rough population you serve?`}
+          completeLabel="Generate THIRA/SPR Document"
+          onComplete={(result) => {
+            setGenDoc(result);
+            setTab('generate');
+          }}
+          onClose={() => setTab('hazards')}
+        />
+      )}
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    CAP DASHBOARD (Corrective Action Program)
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function CapDashboard({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState('open');
@@ -11239,6 +14974,21 @@ function CapDashboard({ data, setData }) {
           closed: ca.closed,
           emapRef: '4.11',
           exerciseId: ex.id,
+        });
+      });
+    });
+    (data.incidents || []).forEach((inc) => {
+      (inc.corrective || []).forEach((ca) => {
+        all.push({
+          id: 'inc-' + ca.id,
+          item: ca.item,
+          source: 'real_incident',
+          sourceRef: inc.name,
+          priority: 'high',
+          responsible: '',
+          due: ca.due || '',
+          closed: ca.closed,
+          emapRef: '4.12',
         });
       });
     });
@@ -11321,10 +15071,10 @@ function CapDashboard({ data, setData }) {
             Corrective Action Program
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-            EMAP 4.11.3 · {open} open ·{' '}
+            EMAP 4.11.3 - {open} open -{' '}
             {overdue > 0 ? (
               <span style={{ color: B.red, fontWeight: 700 }}>
-                {overdue} overdue ·{' '}
+                {overdue} overdue -{' '}
               </span>
             ) : (
               ''
@@ -11336,11 +15086,12 @@ function CapDashboard({ data, setData }) {
             ) : (
               ''
             )}{' '}
-            · Pulls from exercises + standalone items
+            - Pulls from exercises + standalone items
           </p>
         </div>
         <Btn label="+ Add CAP Item" onClick={() => setShowForm(true)} primary />
       </div>
+      <CoachBanner moduleId="cap" />
       <div
         style={{
           display: 'grid',
@@ -11414,7 +15165,7 @@ function CapDashboard({ data, setData }) {
             <FInput
               value={form.item}
               onChange={(v) => setForm((p) => ({ ...p, item: v }))}
-              placeholder="Describe the deficiency and corrective action required…"
+              placeholder="Describe the deficiency and corrective action required..."
             />
           </div>
           <div
@@ -11443,7 +15194,7 @@ function CapDashboard({ data, setData }) {
               <FInput
                 value={form.sourceRef}
                 onChange={(v) => setForm((p) => ({ ...p, sourceRef: v }))}
-                placeholder="Incident name, report #…"
+                placeholder="Incident name, report #..."
               />
             </div>
             <div>
@@ -11498,7 +15249,7 @@ function CapDashboard({ data, setData }) {
             <FInput
               value={form.notes}
               onChange={(v) => setForm((p) => ({ ...p, notes: v }))}
-              placeholder="Additional context…"
+              placeholder="Additional context..."
             />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -11635,7 +15386,7 @@ function CapDashboard({ data, setData }) {
                       {pc.label}
                     </span>
                     {ca.sourceRef && <span>From: {ca.sourceRef}</span>}
-                    {ca.responsible && <span>👤 {ca.responsible}</span>}
+                    {ca.responsible && <span>- {ca.responsible}</span>}
                     {ca.due && (
                       <span
                         style={{
@@ -11643,7 +15394,7 @@ function CapDashboard({ data, setData }) {
                           fontWeight: isOverdue ? 700 : 400,
                         }}
                       >
-                        {isOverdue ? '⚠ Overdue: ' : 'Due: '}
+                        {isOverdue ? '- Overdue: ' : 'Due: '}
                         {fmtDate(ca.due)}
                       </span>
                     )}
@@ -11685,7 +15436,7 @@ function CapDashboard({ data, setData }) {
                       fontSize: 13,
                     }}
                   >
-                    ×
+                    -
                   </button>
                 )}
                 {ca.closed && (
@@ -11712,7 +15463,7 @@ function CapDashboard({ data, setData }) {
           color: B.muted,
         }}
       >
-        ✓ Corrective actions from all exercises are automatically pulled here.
+        ok Corrective actions from all exercises are automatically pulled here.
         Standalone items can be added from real incidents, program assessments,
         or standards gaps. EMAP 4.11.3 requires a process that prioritizes and
         tracks resolution of all deficiencies.
@@ -11721,9 +15472,9 @@ function CapDashboard({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    ACTIVITY LOG
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function ActivityLogView({ data, setData }) {
   const [note, setNote] = useState('');
   const log = data.activityLog || [];
@@ -11771,11 +15522,11 @@ function ActivityLogView({ data, setData }) {
     setNote('');
   };
   const typeIcon = {
-    created: '✦',
-    updated: '◈',
-    note: '📝',
-    deleted: '×',
-    completed: '✓',
+    created: '-',
+    updated: '-',
+    note: '-',
+    deleted: '-',
+    completed: 'ok',
   };
   return (
     <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 760 }}>
@@ -11791,14 +15542,14 @@ function ActivityLogView({ data, setData }) {
           Activity Log
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          Audit trail of program activity — supports EMAP accreditation evidence
+          Audit trail of program activity - supports EMAP accreditation evidence
         </p>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <FInput
           value={note}
           onChange={setNote}
-          placeholder="Add a manual program note, observation, or decision record…"
+          placeholder="Add a manual program note, observation, or decision record..."
           onKeyDown={(e) => {
             if (e.key === 'Enter') addNote();
           }}
@@ -11807,7 +15558,7 @@ function ActivityLogView({ data, setData }) {
       </div>
       {log.length === 0 ? (
         <Card style={{ textAlign: 'center', padding: '36px', color: B.faint }}>
-          No activity recorded yet — activity is logged automatically as you use
+          No activity recorded yet - activity is logged automatically as you use
           PLANRR, or add manual notes above
         </Card>
       ) : (
@@ -11853,7 +15604,7 @@ function ActivityLogView({ data, setData }) {
                     fontWeight: 700,
                   }}
                 >
-                  {typeIcon[entry.type] || '·'}
+                  {typeIcon[entry.type] || ' - '}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, color: B.text, lineHeight: 1.5 }}>
@@ -11880,7 +15631,7 @@ function ActivityLogView({ data, setData }) {
                       {modLabel}
                     </span>
                     <span>
-                      {dateStr} · {timeStr}
+                      {dateStr} - {timeStr}
                     </span>
                   </div>
                 </div>
@@ -11893,9 +15644,9 @@ function ActivityLogView({ data, setData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    SETTINGS
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function SettingsView({ data, updateData }) {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('org');
@@ -11921,7 +15672,7 @@ function SettingsView({ data, updateData }) {
     poweredByText: data.brand?.poweredByText || 'Powered by PLANRR.ai',
     reportSubtitle:
       data.brand?.reportSubtitle ||
-      'Emergency Management Program — EMAP Compliance Report',
+      'Emergency Management Program - EMAP Compliance Report',
     preparedBy: data.brand?.preparedBy || '',
   });
 
@@ -11980,18 +15731,18 @@ function SettingsView({ data, updateData }) {
 
   return (
     <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 860 }}>
-      <div style={{ marginBottom: 22 }}>
+      <div style={{ marginBottom: 28 }}>
         <h1
           style={{
-            fontSize: 22,
+            fontSize: 24,
             fontWeight: 800,
             color: B.text,
-            letterSpacing: '-0.3px',
+            letterSpacing: '-0.5px',
           }}
         >
-          Settings
+          My Program
         </h1>
-        <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
+        <p style={{ color: B.faint, fontSize: 13, marginTop: 4 }}>
           Organization profile, agency branding, and export configuration
         </p>
       </div>
@@ -12000,10 +15751,11 @@ function SettingsView({ data, updateData }) {
       <div
         style={{
           display: 'flex',
-          gap: 2,
-          marginBottom: 20,
-          borderBottom: `1px solid ${B.border}`,
-          paddingBottom: 0,
+          gap: 4,
+          marginBottom: 24,
+          padding: '4px',
+          background: '#f0f3f4',
+          borderRadius: 12,
         }}
       >
         {tabs.map((t) => (
@@ -12011,21 +15763,18 @@ function SettingsView({ data, updateData }) {
             key={t.id}
             onClick={() => setActiveTab(t.id)}
             style={{
-              padding: '8px 16px',
-              borderRadius: '8px 8px 0 0',
-              border: `1px solid ${
-                activeTab === t.id ? B.border : 'transparent'
-              }`,
-              borderBottom: `1px solid ${
-                activeTab === t.id ? B.card : B.border
-              }`,
-              background: activeTab === t.id ? B.card : 'transparent',
-              color: activeTab === t.id ? B.teal : B.muted,
+              padding: '9px 18px',
+              borderRadius: 9,
+              border: 'none',
+              background: activeTab === t.id ? '#fff' : 'transparent',
+              color: activeTab === t.id ? B.text : B.faint,
               fontSize: 13,
               fontWeight: activeTab === t.id ? 700 : 500,
               cursor: 'pointer',
               fontFamily: "'DM Sans',sans-serif",
-              marginBottom: -1,
+              transition: 'all 0.15s ease',
+              boxShadow:
+                activeTab === t.id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
             }}
           >
             {t.label}
@@ -12033,16 +15782,16 @@ function SettingsView({ data, updateData }) {
         ))}
       </div>
 
-      {/* ── Organization ── */}
+      {/* -- Organization -- */}
       {activeTab === 'org' && (
         <div>
           <Card style={{ marginBottom: 14 }}>
             <div
               style={{
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: 700,
                 color: B.text,
-                marginBottom: 14,
+                marginBottom: 16,
               }}
             >
               Organization Details
@@ -12060,7 +15809,7 @@ function SettingsView({ data, updateData }) {
                 <FInput
                   value={form.orgName}
                   onChange={(v) => setForm((p) => ({ ...p, orgName: v }))}
-                  placeholder="San Joaquin County OES"
+                  placeholder="e.g. County Emergency Management"
                 />
               </div>
               <div>
@@ -12069,7 +15818,7 @@ function SettingsView({ data, updateData }) {
                   value={form.jurisdiction}
                   onChange={(v) => setForm((p) => ({ ...p, jurisdiction: v }))}
                 >
-                  <option value="">Select…</option>
+                  <option value="">Select...</option>
                   {[
                     'State EM Agency',
                     'County / Parish EM',
@@ -12091,7 +15840,7 @@ function SettingsView({ data, updateData }) {
                   value={form.state}
                   onChange={(v) => setForm((p) => ({ ...p, state: v }))}
                 >
-                  <option value="">Select…</option>
+                  <option value="">Select...</option>
                   {US_STATES.map((s) => (
                     <option key={s}>{s}</option>
                   ))}
@@ -12126,10 +15875,10 @@ function SettingsView({ data, updateData }) {
           <Card style={{ marginBottom: 14 }}>
             <div
               style={{
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: 700,
                 color: B.text,
-                marginBottom: 14,
+                marginBottom: 16,
               }}
             >
               Primary Emergency Manager
@@ -12146,7 +15895,7 @@ function SettingsView({ data, updateData }) {
                 <FInput
                   value={form.emName}
                   onChange={(v) => setForm((p) => ({ ...p, emName: v }))}
-                  placeholder="Jane Smith"
+                  placeholder="Full name"
                 />
               </div>
               <div>
@@ -12171,7 +15920,7 @@ function SettingsView({ data, updateData }) {
         </div>
       )}
 
-      {/* ── Branding ── */}
+      {/* -- Branding -- */}
       {activeTab === 'branding' && (
         <div>
           <Card style={{ marginBottom: 14 }}>
@@ -12246,7 +15995,7 @@ function SettingsView({ data, updateData }) {
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 22, opacity: 0.3 }}>🏛</div>
+                      <div style={{ fontSize: 22, opacity: 0.3 }}>-</div>
                       <div style={{ fontSize: 12, color: B.faint }}>
                         Click to upload logo
                       </div>
@@ -12318,7 +16067,7 @@ function SettingsView({ data, updateData }) {
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 22, opacity: 0.3 }}>⚜</div>
+                      <div style={{ fontSize: 22, opacity: 0.3 }}>-</div>
                       <div style={{ fontSize: 12, color: B.faint }}>
                         County seal / agency badge
                       </div>
@@ -12484,7 +16233,7 @@ function SettingsView({ data, updateData }) {
                   onChange={(v) =>
                     setBrand((p) => ({ ...p, reportSubtitle: v }))
                   }
-                  placeholder="Emergency Management Program — EMAP Compliance Report"
+                  placeholder="Emergency Management Program - EMAP Compliance Report"
                 />
               </div>
               <div>
@@ -12572,7 +16321,7 @@ function SettingsView({ data, updateData }) {
               </div>
               <div style={{ fontSize: 11, color: B.faint, marginTop: 7 }}>
                 Appears in small gray text in the bottom-right footer of every
-                exported page — like a "Prepared using…" credit. Professional
+                exported page - like a "Prepared using..." credit. Professional
                 and unobtrusive.
               </div>
             </div>
@@ -12580,7 +16329,7 @@ function SettingsView({ data, updateData }) {
         </div>
       )}
 
-      {/* ── Export Preview ── */}
+      {/* -- Export Preview -- */}
       {activeTab === 'export' && (
         <div>
           <div style={{ fontSize: 13, color: B.muted, marginBottom: 14 }}>
@@ -12633,7 +16382,7 @@ function SettingsView({ data, updateData }) {
                       fontSize: 22,
                     }}
                   >
-                    🏛
+                    -
                   </div>
                 )}
                 <div>
@@ -12697,7 +16446,7 @@ function SettingsView({ data, updateData }) {
                   }}
                 >
                   {brand.reportSubtitle ||
-                    'Emergency Management Program — EMAP Compliance Report'}
+                    'Emergency Management Program - EMAP Compliance Report'}
                 </div>
                 <div style={{ fontSize: 13, color: B.faint }}>
                   {new Date().toLocaleDateString('en-US', {
@@ -12723,7 +16472,7 @@ function SettingsView({ data, updateData }) {
                   },
                   {
                     l: 'Prepared By',
-                    v: brand.preparedBy || form.emName || form.emTitle || '—',
+                    v: brand.preparedBy || form.emName || form.emTitle || '-',
                   },
                 ].map((s) => (
                   <div
@@ -12778,7 +16527,7 @@ function SettingsView({ data, updateData }) {
                 }}
               >
                 <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
-                  EMAP Section 4.1 — Hazard Identification & Risk Assessment
+                  EMAP Section 4.1 - Hazard Identification & Risk Assessment
                 </span>
                 <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.75)' }}>
                   2 / 3 compliant
@@ -12795,7 +16544,7 @@ function SettingsView({ data, updateData }) {
                   color: B.muted,
                 }}
               >
-                Standard rows and evidence documentation appear here…
+                Standard rows and evidence documentation appear here...
               </div>
             </div>
 
@@ -12811,7 +16560,7 @@ function SettingsView({ data, updateData }) {
               }}
             >
               <div style={{ fontSize: 10, color: '#9ca3af' }}>
-                {brand.footerDisclaimer || `${previewOrg} · EMAP EMS 5-2022`}
+                {brand.footerDisclaimer || `${previewOrg}  -  EMAP EMS 5-2022`}
               </div>
               <div
                 style={{
@@ -12842,7 +16591,7 @@ function SettingsView({ data, updateData }) {
               color: B.tealDark,
             }}
           >
-            ✓ This preview reflects your current branding settings. Go to the{' '}
+            ok This preview reflects your current branding settings. Go to the{' '}
             <strong>Branding</strong> tab to change logos, colors, or text. Use
             the <strong>Print Report</strong> button in Reports to export with
             this branding applied.
@@ -12850,7 +16599,7 @@ function SettingsView({ data, updateData }) {
         </div>
       )}
 
-      {/* ── System ── */}
+      {/* -- System -- */}
       {activeTab === 'system' && (
         <div>
           <Card style={{ marginBottom: 14 }}>
@@ -12907,7 +16656,7 @@ function SettingsView({ data, updateData }) {
               }}
             >
               Data is saved locally in your browser. For multi-user access, team
-              collaboration, and cloud backup connect to a Supabase backend —
+              collaboration, and cloud backup connect to a Supabase backend -
               ask your developer to wire up the API.
             </div>
           </Card>
@@ -12920,6 +16669,50 @@ function SettingsView({ data, updateData }) {
                 marginBottom: 10,
               }}
             >
+              AI Memory
+            </div>
+            <div style={{ fontSize: 12, color: B.faint, marginBottom: 12, lineHeight: 1.6 }}>
+              Teach the AI about your organization. These notes are included in every AI call so it knows your staff, nuances, and context.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+              {(data.aiMemory || []).map((m, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: '#f8fafa', border: `1px solid ${B.border}`, borderRadius: 8, padding: '8px 12px' }}>
+                  <span style={{ flex: 1, fontSize: 13, color: B.text, lineHeight: 1.5 }}>{m}</span>
+                  <button onClick={() => updateData(prev => ({ ...prev, aiMemory: (prev.aiMemory || []).filter((_, j) => j !== i) }))}
+                    style={{ background: 'none', border: 'none', color: '#d1d5db', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}>✕</button>
+                </div>
+              ))}
+              {(data.aiMemory || []).length === 0 && (
+                <div style={{ fontSize: 12, color: B.faint, fontStyle: 'italic' }}>No memory items yet. Add facts about your organization below.</div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                id="planrr-ai-memory-input"
+                placeholder="e.g. Our EOC is co-located with the sheriff's office at 123 Main St"
+                style={{ flex: 1, padding: '8px 12px', border: `1px solid ${B.border}`, borderRadius: 8, fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: 'none' }}
+                onFocus={e => e.target.style.borderColor = B.teal}
+                onBlur={e => e.target.style.borderColor = B.border}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && e.target.value.trim()) {
+                    updateData(prev => ({ ...prev, aiMemory: [...(prev.aiMemory || []), e.target.value.trim()] }));
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <Btn label="+ Add" onClick={() => {
+                const inp = document.getElementById('planrr-ai-memory-input');
+                if (inp && inp.value.trim()) {
+                  updateData(prev => ({ ...prev, aiMemory: [...(prev.aiMemory || []), inp.value.trim()] }));
+                  inp.value = '';
+                }
+              }} primary small />
+            </div>
+            <div style={{ fontSize: 11, color: B.faint, marginTop: 8, lineHeight: 1.5 }}>
+              Examples: "Jane handles all public information duties" · "We share a mobile command vehicle with County Fire" · "Our primary hazard is wildfire — we're in a WUI zone" · "Budget is primarily EMPG-funded with 50/50 match"
+            </div>
+
+            <div style={{ marginTop: 20, marginBottom: 10, fontSize: 14, fontWeight: 700, color: B.text }}>
               Data Management
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -12934,6 +16727,21 @@ function SettingsView({ data, updateData }) {
                   );
                   a.download = `planrr-export-${today()}.json`;
                   a.click();
+                }}
+              />
+              <Btn
+                label="Export to Calendar (.ics)"
+                onClick={() => downloadICal(data)}
+              />
+              <Btn
+                label="Share Compliance Report"
+                onClick={() => {
+                  const url = buildShareURL(data);
+                  navigator.clipboard.writeText(url).then(() => {
+                    alert('Report link copied to clipboard!');
+                  }).catch(() => {
+                    prompt('Copy this link:', url);
+                  });
                 }}
               />
               <Btn
@@ -12954,6 +16762,37 @@ function SettingsView({ data, updateData }) {
                   inp.click();
                 }}
               />
+            </div>
+            {/* Starter Packs */}
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${B.border}` }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: B.text, marginBottom: 10 }}>
+                Starter Packs
+              </div>
+              <div style={{ fontSize: 12, color: B.faint, marginBottom: 12, lineHeight: 1.6 }}>
+                Pre-built plans, exercises, and training for common EM program types. Data is added to your existing program.
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {Object.values(STARTER_PACKS).map(pack => (
+                  <button key={pack.id} onClick={() => {
+                    if (window.confirm(`Add the "${pack.name}" starter pack? This adds ${pack.plans.length} plans, ${pack.exercises.length} exercises, and ${pack.training.length} training records to your program.`)) {
+                      updateData(prev => applyStarterPack(prev, pack.id));
+                    }
+                  }} style={{
+                    background: B.card, border: `1px solid ${B.border}`, borderRadius: 10,
+                    padding: '14px 18px', cursor: 'pointer', textAlign: 'left', maxWidth: 280,
+                    transition: 'border-color 0.15s',
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = B.teal}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = B.border}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, color: B.text, marginBottom: 4 }}>{pack.name}</div>
+                    <div style={{ fontSize: 11, color: B.faint, lineHeight: 1.5 }}>{pack.description}</div>
+                    <div style={{ fontSize: 10, color: B.teal, marginTop: 8, fontWeight: 600 }}>
+                      {pack.plans.length} plans · {pack.exercises.length} exercises · {pack.training.length} training
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
             <div
               style={{
@@ -12986,7 +16825,7 @@ function SettingsView({ data, updateData }) {
         style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}
       >
         <Btn
-          label={saved ? '✓ Saved!' : 'Save All Settings'}
+          label={saved ? 'ok Saved!' : 'Save All Settings'}
           onClick={save}
           primary
         />
@@ -13000,7 +16839,21 @@ function SettingsView({ data, updateData }) {
   );
 }
 
-function Dashboard({ data, setView, orgName }) {
+const DASHBOARD_WIDGETS = {
+  compliance: { label: 'EMAP Compliance', default: true },
+  alerts: { label: 'Alerts & Notifications', default: true },
+  smartQueue: { label: 'Priority Queue', default: true },
+  modules: { label: 'Module Summary Cards', default: true },
+  readiness: { label: 'Program Readiness Checklist', default: false },
+  accredTimeline: { label: 'Time to Accreditation', default: false },
+  nims: { label: 'FEMA/NIMS Alignment', default: false },
+  grantAlignment: { label: 'Grant-EMAP Alignment', default: false },
+};
+
+function Dashboard({ data, setView, orgName, updateData }) {
+  const widgets = data.dashboardWidgets || Object.fromEntries(Object.entries(DASHBOARD_WIDGETS).map(([k, v]) => [k, v.default]));
+  const showWidget = (id) => widgets[id] !== false;
+  const [showWidgetSettings, setShowWidgetSettings] = useState(false);
   const { training, exercises, partners, plans, resources } = data;
   const overall = useMemo(
     () => overallStats(data.standards || {}),
@@ -13036,6 +16889,225 @@ function Dashboard({ data, setView, orgName }) {
       0
     );
   const hazardCount = (data.thira?.hazards || []).length;
+
+  // ===== NEXT UP SMART QUEUE =====
+  const smartQueue = useMemo(() => {
+    const items = [];
+    // Expiring MOUs
+    (data.partners || []).forEach((p) => {
+      const d = daysUntil(p.expires);
+      if (d !== null && d >= 0 && d < 90)
+        items.push({
+          label: `Renew MOU: ${p.name}`,
+          detail: `Expires ${fmtDate(p.expires)} (${d} days)`,
+          urgency: d < 30 ? 3 : 2,
+          emap: '4.7.4',
+          module: 'partners',
+          color: d < 30 ? B.red : B.amber,
+        });
+    });
+    // Expired MOUs
+    (data.partners || []).forEach((p) => {
+      const d = daysUntil(p.expires);
+      if (d !== null && d < 0)
+        items.push({
+          label: `EXPIRED: ${p.name} MOU`,
+          detail: `Expired ${fmtDate(p.expires)}`,
+          urgency: 4,
+          emap: '4.7.4',
+          module: 'partners',
+          color: B.red,
+        });
+    });
+    // Overdue plan reviews
+    (data.plans || []).forEach((p) => {
+      const d = daysUntil(p.nextReview);
+      if (d !== null && d < 0)
+        items.push({
+          label: `Overdue Review: ${p.name}`,
+          detail: `Was due ${fmtDate(p.nextReview)}`,
+          urgency: 3,
+          emap: p.emapRef || '4.5',
+          module: 'plans',
+          color: B.red,
+        });
+      else if (d !== null && d < 60)
+        items.push({
+          label: `Review Due: ${p.name}`,
+          detail: `Due ${fmtDate(p.nextReview)} (${d} days)`,
+          urgency: 2,
+          emap: p.emapRef || '4.5',
+          module: 'plans',
+          color: B.amber,
+        });
+    });
+    // Open corrective actions
+    (data.capItems || [])
+      .filter((c) => !c.closed)
+      .forEach((c) =>
+        items.push({
+          label: `Open CA: ${c.finding || 'Corrective Action'}`,
+          detail: c.source || 'Needs resolution',
+          urgency: 2,
+          emap: '4.11.3',
+          module: 'cap',
+          color: B.amber,
+        })
+      );
+    // Credential expirations
+    (data.employees || []).forEach((emp) =>
+      (emp.credentials || []).forEach((c) => {
+        const d = daysUntil(c.expires);
+        if (d !== null && d >= 0 && d < 60)
+          items.push({
+            label: `${emp.name}: ${c.name || c.type} expiring`,
+            detail: `Expires ${fmtDate(c.expires)} (${d} days)`,
+            urgency: d < 14 ? 3 : 2,
+            emap: '4.10.4',
+            module: 'employees',
+            color: d < 14 ? B.red : B.amber,
+          });
+      })
+    );
+    // Exercise needed (no exercise in past year)
+    const hasRecentEx = exercises.some(
+      (e) => e.date && daysUntil(e.date) > -365 && e.status !== 'planned'
+    );
+    if (!hasRecentEx)
+      items.push({
+        label: 'Schedule Annual Exercise',
+        detail: 'No completed exercise in the past 12 months',
+        urgency: 2,
+        emap: '4.11.1',
+        module: 'exercises',
+        color: B.amber,
+      });
+    // AAR needed
+    const needsAAR = exercises.filter(
+      (e) => e.status === 'completed' && !e.aarFinal
+    );
+    needsAAR.forEach((e) =>
+      items.push({
+        label: `Complete AAR: ${e.name}`,
+        detail: 'Exercise completed but no final AAR',
+        urgency: 2,
+        emap: '4.11.2',
+        module: 'exercises',
+        color: B.amber,
+      })
+    );
+    // Grant deadlines
+    activeGrants.forEach((g) => {
+      const d = daysUntil(g.endDate);
+      if (d !== null && d >= 0 && d < 90)
+        items.push({
+          label: `Grant Closeout: ${g.name}`,
+          detail: `Period ends ${fmtDate(g.endDate)} (${d} days)`,
+          urgency: d < 30 ? 3 : 2,
+          emap: '3.4',
+          module: 'grants',
+          color: d < 30 ? B.red : B.amber,
+        });
+    });
+    // Missing critical plans
+    if (!plans.some((p) => p.type === 'EOP'))
+      items.push({
+        label: 'Create Emergency Operations Plan',
+        detail: 'EOP required for EMAP 4.5 compliance',
+        urgency: 1,
+        emap: '4.5.1',
+        module: 'plans',
+        color: B.blue,
+      });
+    if (!plans.some((p) => p.type === 'COOP'))
+      items.push({
+        label: 'Create COOP Plan',
+        detail: 'Continuity plan required for EMAP 4.4',
+        urgency: 1,
+        emap: '4.4.2',
+        module: 'plans',
+        color: B.blue,
+      });
+    // THIRA needed
+    if (hazardCount < 3)
+      items.push({
+        label: 'Build THIRA Hazard Profile',
+        detail: `Only ${hazardCount} hazard(s) profiled - need 3+ for robust assessment`,
+        urgency: 1,
+        emap: '4.1.1',
+        module: 'thira',
+        color: B.blue,
+      });
+    return items.sort((a, b) => b.urgency - a.urgency);
+  }, [data]);
+
+  // ===== TIME TO ACCREDITATION ESTIMATOR =====
+  const accredEstimate = useMemo(() => {
+    const stds = data.standards || {};
+    const entries = Object.values(stds).filter((s) => s.updatedAt);
+    if (entries.length < 3)
+      return { months: null, msg: 'Need more progress data to estimate' };
+    const sorted = entries.sort((a, b) => a.updatedAt - b.updatedAt);
+    const first = sorted[0].updatedAt;
+    const last = sorted[sorted.length - 1].updatedAt;
+    const daySpan = Math.max(1, (last - first) / 86400000);
+    const compliant = Object.values(stds).filter(
+      (s) => s.status === 'compliant'
+    ).length;
+    const remaining = 73 - compliant;
+    if (remaining <= 0)
+      return {
+        months: 0,
+        msg: 'All standards compliant - ready for assessment',
+      };
+    const rate = compliant / daySpan; // standards per day
+    if (rate <= 0)
+      return {
+        months: null,
+        msg: 'Mark standards compliant to build projection',
+      };
+    const daysNeeded = remaining / rate;
+    const months = Math.ceil(daysNeeded / 30);
+    return {
+      months,
+      msg: `~${months} month${months !== 1 ? 's' : ''} at current pace`,
+      rate: Math.round(rate * 30 * 10) / 10,
+    };
+  }, [data.standards]);
+
+  // ===== FEMA/NIMS ALIGNMENT =====
+  const nimsStats = useMemo(() => {
+    const stds = data.standards || {};
+    const total = NIMS_STANDARDS.length;
+    const compliant = NIMS_STANDARDS.filter(
+      (id) => (stds[id] || {}).status === 'compliant'
+    ).length;
+    const inProgress = NIMS_STANDARDS.filter(
+      (id) => (stds[id] || {}).status === 'in_progress'
+    ).length;
+    return {
+      total,
+      compliant,
+      inProgress,
+      pct: Math.round((compliant / total) * 100),
+    };
+  }, [data.standards]);
+
+  // ===== GRANT-EMAP ALIGNMENT =====
+  const grantAlignments = useMemo(() => {
+    return activeGrants.map((g) => {
+      const refs = GRANT_EMAP_MAP[g.type] || [];
+      const stds = data.standards || {};
+      const gaps = refs.filter((id) => (stds[id] || {}).status !== 'compliant');
+      return {
+        ...g,
+        emapRefs: refs,
+        gaps,
+        gapCount: gaps.length,
+        atRisk: gaps.length > refs.length * 0.5,
+      };
+    });
+  }, [data.grants, data.standards]);
 
   // Program readiness checklist
   const checklist = [
@@ -13126,7 +17198,7 @@ function Dashboard({ data, setView, orgName }) {
       sub: `${compliantSections}/17 sections`,
       color: B.teal,
       bg: B.tealLight,
-      icon: '★',
+      icon: '-',
     },
     {
       id: 'exercises',
@@ -13135,7 +17207,7 @@ function Dashboard({ data, setView, orgName }) {
       sub: `${exercises.filter((e) => e.aarFinal).length} with final AAR`,
       color: B.purple,
       bg: B.purpleLight,
-      icon: '◎',
+      icon: '-',
     },
     {
       id: 'grants',
@@ -13155,7 +17227,7 @@ function Dashboard({ data, setView, orgName }) {
       } active`,
       color: B.blue,
       bg: B.blueLight,
-      icon: '⊕',
+      icon: '-',
     },
     {
       id: 'employees',
@@ -13163,11 +17235,11 @@ function Dashboard({ data, setView, orgName }) {
       count: empCount,
       sub:
         credExpiring > 0
-          ? `⚠ ${credExpiring} creds expiring`
+          ? `- ${credExpiring} creds expiring`
           : 'credentials current',
       color: B.indigo,
       bg: B.indigoLight,
-      icon: '👥',
+      icon: '-',
     },
     {
       id: 'cap',
@@ -13176,39 +17248,96 @@ function Dashboard({ data, setView, orgName }) {
       sub: openCAs === 0 ? 'all corrective actions closed' : 'need resolution',
       color: openCAs > 0 ? B.red : B.green,
       bg: openCAs > 0 ? B.redLight : B.greenLight,
-      icon: '⚠',
+      icon: '-',
     },
   ];
 
   return (
     <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 1120 }}>
-      <div style={{ marginBottom: 22 }}>
-        <h1
-          style={{
-            fontSize: 24,
-            fontWeight: 800,
-            color: B.text,
-            letterSpacing: '-0.4px',
-          }}
-        >
-          Program Health
-        </h1>
-        <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          {orgName || 'Your organization'} · EMAP EMS 5-2022 ·{' '}
-          {data.state || ''}
-        </p>
+      <div style={{ marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: B.text, letterSpacing: '-0.4px' }}>
+            {orgName || 'Your Program'}
+          </h1>
+          <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
+            EMAP EMS 5-2022 {data.jurisdiction ? `· ${data.jurisdiction}` : ''} {data.state ? `· ${data.state}` : ''}
+          </p>
+        </div>
+        <button onClick={() => setShowWidgetSettings(p => !p)} style={{
+          background: 'none', border: `1px solid ${B.border}`, borderRadius: 8,
+          padding: '6px 12px', cursor: 'pointer', fontSize: 11, color: B.faint,
+          fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 5,
+        }}>
+          ◧ Customize
+        </button>
       </div>
+      {showWidgetSettings && (
+        <Card style={{ marginBottom: 16, padding: '16px 20px' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: B.text, marginBottom: 12 }}>Dashboard Widgets</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            {Object.entries(DASHBOARD_WIDGETS).map(([id, w]) => (
+              <label key={id} style={{
+                display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: B.muted,
+                cursor: 'pointer', padding: '6px 8px', borderRadius: 6,
+                background: showWidget(id) ? B.tealLight : '#f8f9fa',
+                border: `1px solid ${showWidget(id) ? B.tealBorder : B.border}`,
+              }}>
+                <input type="checkbox" checked={showWidget(id)} onChange={() => {
+                  updateData({ dashboardWidgets: { ...widgets, [id]: !showWidget(id) } });
+                }} style={{ accentColor: B.teal }} />
+                {w.label}
+              </label>
+            ))}
+          </div>
+        </Card>
+      )}
 
-      <div
+      {(plans || []).length === 0 && (exercises || []).length === 0 && updateData && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(27,201,196,0.06), rgba(194,150,74,0.06))',
+          border: `1px solid ${B.border}`, borderRadius: 14, padding: '24px 28px', marginBottom: 20,
+        }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: B.text, marginBottom: 4 }}>
+            Quick Start — Load a Starter Pack
+          </div>
+          <div style={{ fontSize: 13, color: B.faint, marginBottom: 16, lineHeight: 1.6 }}>
+            Get up and running fast with pre-built plans, exercises, and training tailored to your agency type. Everything is customizable.
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {Object.values(STARTER_PACKS).map(pack => (
+              <button key={pack.id} onClick={() => {
+                if (window.confirm(`Load "${pack.name}"?\n\nThis adds ${pack.plans.length} plans with templates, ${pack.exercises.length} exercises, and ${pack.training.length} training records.`)) {
+                  updateData(prev => applyStarterPack(prev, pack.id));
+                }
+              }} style={{
+                background: B.card, border: `1px solid ${B.border}`, borderRadius: 10,
+                padding: '16px 20px', cursor: 'pointer', textAlign: 'left', flex: '1 1 240px',
+                transition: 'all 0.15s', minWidth: 240,
+              }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = B.teal; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = B.border; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+              >
+                <div style={{ fontSize: 22, marginBottom: 8 }}>{pack.icon}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: B.text, marginBottom: 4 }}>{pack.name}</div>
+                <div style={{ fontSize: 12, color: B.faint, lineHeight: 1.5, marginBottom: 10 }}>{pack.description}</div>
+                <div style={{ fontSize: 11, color: B.teal, fontWeight: 600 }}>
+                  {pack.plans.length} plans · {pack.exercises.length} exercises · {pack.training.length} training
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(showWidget('compliance') || showWidget('alerts') || showWidget('readiness')) && <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '200px 1fr 280px',
+          gridTemplateColumns: showWidget('compliance') && showWidget('readiness') ? '200px 1fr 280px' : showWidget('compliance') ? '200px 1fr' : '1fr',
           gap: 16,
           marginBottom: 20,
         }}
       >
-        {/* EMAP donut */}
-        <Card
+        {showWidget('compliance') && <Card
           style={{
             display: 'flex',
             flexDirection: 'column',
@@ -13279,8 +17408,8 @@ function Dashboard({ data, setView, orgName }) {
           </div>
         </Card>
 
-        {/* Notifications */}
-        <div>
+        }
+        {showWidget('alerts') && <div>
           {notifications.length === 0 ? (
             <Card
               style={{
@@ -13305,7 +17434,7 @@ function Dashboard({ data, setView, orgName }) {
                   fontSize: 18,
                 }}
               >
-                ✓
+                ok
               </div>
               <div style={{ color: B.faint, fontSize: 13 }}>
                 No items require attention
@@ -13323,7 +17452,7 @@ function Dashboard({ data, setView, orgName }) {
                   marginBottom: 8,
                 }}
               >
-                ⚠ {notifications.length} item
+                - {notifications.length} item
                 {notifications.length > 1 ? 's' : ''} require attention
               </div>
               <div
@@ -13398,8 +17527,8 @@ function Dashboard({ data, setView, orgName }) {
           )}
         </div>
 
-        {/* Readiness checklist */}
-        <Card
+        }
+        {showWidget('readiness') && <Card
           style={{
             background: `linear-gradient(135deg,${B.sidebar}f8,${B.sidebar})`,
             borderColor: B.sidebarBorder,
@@ -13499,7 +17628,7 @@ function Dashboard({ data, setView, orgName }) {
                     fontWeight: 800,
                   }}
                 >
-                  {c.done ? '✓' : ''}
+                  {c.done ? 'ok' : ''}
                 </span>
                 <span
                   style={{
@@ -13532,14 +17661,449 @@ function Dashboard({ data, setView, orgName }) {
               textAlign: 'center',
             }}
           >
-            {checkDone}/{checklist.length} items complete — click any to jump
+            {checkDone}/{checklist.length} items complete - click any to jump
             there
           </div>
+        </Card>}
+      </div>}
+
+      {/* Next Up Smart Queue + Time-to-Accreditation + FEMA/NIMS Badge */}
+      {(showWidget('smartQueue') || showWidget('accredTimeline') || showWidget('nims')) && <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: showWidget('accredTimeline') && showWidget('nims') ? '1fr 280px 220px' : showWidget('accredTimeline') || showWidget('nims') ? '1fr 280px' : '1fr',
+          gap: 14,
+          marginBottom: 16,
+        }}
+      >
+        {showWidget('smartQueue') && <Card style={{ padding: '16px 18px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 12,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: B.muted,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+              }}
+            >
+              Next Up - Your Priority Queue
+            </div>
+            <Tag
+              label={`${smartQueue.length} items`}
+              color={
+                smartQueue.length > 5
+                  ? B.red
+                  : smartQueue.length > 0
+                  ? B.amber
+                  : B.green
+              }
+              bg={
+                smartQueue.length > 5
+                  ? B.redLight
+                  : smartQueue.length > 0
+                  ? B.amberLight
+                  : B.greenLight
+              }
+              border={
+                smartQueue.length > 5
+                  ? B.redBorder
+                  : smartQueue.length > 0
+                  ? B.amberBorder
+                  : B.greenBorder
+              }
+            />
+          </div>
+          {smartQueue.length === 0 ? (
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '16px 0',
+                color: B.faint,
+                fontSize: 13,
+              }}
+            >
+              All clear - no urgent items. Keep up the great work.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 5,
+                maxHeight: 220,
+                overflowY: 'auto',
+              }}
+            >
+              {smartQueue.slice(0, 8).map((item, i) => (
+                <div
+                  key={i}
+                  onClick={() => setView(item.module)}
+                  style={{
+                    display: 'flex',
+                    gap: 10,
+                    alignItems: 'center',
+                    padding: '8px 10px',
+                    background:
+                      i === 0 ? 'rgba(239,68,68,0.04)' : 'transparent',
+                    border: `1px solid ${
+                      i === 0 ? B.redBorder : 'transparent'
+                    }`,
+                    borderRadius: 7,
+                    cursor: 'pointer',
+                    transition: 'all 0.12s',
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = B.tealLight)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background =
+                      i === 0 ? 'rgba(239,68,68,0.04)' : 'transparent')
+                  }
+                >
+                  <div
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: item.color,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: B.text,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {item.label}
+                    </div>
+                    <div style={{ fontSize: 10, color: B.faint }}>
+                      {item.detail}
+                    </div>
+                  </div>
+                  {item.emap && (
+                    <Tag
+                      label={`EMAP ${item.emap}`}
+                      color={B.tealDark}
+                      bg={B.tealLight}
+                      border={B.tealBorder}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>}
+
+        {showWidget('accredTimeline') && <Card
+          style={{
+            background: `linear-gradient(135deg,${B.sidebar}f8,${B.sidebar})`,
+            borderColor: B.sidebarBorder,
+            padding: '16px 18px',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#94a3b8',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              marginBottom: 12,
+            }}
+          >
+            Time to Accreditation
+          </div>
+          {accredEstimate.months !== null ? (
+            <div style={{ textAlign: 'center' }}>
+              <div
+                style={{
+                  fontSize: 40,
+                  fontWeight: 800,
+                  color:
+                    accredEstimate.months === 0
+                      ? B.green
+                      : accredEstimate.months < 12
+                      ? B.teal
+                      : B.amber,
+                  lineHeight: 1,
+                  marginBottom: 4,
+                  fontFamily: "'Syne','DM Sans',sans-serif",
+                }}
+              >
+                {accredEstimate.months === 0 ? 'Ready' : accredEstimate.months}
+              </div>
+              {accredEstimate.months > 0 && (
+                <div
+                  style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}
+                >
+                  month{accredEstimate.months !== 1 ? 's' : ''} estimated
+                </div>
+              )}
+              {accredEstimate.months === 0 && (
+                <div style={{ fontSize: 11, color: B.green, marginBottom: 8 }}>
+                  for assessment
+                </div>
+              )}
+              <div style={{ fontSize: 10, color: '#64748b', lineHeight: 1.5 }}>
+                {accredEstimate.rate && (
+                  <div>{accredEstimate.rate} standards/mo pace</div>
+                )}
+                <div>{overall.compliant} of 73 compliant</div>
+                <div>{73 - overall.compliant} remaining</div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '12px 0' }}>
+              <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.6 }}>
+                {accredEstimate.msg}
+              </div>
+              <div style={{ fontSize: 10, color: '#475569', marginTop: 8 }}>
+                Start marking standards compliant to build your projection
+              </div>
+            </div>
+          )}
+          <div
+            style={{
+              marginTop: 12,
+              padding: '8px 10px',
+              background: 'rgba(27,201,196,0.08)',
+              borderRadius: 6,
+              border: '1px solid rgba(27,201,196,0.15)',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 9,
+                color: B.teal,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                marginBottom: 3,
+              }}
+            >
+              For Your Budget Presentation
+            </div>
+            <div style={{ fontSize: 10, color: '#94a3b8', lineHeight: 1.5 }}>
+              EMAP assessment fees: ~$5,000-$15,000. Subscription + assessment
+              investment pays for itself through grant eligibility and program
+              credibility.
+            </div>
+          </div>
+        </Card>}
+
+        {showWidget('nims') &&
+        <Card
+          style={{
+            padding: '16px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: B.muted,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              marginBottom: 12,
+            }}
+          >
+            FEMA / NIMS Alignment
+          </div>
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <div style={{ position: 'relative', marginBottom: 10 }}>
+              <svg width={80} height={80} viewBox="0 0 80 80">
+                <circle
+                  cx={40}
+                  cy={40}
+                  r={32}
+                  fill="none"
+                  stroke="#edf2f4"
+                  strokeWidth={6}
+                />
+                <circle
+                  cx={40}
+                  cy={40}
+                  r={32}
+                  fill="none"
+                  stroke={
+                    nimsStats.pct > 79
+                      ? B.green
+                      : nimsStats.pct > 49
+                      ? B.blue
+                      : B.amber
+                  }
+                  strokeWidth={6}
+                  strokeLinecap="round"
+                  strokeDasharray={`${
+                    (nimsStats.pct / 100) * 2 * Math.PI * 32
+                  } ${(1 - nimsStats.pct / 100) * 2 * Math.PI * 32}`}
+                  transform="rotate(-90 40 40)"
+                  style={{ transition: 'stroke-dasharray 1s ease' }}
+                />
+                <text
+                  x={40}
+                  y={43}
+                  textAnchor="middle"
+                  fill={B.text}
+                  fontSize={16}
+                  fontWeight="800"
+                  fontFamily="'DM Sans',sans-serif"
+                >
+                  {nimsStats.pct}%
+                </text>
+              </svg>
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: B.faint,
+                textAlign: 'center',
+                marginBottom: 6,
+              }}
+            >
+              {nimsStats.compliant}/{nimsStats.total} NIMS standards
+            </div>
+            <div style={{ display: 'flex', gap: 8, fontSize: 10 }}>
+              <span style={{ color: B.green }}>{nimsStats.compliant} ok</span>
+              <span style={{ color: B.amber }}>{nimsStats.inProgress} wip</span>
+              <span style={{ color: B.faint }}>
+                {nimsStats.total - nimsStats.compliant - nimsStats.inProgress}{' '}
+                todo
+              </span>
+            </div>
+          </div>
+          <div
+            style={{
+              fontSize: 9,
+              color: B.faint,
+              textAlign: 'center',
+              marginTop: 8,
+              lineHeight: 1.4,
+            }}
+          >
+            ICS/NIMS (4.6) + Training (4.10) + Comms (4.8)
+          </div>
+        </Card>}
+      </div>}
+
+      {/* Grant-EMAP Alignment */}
+      {showWidget('grantAlignment') && grantAlignments.length > 0 && (
+        <Card style={{ marginBottom: 16, padding: '16px 18px' }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: B.muted,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              marginBottom: 12,
+            }}
+          >
+            Grant - EMAP Alignment Tracker
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(${Math.min(
+                grantAlignments.length,
+                4
+              )},1fr)`,
+              gap: 10,
+            }}
+          >
+            {grantAlignments.map((g) => (
+              <div
+                key={g.id}
+                onClick={() => setView('grants')}
+                style={{
+                  padding: '12px',
+                  background: g.atRisk ? B.redLight : B.greenLight,
+                  border: `1px solid ${g.atRisk ? B.redBorder : B.greenBorder}`,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 6,
+                  }}
+                >
+                  <span
+                    style={{ fontSize: 12, fontWeight: 700, color: B.text }}
+                  >
+                    {g.name || g.type}
+                  </span>
+                  {g.atRisk && (
+                    <Tag
+                      label="At Risk"
+                      color={B.red}
+                      bg={B.redLight}
+                      border={B.redBorder}
+                    />
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: B.faint, marginBottom: 4 }}>
+                  {g.type} - ${parseFloat(g.amount || 0).toLocaleString()}
+                </div>
+                {g.emapRefs.length > 0 ? (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: g.gapCount > 0 ? B.amber : B.green,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {g.emapRefs.length - g.gapCount}/{g.emapRefs.length}{' '}
+                      aligned EMAP standards compliant
+                    </div>
+                    {g.gapCount > 0 && (
+                      <div style={{ fontSize: 10, color: B.red, marginTop: 2 }}>
+                        Gaps: {g.gaps.slice(0, 4).join(', ')}
+                        {g.gaps.length > 4 ? '...' : ''}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 10, color: B.faint }}>
+                    No direct EMAP mapping for this grant type
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </Card>
-      </div>
+      )}
 
       {/* Module cards */}
-      <div
+      {showWidget('modules') && <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3,1fr)',
@@ -13618,7 +18182,7 @@ function Dashboard({ data, setView, orgName }) {
             </div>
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* EMAP section progress + recent activity */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -13779,7 +18343,7 @@ function Dashboard({ data, setView, orgName }) {
                 padding: '12px 0',
               }}
             >
-              No activity yet — start using PLANRR to see your activity here
+              No activity yet - start using PLANRR to see your activity here
             </div>
           )}
         </Card>
@@ -13787,9 +18351,9 @@ function Dashboard({ data, setView, orgName }) {
     </div>
   );
 }
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    BULK DOCUMENT INTAKE
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function BulkIntake({ data, updateData }) {
   const [files, setFiles] = useState([]);
   const [dragging, setDragging] = useState(false);
@@ -13869,8 +18433,12 @@ function BulkIntake({ data, updateData }) {
       try {
         const fd = await readFileData(file);
         const content = [];
-        const prompt = `Analyze this document and map it to EMAP EMS 5-2022 standards for PLANRR.\nDocument: "${file.name}"\nReturn ONLY valid JSON, no other text:\n{"docType":"brief description","mappings":[{"stdId":"3.1.1","confidence":85,"status":"compliant","reason":"One sentence explanation"}]}\nMap to every relevant standard. Status options: compliant, in_progress, needs_review.`;
-        if (fd.type === 'pdf') {
+        const stdRef = ALL_SECTIONS.map(sec =>
+          `${sec.id} ${sec.title}: ${sec.standards.map(s => `${s.id} - ${s.text.slice(0, 80)}`).join('; ')}`
+        ).join('\n');
+        const prompt = `Analyze this document and map it to the CORRECT EMAP EMS 5-2022 standards.\nDocument: "${file.name}"\n\nEMAP STANDARD REFERENCE (use these EXACT IDs):\n${stdRef}\n\nIMPORTANT: Match based on document content to the standard descriptions above. For example:\n- MOUs/agreements → 4.7.x (Mutual Aid)\n- Training records → 4.10.x (Training & Education)\n- Exercise AARs → 4.11.x (Exercises, Evaluations & Corrective Actions)\n- EOPs → 4.5.x (Operational Planning)\n- COOPs → 4.4.x (Continuity Planning)\n- Budget/funding docs → 3.4.x (Administration & Finance)\n- Hazard analysis → 4.1.x (Hazard ID & Risk Assessment)\n\nReturn ONLY valid JSON:\n{"docType":"brief description","mappings":[{"stdId":"4.7.1","confidence":85,"status":"in_progress","reason":"One sentence explanation"}]}`;
+        const isLargePdf = fd.type === 'pdf' && fd.data.length > 500000;
+        if (fd.type === 'pdf' && !isLargePdf) {
           content.push({
             type: 'document',
             source: {
@@ -13880,6 +18448,20 @@ function BulkIntake({ data, updateData }) {
             },
           });
           content.push({ type: 'text', text: prompt });
+        } else if (fd.type === 'pdf' && isLargePdf) {
+          try {
+            const { extractTextFromPdf } = await import('./services/pdfExtract');
+            const extracted = await extractTextFromPdf(file);
+            content.push({
+              type: 'text',
+              text: `Document "${file.name}" (${extracted.totalPages} pages${extracted.truncated ? ', truncated' : ''}):\n${extracted.text}\n\n${prompt}`,
+            });
+          } catch {
+            content.push({
+              type: 'text',
+              text: `[PDF "${file.name}" - could not extract text, analyzing by filename]\n\n${prompt}`,
+            });
+          }
         } else if (fd.type === 'image') {
           content.push({
             type: 'image',
@@ -13889,26 +18471,40 @@ function BulkIntake({ data, updateData }) {
         } else {
           content.push({
             type: 'text',
-            text: `Document:\n${fd.data}\n\n${prompt}`,
+            text: `Document "${file.name}":\n${fd.data.slice(0, 15000)}\n\n${prompt}`,
           });
         }
         const res = await fetch(
-          'https://ltnbvwnhtsaebyslbhil.supabase.co/functions/v1/ai-proxy',
+          SB_URL + '/functions/v1/ai-proxy',
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SB_KEY },
             body: JSON.stringify({
               operation: 'bulk_intake',
+              model_tier: 'strong',
+              stream: false,
+              system: 'You are an EMAP EMS 5-2022 document analyst for PLANRR. Analyze documents and map them to relevant EMAP standards. Return ONLY a valid JSON object with no markdown, no code fences, no explanation. Format: {"docType":"description","mappings":[{"stdId":"4.5.1","confidence":85,"status":"in_progress","reason":"explanation"}]}',
               content,
-              max_tokens: 1200,
+              max_tokens: 4000,
             }),
           }
         );
-        if (!res.ok) throw new Error('API error');
-        const json = await res.json();
-        const parsed = JSON.parse(
-          (json.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim()
-        );
+        if (!res.ok) {
+          const errBody = await res.text().catch(() => '');
+          throw new Error(errBody || `API error (${res.status})`);
+        }
+        const rawText = await res.text();
+        let json;
+        try { json = JSON.parse(rawText); } catch {
+          throw new Error('Invalid response from AI: ' + rawText.slice(0, 100));
+        }
+        const aiText = json.content?.[0]?.text || '{}';
+        const cleaned = aiText.replace(/```json\s?|```/g, '').trim();
+        let parsed;
+        try { parsed = JSON.parse(cleaned); } catch {
+          const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+          parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { docType: 'Document', mappings: [] };
+        }
         const mappings = (parsed.mappings || []).filter(
           (m) => m.stdId && ALL_STANDARDS.find((s) => s.id === m.stdId)
         );
@@ -13998,11 +18594,12 @@ function BulkIntake({ data, updateData }) {
           Bulk Document Intake
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          Drop your existing EM documents — AI reads each one and automatically
+          Drop your existing EM documents - AI reads each one and automatically
           maps it to EMAP standards, updating compliance status across your
           program.
         </p>
       </div>
+      <CoachBanner moduleId="intake" />
       <div
         style={{
           display: 'grid',
@@ -14082,7 +18679,7 @@ function BulkIntake({ data, updateData }) {
             }}
           >
             <div style={{ fontSize: 32, marginBottom: 10, opacity: 0.4 }}>
-              📂
+              -
             </div>
             <div
               style={{
@@ -14099,7 +18696,7 @@ function BulkIntake({ data, updateData }) {
               policies, procedures
             </div>
             <div style={{ fontSize: 11, color: '#d1d8db' }}>
-              PDF · Word · Text · Images · Max 20MB per file
+              PDF - Word - Text - Images - Max 20MB per file
             </div>
             <input
               ref={inputRef}
@@ -14150,10 +18747,10 @@ function BulkIntake({ data, updateData }) {
                   >
                     <span style={{ fontSize: 14 }}>
                       {f.name.endsWith('.pdf')
-                        ? '📕'
+                        ? '-'
                         : f.name.match(/\.(jpg|jpeg|png)$/)
-                        ? '🖼️'
-                        : '📄'}
+                        ? '--'
+                        : '-'}
                     </span>
                     <div style={{ flex: 1 }}>
                       <div
@@ -14177,7 +18774,7 @@ function BulkIntake({ data, updateData }) {
                         fontSize: 15,
                       }}
                     >
-                      ×
+                      -
                     </button>
                   </div>
                 ))}
@@ -14236,7 +18833,7 @@ function BulkIntake({ data, updateData }) {
                   fontSize: 15,
                 }}
               >
-                ⟳
+                -
               </span>
               <span
                 style={{ fontSize: 13, fontWeight: 700, color: B.tealDark }}
@@ -14244,8 +18841,8 @@ function BulkIntake({ data, updateData }) {
                 {currentFile
                   ? `Analyzing "${currentFile.name}" (${
                       currentFile.index + 1
-                    }/${currentFile.total})…`
-                  : 'Processing…'}
+                    }/${currentFile.total})...`
+                  : 'Processing...'}
               </span>
             </div>
             <div
@@ -14285,10 +18882,10 @@ function BulkIntake({ data, updateData }) {
             >
               <span style={{ fontSize: 13 }}>
                 {r.status === 'analyzing'
-                  ? '⟳'
+                  ? '-'
                   : r.status === 'done'
-                  ? '✓'
-                  : '✕'}
+                  ? 'ok'
+                  : 'x'}
               </span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: B.text }}>
@@ -14317,7 +18914,7 @@ function BulkIntake({ data, updateData }) {
                 }}
               >
                 {r.status === 'analyzing'
-                  ? 'Analyzing…'
+                  ? 'Analyzing...'
                   : r.status === 'done'
                   ? 'Done'
                   : 'Error'}
@@ -14354,7 +18951,7 @@ function BulkIntake({ data, updateData }) {
                 flexShrink: 0,
               }}
             >
-              ✓
+              ok
             </div>
             <div style={{ flex: 1 }}>
               <div
@@ -14365,12 +18962,12 @@ function BulkIntake({ data, updateData }) {
                   marginBottom: 2,
                 }}
               >
-                Intake complete — {stdsMapped.length} standards updated
+                Intake complete - {stdsMapped.length} standards updated
               </div>
               <div style={{ fontSize: 12, color: '#065f46' }}>
                 {results.filter((r) => r.status === 'done').length}/
-                {results.length} documents analyzed · {totalMappings} total
-                mappings · Evidence attached and compliance status updated
+                {results.length} documents analyzed - {totalMappings} total
+                mappings - Evidence attached and compliance status updated
               </div>
             </div>
             <Btn
@@ -14409,10 +19006,10 @@ function BulkIntake({ data, updateData }) {
               >
                 <span style={{ fontSize: 13 }}>
                   {r.name.endsWith('.pdf')
-                    ? '📕'
+                    ? '-'
                     : r.name.match(/\.(jpg|jpeg|png)$/)
-                    ? '🖼️'
-                    : '📄'}
+                    ? '--'
+                    : '-'}
                 </span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: B.text }}>
@@ -14504,7 +19101,7 @@ function BulkIntake({ data, updateData }) {
         >
           <strong style={{ color: B.text }}>What to drop in:</strong> Your EOP,
           COOP, Hazard Mitigation Plan, training certificates, exercise AARs,
-          MOUs, communications plan, resource inventory, org charts, policies —
+          MOUs, communications plan, resource inventory, org charts, policies -
           any document that demonstrates EMAP compliance. The AI reads each one
           and maps it to the right standards automatically.
         </div>
@@ -14513,9 +19110,9 @@ function BulkIntake({ data, updateData }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    GLOBAL SEARCH
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function GlobalSearch({ data, setView, onClose }) {
   const [query, setQuery] = useState('');
   const inputRef = useRef();
@@ -14543,11 +19140,11 @@ function GlobalSearch({ data, setView, onClose }) {
         hits.push({
           type: 'standard',
           id: s.id,
-          label: `${s.id} — ${s.section.title}`,
-          sub: s.text.slice(0, 80) + '…',
+          label: `${s.id} - ${s.section.title}`,
+          sub: s.text.slice(0, 80) + '...',
           status: rec.status,
           module: 'accreditation',
-          icon: '★',
+          icon: '-',
           color: B.teal,
         });
     });
@@ -14560,9 +19157,9 @@ function GlobalSearch({ data, setView, onClose }) {
           type: 'training',
           id: t.id,
           label: t.person,
-          sub: `${t.type} · ${fmtDate(t.date)}`,
+          sub: `${t.type}  -  ${fmtDate(t.date)}`,
           module: 'training',
-          icon: '◉',
+          icon: '-',
           color: '#14b8a6',
         });
     });
@@ -14575,9 +19172,9 @@ function GlobalSearch({ data, setView, onClose }) {
           type: 'exercise',
           id: e.id,
           label: e.name,
-          sub: `${e.type} · ${fmtDate(e.date)}`,
+          sub: `${e.type}  -  ${fmtDate(e.date)}`,
           module: 'exercises',
-          icon: '◎',
+          icon: '-',
           color: B.purple,
         });
     });
@@ -14590,9 +19187,9 @@ function GlobalSearch({ data, setView, onClose }) {
           type: 'partner',
           id: p.id,
           label: p.name,
-          sub: `${p.agreementType} · ${p.type}`,
+          sub: `${p.agreementType}  -  ${p.type}`,
           module: 'partners',
-          icon: '⊕',
+          icon: '-',
           color: B.blue,
         });
     });
@@ -14607,7 +19204,7 @@ function GlobalSearch({ data, setView, onClose }) {
           label: p.name,
           sub: `${p.type} v${p.version}`,
           module: 'plans',
-          icon: '◈',
+          icon: '-',
           color: B.green,
         });
     });
@@ -14621,9 +19218,9 @@ function GlobalSearch({ data, setView, onClose }) {
           type: 'employee',
           id: e.id,
           label: e.name,
-          sub: `${e.title || ''} · ${e.department || ''}`,
+          sub: `${e.title || ''}  -  ${e.department || ''}`,
           module: 'employees',
-          icon: '👤',
+          icon: '-',
           color: B.indigo,
         });
     });
@@ -14638,7 +19235,7 @@ function GlobalSearch({ data, setView, onClose }) {
           id: g.id,
           label: g.name,
           sub: `${g.type}${
-            g.amount ? ` · $${parseFloat(g.amount).toLocaleString()}` : ''
+            g.amount ? `  -  $${parseFloat(g.amount).toLocaleString()}` : ''
           }`,
           module: 'grants',
           icon: '$',
@@ -14654,9 +19251,9 @@ function GlobalSearch({ data, setView, onClose }) {
           type: 'resource',
           id: r.id,
           label: r.name,
-          sub: `${r.category} · ${r.location || ''}`,
+          sub: `${r.category}  -  ${r.location || ''}`,
           module: 'resources',
-          icon: '⊗',
+          icon: '-',
           color: B.amber,
         });
     });
@@ -14669,11 +19266,11 @@ function GlobalSearch({ data, setView, onClose }) {
           type: 'hazard',
           id: h.id,
           label: h.name,
-          sub: `Risk ${h.probability * h.magnitude}/25 · ${h.type
-            .split('—')[0]
+          sub: `Risk ${h.probability * h.magnitude}/25  -  ${h.type
+            .split('-')[0]
             .trim()}`,
           module: 'thira',
-          icon: '⚠',
+          icon: '-',
           color: B.red,
         });
     });
@@ -14759,7 +19356,7 @@ function GlobalSearch({ data, setView, onClose }) {
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search standards, exercises, personnel, grants, plans…"
+              placeholder="Search standards, exercises, personnel, grants, plans..."
               style={{
                 flex: 1,
                 border: 'none',
@@ -14781,7 +19378,7 @@ function GlobalSearch({ data, setView, onClose }) {
                   fontSize: 16,
                 }}
               >
-                ×
+                -
               </button>
             )}
             <kbd
@@ -14919,7 +19516,7 @@ function GlobalSearch({ data, setView, onClose }) {
                           {item.sub}
                         </div>
                       </div>
-                      <span style={{ fontSize: 11, color: B.border }}>›</span>
+                      <span style={{ fontSize: 11, color: B.border }}>-</span>
                     </button>
                   ))}
                 </div>
@@ -14981,9 +19578,9 @@ function GlobalSearch({ data, setView, onClose }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    ACCREDITATION PACKAGE BUILDER
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 function PackageBuilder({ data, setView }) {
   const [step, setStep] = useState(0);
   const [aiExec, setAiExec] = useState('');
@@ -15021,7 +19618,7 @@ function PackageBuilder({ data, setView }) {
       label: 'Current Emergency Operations Plan',
       status: eop ? 'pass' : 'fail',
       detail: eop
-        ? `${eop.name} v${eop.version} — current`
+        ? `${eop.name} v${eop.version} - current`
         : 'No current EOP found',
       fix: 'plans',
     });
@@ -15032,7 +19629,7 @@ function PackageBuilder({ data, setView }) {
       id: 'coop',
       label: 'Continuity of Operations Plan',
       status: coop ? 'pass' : 'warn',
-      detail: coop ? `${coop.name} — current` : 'No COOP on file',
+      detail: coop ? `${coop.name} - current` : 'No COOP on file',
       fix: 'plans',
     });
     const hmp = data.plans?.find((p) => p.type === 'Hazard Mitigation Plan');
@@ -15040,7 +19637,7 @@ function PackageBuilder({ data, setView }) {
       id: 'hmp',
       label: 'Hazard Mitigation Plan',
       status: hmp ? 'pass' : 'warn',
-      detail: hmp ? `${hmp.name} — on file` : 'No Hazard Mitigation Plan',
+      detail: hmp ? `${hmp.name} - on file` : 'No Hazard Mitigation Plan',
       fix: 'plans',
     });
     const hz = data.thira?.hazards || [];
@@ -15054,7 +19651,7 @@ function PackageBuilder({ data, setView }) {
           : hz.length > 0
           ? `Only ${hz.length} hazard${
               hz.length > 1 ? 's' : ''
-            } — 3+ recommended`
+            } - 3+ recommended`
           : 'No hazards profiled',
       fix: 'thira',
     });
@@ -15068,7 +19665,7 @@ function PackageBuilder({ data, setView }) {
         exAAR >= 1
           ? `${exAAR} exercise${exAAR > 1 ? 's' : ''} with final AAR`
           : data.exercises?.length > 0
-          ? 'Exercises on file — finalize AARs'
+          ? 'Exercises on file - finalize AARs'
           : 'No exercises on file',
       fix: 'exercises',
     });
@@ -15081,7 +19678,7 @@ function PackageBuilder({ data, setView }) {
         tc >= 5
           ? `${tc} training records`
           : tc > 0
-          ? `${tc} record${tc > 1 ? 's' : ''} — add more`
+          ? `${tc} record${tc > 1 ? 's' : ''} - add more`
           : 'No training records',
       fix: 'training',
     });
@@ -15093,7 +19690,7 @@ function PackageBuilder({ data, setView }) {
       label: 'Active mutual aid agreements (EMAP 4.7)',
       status: am >= 3 ? 'pass' : am > 0 ? 'warn' : 'fail',
       detail:
-        am >= 3 ? `${am} active agreements` : `${am} active — 3+ recommended`,
+        am >= 3 ? `${am} active agreements` : `${am} active - 3+ recommended`,
       fix: 'partners',
     });
     const gf = (data.grants || []).filter((g) => g.status === 'active').length;
@@ -15120,7 +19717,7 @@ function PackageBuilder({ data, setView }) {
       detail:
         oc === 0
           ? 'All corrective actions closed'
-          : `${oc} open — address before submission`,
+          : `${oc} open - address before submission`,
       fix: 'cap',
     });
     return c;
@@ -15134,18 +19731,18 @@ function PackageBuilder({ data, setView }) {
   const readyToSubmit = failCount === 0 && overall.pct >= 50;
   const SC = {
     pass: {
-      icon: '✓',
+      icon: 'ok',
       color: B.green,
       bg: B.greenLight,
       border: B.greenBorder,
     },
     warn: {
-      icon: '△',
+      icon: '-',
       color: B.amber,
       bg: B.amberLight,
       border: B.amberBorder,
     },
-    fail: { icon: '✕', color: B.red, bg: B.redLight, border: B.redBorder },
+    fail: { icon: 'x', color: B.red, bg: B.redLight, border: B.redBorder },
   };
   const genExec = async () => {
     setAiLoad(true);
@@ -15161,26 +19758,27 @@ function PackageBuilder({ data, setView }) {
           data.orgName || 'this jurisdiction'
         }" for submission to an assessor.\nOrg: ${
           data.orgName || 'Unknown'
-        } · State: ${data.state || 'Unknown'} · Jurisdiction: ${
+        }  -  State: ${data.state || 'Unknown'}  -  Jurisdiction: ${
           data.jurisdiction || 'Unknown'
-        }\nPrimary EM: ${data.emName || 'Unknown'} · ${
+        }\nPrimary EM: ${data.emName || 'Unknown'}  -  ${
           data.emTitle || ''
         }\nEMAP: ${overall.compliant}/${
           overall.total
-        } standards · ${compliantSections}/17 sections\nTraining: ${
+        } standards  -  ${compliantSections}/17 sections\nTraining: ${
           data.training?.length || 0
-        } · Exercises: ${data.exercises?.length || 0} (${
+        }  -  Exercises: ${data.exercises?.length || 0} (${
           data.exercises?.filter((e) => e.aarFinal)?.length || 0
-        } with final AAR)\nPartners: ${data.partners?.length || 0} · Plans: ${
+        } with final AAR)\nPartners: ${data.partners?.length || 0}  -  Plans: ${
           data.plans?.length || 0
-        } · Personnel: ${(data.employees || []).length}\nGrants: ${
+        }  -  Personnel: ${(data.employees || []).length}\nGrants: ${
           (data.grants || []).filter((g) => g.status === 'active').length
-        } active · Hazards: ${
+        } active  -  Hazards: ${
           (data.thira?.hazards || []).length
         } profiled\nItems being addressed: ${
           issues || 'none'
         }\nUse formal government document tone. Be specific about strengths and honest about items being addressed.`,
-        (chunk) => setAiExec((p) => p + chunk)
+        (chunk) => setAiExec((p) => p + chunk),
+        'exec_summary'
       );
     } catch {
       setAiExec('Error generating summary.');
@@ -15208,10 +19806,11 @@ function PackageBuilder({ data, setView }) {
           Accreditation Package Builder
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          Step-by-step assembly of your EMAP submission — readiness check,
+          Step-by-step assembly of your EMAP submission - readiness check,
           compliance summary, executive summary, and final review.
         </p>
       </div>
+      <CoachBanner moduleId="package" />
       {/* Step tabs */}
       <div
         style={{
@@ -15267,7 +19866,7 @@ function PackageBuilder({ data, setView }) {
                 flexShrink: 0,
               }}
             >
-              {step > i ? '✓' : i + 1}
+              {step > i ? 'ok' : i + 1}
             </span>
             {s.label}
           </button>
@@ -15375,7 +19974,7 @@ function PackageBuilder({ data, setView }) {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      Fix →
+                      Fix -
                     </button>
                   )}
                 </div>
@@ -15390,14 +19989,14 @@ function PackageBuilder({ data, setView }) {
               alignItems: 'center',
             }}
           >
-            <Btn label="Continue →" onClick={() => setStep(1)} primary />
+            <Btn label="Continue -" onClick={() => setStep(1)} primary />
             {readyToSubmit ? (
               <span style={{ fontSize: 12, color: B.green, fontWeight: 600 }}>
-                ✓ Program meets minimum EMAP submission threshold
+                ok Program meets minimum EMAP submission threshold
               </span>
             ) : (
               <span style={{ fontSize: 12, color: B.amber }}>
-                △ {failCount} critical item{failCount !== 1 ? 's' : ''} should
+                - {failCount} critical item{failCount !== 1 ? 's' : ''} should
                 be resolved before submission
               </span>
             )}
@@ -15430,7 +20029,7 @@ function PackageBuilder({ data, setView }) {
                   {data.orgName || 'Your Organization'}
                 </div>
                 <div style={{ fontSize: 11, opacity: 0.8 }}>
-                  EMAP EMS 5-2022 ·{' '}
+                  EMAP EMS 5-2022 -{' '}
                   {new Date().toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
@@ -15533,8 +20132,8 @@ function PackageBuilder({ data, setView }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn label="← Back" onClick={() => setStep(0)} />
-            <Btn label="Continue →" onClick={() => setStep(2)} primary />
+            <Btn label="- Back" onClick={() => setStep(0)} />
+            <Btn label="Continue -" onClick={() => setStep(2)} primary />
           </div>
         </div>
       )}
@@ -15572,7 +20171,7 @@ function PackageBuilder({ data, setView }) {
                 AI Executive Summary Generator
               </div>
               <Btn
-                label={aiLoad ? '⟳ Writing…' : 'Generate Executive Summary'}
+                label={aiLoad ? '- Writing...' : 'Generate Executive Summary'}
                 onClick={genExec}
                 loading={aiLoad}
                 primary
@@ -15581,7 +20180,7 @@ function PackageBuilder({ data, setView }) {
             </div>
             <div style={{ fontSize: 12, color: B.tealDark }}>
               Writes a professional 3-paragraph narrative using your live
-              program data — ready for submission or board presentation.
+              program data - ready for submission or board presentation.
             </div>
           </div>
           {!aiExec && !aiLoad && (
@@ -15620,7 +20219,7 @@ function PackageBuilder({ data, setView }) {
                   marginBottom: 8,
                 }}
               >
-                Executive Summary — {data.orgName || 'Your Organization'}
+                Executive Summary - {data.orgName || 'Your Organization'}
               </div>
               <div
                 style={{
@@ -15677,15 +20276,15 @@ function PackageBuilder({ data, setView }) {
                     fontWeight: 700,
                   }}
                 >
-                  ↓ Download .txt
+                  - Download .txt
                 </button>
                 <Btn label="Regenerate" onClick={genExec} small />
               </div>
             </div>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn label="← Back" onClick={() => setStep(1)} />
-            <Btn label="Continue →" onClick={() => setStep(3)} primary />
+            <Btn label="- Back" onClick={() => setStep(1)} />
+            <Btn label="Continue -" onClick={() => setStep(3)} primary />
           </div>
         </div>
       )}
@@ -15720,7 +20319,7 @@ function PackageBuilder({ data, setView }) {
                 flexShrink: 0,
               }}
             >
-              {readyToSubmit ? '✓' : '△'}
+              {readyToSubmit ? 'ok' : '-'}
             </div>
             <div>
               <div
@@ -15742,7 +20341,7 @@ function PackageBuilder({ data, setView }) {
                 }}
               >
                 {readyToSubmit
-                  ? `${overall.pct}% compliant · ${passCount}/${checks.length} checks passing · All critical items resolved`
+                  ? `${overall.pct}% compliant  -  ${passCount}/${checks.length} checks passing  -  All critical items resolved`
                   : `${failCount} critical item${
                       failCount !== 1 ? 's' : ''
                     } and ${warnCount} warning${
@@ -15761,14 +20360,14 @@ function PackageBuilder({ data, setView }) {
           >
             {[
               {
-                icon: '★',
+                icon: '-',
                 label: 'EMAP Standards',
                 val: `${overall.compliant}/${overall.total} (${overall.pct}%)`,
                 ok: overall.pct >= 50,
                 mod: 'accreditation',
               },
               {
-                icon: '◎',
+                icon: '-',
                 label: 'Exercise AARs',
                 val: `${
                   data.exercises?.filter((e) => e.aarFinal)?.length || 0
@@ -15778,7 +20377,7 @@ function PackageBuilder({ data, setView }) {
                 mod: 'exercises',
               },
               {
-                icon: '◈',
+                icon: '-',
                 label: 'Current Plans',
                 val: `${
                   data.plans?.filter((p) => p.status === 'current')?.length || 0
@@ -15789,7 +20388,7 @@ function PackageBuilder({ data, setView }) {
                 mod: 'plans',
               },
               {
-                icon: '⊕',
+                icon: '-',
                 label: 'Partner Agreements',
                 val: `${
                   (data.partners || []).filter(
@@ -15803,14 +20402,14 @@ function PackageBuilder({ data, setView }) {
                 mod: 'partners',
               },
               {
-                icon: '◉',
+                icon: '-',
                 label: 'Training Records',
                 val: `${data.training?.length || 0} records`,
                 ok: (data.training?.length || 0) >= 5,
                 mod: 'training',
               },
               {
-                icon: '⚠',
+                icon: '-',
                 label: 'Open Corrective Actions',
                 val: `${
                   (data.capItems || []).filter((c) => !c.closed).length +
@@ -15869,7 +20468,7 @@ function PackageBuilder({ data, setView }) {
                       color: item.ok ? B.green : B.amber,
                     }}
                   >
-                    {item.ok ? '✓' : '△'}
+                    {item.ok ? 'ok' : '-'}
                   </span>
                 </div>
                 <div
@@ -15889,7 +20488,7 @@ function PackageBuilder({ data, setView }) {
             ))}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Btn label="← Back" onClick={() => setStep(2)} />
+            <Btn label="- Back" onClick={() => setStep(2)} />
             <button
               onClick={() => window.print()}
               style={{
@@ -15904,7 +20503,7 @@ function PackageBuilder({ data, setView }) {
                 fontFamily: "'DM Sans',sans-serif",
               }}
             >
-              🖨 Print Full Package
+              - Print Full Package
             </button>
             <Btn label="View Reports" onClick={() => setView('reports')} />
             {!readyToSubmit && (
@@ -15917,9 +20516,9 @@ function PackageBuilder({ data, setView }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
-   ACCREDITATION JOURNEY — 6-step EMAP process tracker
-═══════════════════════════════════════════════════════ */
+/* -------------------------------------------------------
+   ACCREDITATION JOURNEY - 6-step EMAP process tracker
+------------------------------------------------------- */
 function AccreditationJourney({ data, updateData, setView }) {
   const journey = data.journey || {};
   const overall = useMemo(
@@ -15992,7 +20591,7 @@ function AccreditationJourney({ data, updateData, setView }) {
       details: [
         'Annual subscription: $900/yr',
         'Accreditation Manager must attend Standard Training',
-        'Training cost varies — contact EMAP',
+        'Training cost varies - contact EMAP',
         'Access to Assessment Platform (PowerDMS)',
       ],
       checks: [
@@ -16001,7 +20600,7 @@ function AccreditationJourney({ data, updateData, setView }) {
         { label: 'Standard Training completed', key: 'trainingComplete' },
       ],
       color: B.blue,
-      tip: 'Start here. Training should happen as early as possible — ideally within 30 days of subscribing.',
+      tip: 'Start here. Training should happen as early as possible - ideally within 30 days of subscribing.',
     },
     {
       n: 2,
@@ -16016,7 +20615,7 @@ function AccreditationJourney({ data, updateData, setView }) {
       checks: [],
       color: B.teal,
       progress: {
-        label: `${overall.compliant}/73 standards documented · ${docsWithRationale}/${totalDocs} rationales written`,
+        label: `${overall.compliant}/73 standards documented  -  ${docsWithRationale}/${totalDocs} rationales written`,
         pct: overall.pct,
       },
       tip: `PLANRR builds your self-assessment in real time. You currently have ${overall.compliant} compliant standards and ${docsWithRationale} rationales written.`,
@@ -16041,7 +20640,7 @@ function AccreditationJourney({ data, updateData, setView }) {
         { label: 'Target assessment date', key: 'targetAssessmentDate' },
       ],
       color: B.purple,
-      tip: "Don't wait until you're at 100% to apply. Apply when you're at ~80% compliant — you'll complete the rest during the application period with EMAP support.",
+      tip: "Don't wait until you're at 100% to apply. Apply when you're at ~80% compliant - you'll complete the rest during the application period with EMAP support.",
     },
     {
       n: 4,
@@ -16066,7 +20665,7 @@ function AccreditationJourney({ data, updateData, setView }) {
         { label: 'Supplemental period ends', key: 'supplementalEndDate' },
       ],
       color: B.amber,
-      tip: 'The assessors get access to your documents 3 weeks before arrival — their preliminary review happens before they even land.',
+      tip: 'The assessors get access to your documents 3 weeks before arrival - their preliminary review happens before they even land.',
     },
     {
       n: 5,
@@ -16076,8 +20675,8 @@ function AccreditationJourney({ data, updateData, setView }) {
         'Program representative strongly encouraged to attend',
         'Commission outcomes: Accredited / Conditional / Denied',
         'Conditional: up to 9 months to resolve gaps',
-        '≤5 non-compliant: virtual conditional assessment',
-        '≥6 non-compliant: on-site conditional assessment',
+        '-5 non-compliant: virtual conditional assessment',
+        '-6 non-compliant: on-site conditional assessment',
         'Appeal window: 30 business days after decision',
       ],
       checks: [
@@ -16089,7 +20688,7 @@ function AccreditationJourney({ data, updateData, setView }) {
         { label: 'Commission decision date', key: 'commissionDate' },
       ],
       color: B.red,
-      tip: "Attend the PRC meeting — you can respond to questions and clarify findings. After the meeting you're excused while they vote.",
+      tip: "Attend the PRC meeting - you can respond to questions and clarify findings. After the meeting you're excused while they vote.",
     },
     {
       n: 6,
@@ -16114,7 +20713,7 @@ function AccreditationJourney({ data, updateData, setView }) {
         { label: 'Accreditation expires', key: 'expiryDate' },
       ],
       color: B.green,
-      tip: 'Set a calendar reminder 18 months before expiry — consecutive accreditation applications are due 12 months before, and late applications lose technical assistance.',
+      tip: 'Set a calendar reminder 18 months before expiry - consecutive accreditation applications are due 12 months before, and late applications lose technical assistance.',
     },
   ];
 
@@ -16128,20 +20727,20 @@ function AccreditationJourney({ data, updateData, setView }) {
     const j = data.jurisdiction || '';
     if (j.includes('State'))
       return {
-        accred: '$4,500–$7,500',
+        accred: '$4,500-$7,500',
         app: '$9,000',
-        total: '$13,500–$16,500+travel',
+        total: '$13,500-$16,500+travel',
       };
     if (j.includes('Municipal') || j.includes('County') || j.includes('Parish'))
       return {
-        accred: '$2,000–$4,500',
+        accred: '$2,000-$4,500',
         app: '$9,000',
-        total: '$11,000–$13,500+travel',
+        total: '$11,000-$13,500+travel',
       };
     return {
-      accred: '$2,000–$7,500',
+      accred: '$2,000-$7,500',
       app: '$9,000',
-      total: '$11,000–$16,500+travel',
+      total: '$11,000-$16,500+travel',
     };
   }, [data.jurisdiction]);
 
@@ -16189,10 +20788,11 @@ function AccreditationJourney({ data, updateData, setView }) {
           Accreditation Journey
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
-          EMAP 6-step accreditation process · track your progress · key
+          EMAP 6-step accreditation process - track your progress - key
           deadlines and fees
         </p>
       </div>
+      <CoachBanner moduleId="journey" />
 
       {/* Overall progress bar */}
       <div
@@ -16245,13 +20845,13 @@ function AccreditationJourney({ data, updateData, setView }) {
         </div>
         <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11 }}>
           <span style={{ color: B.green, fontWeight: 600 }}>
-            ✓ {stepStatus.filter((s) => s === 'complete').length} complete
+            ok {stepStatus.filter((s) => s === 'complete').length} complete
           </span>
           <span style={{ color: B.teal, fontWeight: 600 }}>
-            ◑ {stepStatus.filter((s) => s === 'active').length} in progress
+            - {stepStatus.filter((s) => s === 'active').length} in progress
           </span>
           <span style={{ color: B.faint }}>
-            ○ {stepStatus.filter((s) => s === 'pending').length} upcoming
+            o {stepStatus.filter((s) => s === 'pending').length} upcoming
           </span>
           <span style={{ marginLeft: 'auto', color: B.faint }}>
             Estimated total cost:{' '}
@@ -16321,14 +20921,14 @@ function AccreditationJourney({ data, updateData, setView }) {
                     flexShrink: 0,
                   }}
                 >
-                  {sc === 'complete' ? '✓' : step.n}
+                  {sc === 'complete' ? 'ok' : step.n}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: B.text }}>
                     {step.label}
                   </div>
                   <div style={{ fontSize: 11, color: B.faint, marginTop: 1 }}>
-                    {step.desc.slice(0, 80)}…
+                    {step.desc.slice(0, 80)}...
                   </div>
                 </div>
                 {step.progress && (
@@ -16394,7 +20994,7 @@ function AccreditationJourney({ data, updateData, setView }) {
                     flexShrink: 0,
                   }}
                 >
-                  ▼
+                  -
                 </span>
               </div>
 
@@ -16457,7 +21057,8 @@ function AccreditationJourney({ data, updateData, setView }) {
                                 marginTop: 1,
                               }}
                             >
-                              ·
+                              {' '}
+                              -{' '}
                             </span>
                             {d}
                           </div>
@@ -16575,7 +21176,7 @@ function AccreditationJourney({ data, updateData, setView }) {
                             marginBottom: 5,
                           }}
                         >
-                          💡 Tip
+                          - Tip
                         </div>
                         <div
                           style={{
@@ -16616,7 +21217,7 @@ function AccreditationJourney({ data, updateData, setView }) {
                               fontWeight: 700,
                             }}
                           >
-                            Open EMAP Standards →
+                            Open EMAP Standards -
                           </button>
                         </div>
                       )}
@@ -16642,7 +21243,7 @@ function AccreditationJourney({ data, updateData, setView }) {
                           marginBottom: 6,
                         }}
                       >
-                        ◈ Consider Tiered Accreditation first
+                        - Consider Tiered Accreditation first
                       </div>
                       <div
                         style={{
@@ -16654,7 +21255,7 @@ function AccreditationJourney({ data, updateData, setView }) {
                       >
                         Your Tier 1 compliance (Ch.3 + HIRA + Mitigation) is at{' '}
                         <strong>{tier1Pct}%</strong>. Programs under 60% overall
-                        often start with the Tiered Accreditation pathway —
+                        often start with the Tiered Accreditation pathway -
                         certifying in specific standard areas before pursuing
                         full accreditation. Each tier is valid for 4 years, and
                         achieving all four tiers upgrades to full accreditation
@@ -16674,7 +21275,7 @@ function AccreditationJourney({ data, updateData, setView }) {
                           fontWeight: 700,
                         }}
                       >
-                        View Tiered Pathway in Package Builder →
+                        View Tiered Pathway in Package Builder -
                       </button>
                     </div>
                   )}
@@ -16716,7 +21317,7 @@ function AccreditationJourney({ data, updateData, setView }) {
             { l: 'Subscription', v: '$900/yr' },
             { l: 'Application fee', v: feeEstimate.app },
             { l: 'Accreditation fee', v: feeEstimate.accred },
-            { l: 'Travel (estimate)', v: '$3,000–$8,000' },
+            { l: 'Travel (estimate)', v: '$3,000-$8,000' },
           ].map((s) => (
             <div
               key={s.l}
@@ -16747,705 +21348,2177 @@ function AccreditationJourney({ data, updateData, setView }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    ONBOARDING
-═══════════════════════════════════════════════════════ */
+------------------------------------------------------- */
 
-/* ═══════════════════════════════════════════════════════
-   LANDING PAGE — home screen at planrr.app
+/* -------------------------------------------------------
+   LANDING PAGE - home screen at planrr.app
    Matches marketing one-pager theme exactly
-═══════════════════════════════════════════════════════ */
-function LandingPage({ onLogin, onSignup }) {
-  return (
-    <div
-      style={{
-        fontFamily: 'DM Sans,sans-serif',
-        background: '#080f1e',
-        minHeight: '100vh',
-        color: '#f0f4fa',
-        backgroundImage:
-          'linear-gradient(rgba(194,150,74,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(194,150,74,0.03) 1px,transparent 1px)',
-        backgroundSize: '52px 52px',
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 50,
-          borderBottom: '1px solid rgba(194,150,74,0.22)',
-          padding: '14px 40px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          background: 'rgba(8,15,30,0.92)',
-          backdropFilter: 'blur(10px)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div
-            style={{
-              fontFamily: 'Syne,DM Sans,sans-serif',
-              fontSize: 20,
-              fontWeight: 800,
-              letterSpacing: '-0.5px',
-            }}
-          >
-            <span style={{ color: '#f0f4fa' }}>planrr</span>
-            <span style={{ color: GOLD }}>.app</span>
-          </div>
-          <div
-            style={{
-              fontFamily: 'DM Mono,monospace',
-              fontSize: 9,
-              color: '#475569',
-              letterSpacing: '0.14em',
-              textTransform: 'uppercase',
-              marginLeft: 6,
-            }}
-          >
-            Early Access
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div
-            style={{
-              fontFamily: 'DM Mono,monospace',
-              fontSize: 10,
-              color: GOLD,
-              border: '1px solid rgba(194,150,74,0.22)',
-              padding: '4px 12px',
-              borderRadius: 2,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-            }}
-          >
-            EMAP EMS 5-2022
-          </div>
-          <button
-            onClick={onLogin}
-            style={{
-              background: 'none',
-              color: '#94a3b8',
-              border: '1px solid #1e3a5f',
-              borderRadius: 6,
-              padding: '8px 18px',
-              fontSize: 13,
-              cursor: 'pointer',
-              fontFamily: 'DM Sans,sans-serif',
-            }}
-          >
-            Sign In
-          </button>
-          <button
-            onClick={onSignup}
-            style={{
-              background: GOLD,
-              color: '#080f1e',
-              border: 'none',
-              borderRadius: 6,
-              padding: '8px 18px',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontFamily: 'DM Sans,sans-serif',
-            }}
-          >
-            Get Started
-          </button>
-        </div>
-      </div>
+------------------------------------------------------- */
 
-      {/* Hero */}
-      <div
-        style={{ maxWidth: 1100, margin: '0 auto', padding: '80px 40px 72px' }}
-      >
-        <div
-          style={{
-            fontFamily: 'DM Mono,monospace',
-            fontSize: 11,
-            color: GOLD,
-            letterSpacing: '0.2em',
-            textTransform: 'uppercase',
-            marginBottom: 20,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
-          <div style={{ width: 28, height: 1, background: GOLD }} />
-          Emergency Management Platform
-        </div>
+/* -------------------------------------------------------
+   DOCUMENT TEMPLATES LIBRARY (AI Pre-fill)
+------------------------------------------------------- */
+const DOC_TEMPLATES = [
+  {
+    id: 'strategic_plan',
+    name: 'Multi-Year Strategic Plan',
+    emap: '3.1.1',
+    desc: 'Vision, mission, goals, objectives, milestones, and evaluation process. Required for EMAP 3.1.1.',
+    sections: [
+      'Executive Summary',
+      'Vision Statement',
+      'Mission Statement',
+      'Goals & Objectives',
+      'Implementation Timeline',
+      'Stakeholder Input Process',
+      'Evaluation & Revision Schedule',
+    ],
+  },
+  {
+    id: 'coop',
+    name: 'Continuity of Operations Plan (COOP)',
+    emap: '4.4.2',
+    desc: 'Ensures continued operations during disruptions. Addresses essential functions, succession, alternate facilities.',
+    sections: [
+      'Purpose & Scope',
+      'Authority',
+      'Essential Functions',
+      'Orders of Succession',
+      'Delegation of Authority',
+      'Alternate Facilities',
+      'Vital Records',
+      'Communications',
+      'Reconstitution',
+    ],
+  },
+  {
+    id: 'resource_mgmt',
+    name: 'Resource Management Plan',
+    emap: '4.7.1',
+    desc: 'Goals/objectives, gap analysis, resource systems, donations and volunteer management.',
+    sections: [
+      'Purpose & Scope',
+      'Goals & Objectives',
+      'Resource Gap Analysis',
+      'Resource Management Systems',
+      'Mutual Aid Agreements',
+      'Donations Management',
+      'Volunteer Management',
+      'Maintenance Schedule',
+    ],
+  },
+  {
+    id: 'comms_plan',
+    name: 'Communications Plan',
+    emap: '4.8.1',
+    desc: 'Internal/external communications, alert/notification, public warning including vulnerable populations.',
+    sections: [
+      'Purpose & Scope',
+      'Internal Communications',
+      'External Communications',
+      'Alert & Notification Procedures',
+      'Public Warning Systems',
+      'Vulnerable Population Outreach',
+      'Interoperability',
+      'Testing Schedule',
+    ],
+  },
+  {
+    id: 'training_plan',
+    name: 'Training Plan',
+    emap: '4.10.1',
+    desc: 'Training needs assessment, curriculum, evaluations, records retention, and scheduling.',
+    sections: [
+      'Purpose & Scope',
+      'Training Needs Assessment',
+      'Training Goals & Objectives',
+      'Curriculum & Course Catalog',
+      'Scheduling',
+      'Personnel Requirements',
+      'Course Evaluations',
+      'Records & Retention',
+      'Maintenance Process',
+    ],
+  },
+  {
+    id: 'exercise_plan',
+    name: 'Exercise Plan',
+    emap: '4.11.1',
+    desc: 'Multi-year exercise, evaluation, and corrective action plan based on identified hazards.',
+    sections: [
+      'Purpose & Scope',
+      'Exercise Goals & Objectives',
+      'Multi-Year Schedule',
+      'Exercise Types (HSEEP)',
+      'Evaluation Framework',
+      'After-Action Process',
+      'Corrective Action Tracking',
+      'Maintenance Process',
+    ],
+  },
+];
+
+function DocTemplatesView({ data, orgName }) {
+  const [selected, setSelected] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState({});
+  const [partnerOpen, setPartnerOpen] = useState(null);
+  const ctx = `Organization: "${orgName || 'My Agency'}". Jurisdiction: ${
+    data.jurisdiction || 'Unknown'
+  }. State: ${data.state || 'Unknown'}. THIRA Hazards: ${
+    (data.thira?.hazards || []).map((h) => h.type).join(', ') || 'None profiled'
+  }. Plans on file: ${
+    (data.plans || []).map((p) => p.name).join(', ') || 'None'
+  }. Personnel: ${(data.employees || []).length}. Standards compliance: ${
+    Object.values(data.standards || {}).filter((s) => s.status === 'compliant')
+      .length
+  }/73.`;
+  const generate = async (tpl) => {
+    setGenerating(true);
+    const sys =
+      'You are an expert emergency management document writer. Generate a professional, ready-to-customize document template. Use the organization context provided. Output clear section headers and practical content. Be specific to emergency management best practices and EMAP EMS 5-2022 requirements.';
+    const prompt = `Generate a complete ${
+      tpl.name
+    } document for this EM program. Context: ${ctx}. Include these sections: ${tpl.sections.join(
+      ', '
+    )}. For each section, provide substantive starter content that the user can customize. Include placeholder brackets [CUSTOMIZE] where org-specific details are needed. Make it practical and ready to use.`;
+    let result = '';
+    try {
+      await callAI(sys, prompt, (chunk) => {
+        result += chunk;
+        setGenerated((p) => ({ ...p, [tpl.id]: result }));
+      }, 'template_gen');
+    } catch {
+      setGenerated((p) => ({
+        ...p,
+        [tpl.id]:
+          'Error generating template. Check your AI credits and try again.',
+      }));
+    }
+    setGenerating(false);
+  };
+  return (
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 960 }}>
+      <div style={{ marginBottom: 20 }}>
         <h1
           style={{
-            fontFamily: 'Syne,DM Sans,sans-serif',
-            fontSize: 'clamp(38px,5vw,64px)',
+            fontSize: 22,
             fontWeight: 800,
-            lineHeight: 1.06,
-            letterSpacing: '-2px',
-            marginBottom: 22,
+            color: B.text,
+            letterSpacing: '-0.3px',
           }}
         >
-          Your EM program.
-          <br />
-          Running at full strength.
-          <br />
-          <span style={{ color: GOLD }}>Every single day.</span>
+          Document Templates
         </h1>
-        <p
-          style={{
-            fontSize: 17,
-            color: '#94a3b8',
-            maxWidth: 560,
-            lineHeight: 1.75,
-            marginBottom: 14,
-            fontWeight: 300,
-          }}
-        >
-          planrr.app is the all-in-one platform for emergency management
-          programs that need to operate at a high standard 365 days a year.
+        <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
+          AI-powered templates pre-filled with your program data. Customize and
+          export for EMAP compliance.
         </p>
-        <p
-          style={{
-            fontFamily: 'DM Mono,monospace',
-            fontSize: 11,
-            color: '#475569',
-            maxWidth: 560,
-            lineHeight: 1.7,
-            marginBottom: 40,
-            borderLeft: '2px solid rgba(194,150,74,0.22)',
-            paddingLeft: 14,
-          }}
-        >
-          Over 50% of local EM agencies have one or fewer full-time permanent
-          staff. planrr.app was built for them.
-        </p>
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-          <button
-            onClick={onSignup}
-            style={{
-              background: GOLD,
-              color: '#080f1e',
-              border: 'none',
-              padding: '13px 28px',
-              fontFamily: 'Syne,DM Sans,sans-serif',
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              borderRadius: 4,
-            }}
-          >
-            Request Early Access
-          </button>
-          <button
-            onClick={onLogin}
-            style={{
-              border: '1px solid rgba(194,150,74,0.22)',
-              color: GOLD,
-              background: 'none',
-              padding: '12px 24px',
-              fontFamily: 'DM Mono,monospace',
-              fontSize: 12,
-              letterSpacing: '0.08em',
-              cursor: 'pointer',
-              borderRadius: 4,
-            }}
-          >
-            Sign In to Your Program
-          </button>
-        </div>
       </div>
-
-      {/* Stats strip */}
+      <CoachBanner moduleId="templates" />
       <div
         style={{
-          borderTop: '1px solid rgba(194,150,74,0.22)',
-          borderBottom: '1px solid rgba(194,150,74,0.22)',
-          background: 'rgba(13,24,41,0.85)',
           display: 'grid',
-          gridTemplateColumns: 'repeat(4,1fr)',
+          gridTemplateColumns: 'repeat(3,1fr)',
+          gap: 10,
+          marginBottom: 20,
         }}
       >
-        {[
-          ['73', 'EMAP Standards Tracked'],
-          ['64', 'FEMA Core Capabilities'],
-          ['6', 'Step Accreditation Journey'],
-          ['100%', 'AI-Powered Guidance'],
-        ].map(([n, l]) => (
-          <div
-            key={l}
+        {DOC_TEMPLATES.map((tpl) => (
+          <Card
+            key={tpl.id}
             style={{
-              padding: '28px clamp(24px,3vw,48px)',
-              borderRight: '1px solid rgba(194,150,74,0.12)',
+              padding: '16px 18px',
+              cursor: 'pointer',
+              border: `1px solid ${
+                selected?.id === tpl.id ? B.teal : B.border
+              }`,
+              transition: 'all 0.15s',
             }}
+            onClick={() => setSelected(tpl)}
           >
-            <div
-              style={{
-                fontFamily: 'Syne,DM Sans,sans-serif',
-                fontSize: 36,
-                fontWeight: 800,
-                color: GOLD,
-                lineHeight: 1,
-                marginBottom: 6,
-              }}
-            >
-              {n}
-            </div>
-            <div
-              style={{
-                fontFamily: 'DM Mono,monospace',
-                fontSize: 10,
-                color: '#475569',
-                letterSpacing: '0.13em',
-                textTransform: 'uppercase',
-                lineHeight: 1.5,
-              }}
-            >
-              {l}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Features */}
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '72px 40px' }}>
-        <div
-          style={{
-            fontFamily: 'DM Mono,monospace',
-            fontSize: 10,
-            color: GOLD,
-            letterSpacing: '0.2em',
-            textTransform: 'uppercase',
-            marginBottom: 10,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-          }}
-        >
-          <div style={{ width: 20, height: 1, background: GOLD }} />
-          The Platform
-        </div>
-        <h2
-          style={{
-            fontFamily: 'Syne,DM Sans,sans-serif',
-            fontSize: 'clamp(24px,3vw,36px)',
-            fontWeight: 700,
-            letterSpacing: '-1px',
-            marginBottom: 12,
-          }}
-        >
-          Everything your program needs.
-          <br />
-          <span style={{ color: GOLD }}>One place.</span>
-        </h2>
-        <p
-          style={{
-            color: '#94a3b8',
-            fontSize: 15,
-            fontWeight: 300,
-            maxWidth: 560,
-            lineHeight: 1.75,
-            marginBottom: 48,
-          }}
-        >
-          Built around EMAP EMS 5-2022, HSEEP, and CPG 201. Every module talks
-          to every other module. Your compliance picture builds automatically as
-          you work.
-        </p>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3,1fr)',
-            gap: 2,
-          }}
-        >
-          {[
-            [
-              'EMAP Standards',
-              'Track all 73 EMS 5-2022 standards. Upload evidence, write rationale, get AI interpretation. Your compliance picture updates in real time.',
-              'Accreditation Core',
-            ],
-            [
-              'Bulk Document Intake',
-              'Drop your existing EOP, COOP, and AARs. AI reads each one and maps it to the correct EMAP standards automatically.',
-              'AI-Powered',
-            ],
-            [
-              'Exercises & AARs',
-              'Full HSEEP workflow with AI-generated After-Action Reports. Corrective actions auto-populate your CAP dashboard.',
-              'HSEEP Aligned',
-            ],
-            [
-              'SPAR / THIRA',
-              'Import your existing THIRA document — AI extracts every hazard. Or generate a full CPG 201-compliant SPR document from scratch.',
-              'EMAP 4.1',
-            ],
-            [
-              'Accreditation Journey',
-              '6-step process tracker with real deadlines, fee estimates, and checklists built from the EMAP Applicant Guide.',
-              'October 2025',
-            ],
-            [
-              'Grant Tracker',
-              'Track EMPG, UASI, HMGP and all active grants. Deliverable alerts surface automatically before deadlines are missed.',
-              'EMAP 3.4',
-            ],
-          ].map(([t, d, tag]) => (
-            <div
-              key={t}
-              style={{
-                background: '#0d1829',
-                border: '1px solid #1a2d47',
-                padding: '28px 24px',
-                transition: 'all 0.2s',
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: 'Syne,DM Sans,sans-serif',
-                  fontSize: 15,
-                  fontWeight: 700,
-                  marginBottom: 8,
-                }}
-              >
-                {t}
-              </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: '#94a3b8',
-                  lineHeight: 1.65,
-                  marginBottom: 14,
-                  fontWeight: 300,
-                }}
-              >
-                {d}
-              </div>
-              <div
-                style={{
-                  fontFamily: 'DM Mono,monospace',
-                  fontSize: 9,
-                  color: GOLD,
-                  border: '1px solid rgba(194,150,74,0.22)',
-                  padding: '2px 8px',
-                  display: 'inline-block',
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                {tag}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Pricing */}
-      <div
-        style={{
-          borderTop: '1px solid #1a2d47',
-          borderBottom: '1px solid #1a2d47',
-          background: 'rgba(13,24,41,0.85)',
-        }}
-      >
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '72px 40px' }}>
-          <div
-            style={{
-              fontFamily: 'DM Mono,monospace',
-              fontSize: 10,
-              color: GOLD,
-              letterSpacing: '0.2em',
-              textTransform: 'uppercase',
-              marginBottom: 10,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-            }}
-          >
-            <div style={{ width: 20, height: 1, background: GOLD }} />
-            Pricing
-          </div>
-          <h2
-            style={{
-              fontFamily: 'Syne,DM Sans,sans-serif',
-              fontSize: 'clamp(24px,3vw,36px)',
-              fontWeight: 700,
-              letterSpacing: '-1px',
-              marginBottom: 12,
-            }}
-          >
-            Simple pricing.
-            <br />
-            <span style={{ color: GOLD }}>Everything included.</span>
-          </h2>
-          <p
-            style={{
-              color: '#94a3b8',
-              fontSize: 15,
-              fontWeight: 300,
-              maxWidth: 500,
-              lineHeight: 1.75,
-              marginBottom: 48,
-            }}
-          >
-            No tiers, no feature gating. One price gets you the full platform —
-            every module, every AI feature, unlimited use.
-          </p>
-          <div
-            style={{
-              maxWidth: 440,
-              background: '#080f1e',
-              border: '1px solid rgba(194,150,74,0.4)',
-              borderRadius: 8,
-              padding: '36px 40px',
-            }}
-          >
-            <div
-              style={{
-                fontFamily: 'DM Mono,monospace',
-                fontSize: 10,
-                color: GOLD,
-                letterSpacing: '0.15em',
-                textTransform: 'uppercase',
-                marginBottom: 16,
-              }}
-            >
-              Full Platform Access
-            </div>
             <div
               style={{
                 display: 'flex',
-                alignItems: 'baseline',
-                gap: 6,
-                marginBottom: 6,
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                marginBottom: 8,
               }}
             >
-              <span
-                style={{
-                  fontFamily: 'Syne,DM Sans,sans-serif',
-                  fontSize: 52,
-                  fontWeight: 800,
-                  color: '#f0f4fa',
-                  lineHeight: 1,
-                }}
-              >
-                $149
-              </span>
-              <span style={{ color: '#475569', fontSize: 14 }}>
-                /month per program
-              </span>
+              <Tag
+                label={`EMAP ${tpl.emap}`}
+                color={B.tealDark}
+                bg={B.tealLight}
+                border={B.tealBorder}
+              />
+              {generated[tpl.id] && (
+                <span style={{ fontSize: 9, color: B.green, fontWeight: 700 }}>
+                  Generated
+                </span>
+              )}
             </div>
             <div
               style={{
-                fontFamily: 'DM Mono,monospace',
-                fontSize: 10,
-                color: '#475569',
-                marginBottom: 28,
-              }}
-            >
-              Billed monthly. Cancel anytime.
-            </div>
-            {[
-              'All 73 EMAP EMS 5-2022 standards',
-              'Full AI suite — AAR drafting, THIRA analysis, rationale generation',
-              'Bulk document intake and auto-mapping',
-              'Accreditation Journey tracker with fee estimates',
-              'Grant tracker, exercise manager, personnel credentialing',
-              'Unlimited evidence uploads and document storage',
-              'Priority support for accreditation questions',
-            ].map((f) => (
-              <div
-                key={f}
-                style={{
-                  display: 'flex',
-                  gap: 10,
-                  alignItems: 'flex-start',
-                  marginBottom: 10,
-                  fontSize: 13,
-                  color: '#94a3b8',
-                }}
-              >
-                <span style={{ color: GOLD, flexShrink: 0, marginTop: 1 }}>
-                  +
-                </span>
-                {f}
-              </div>
-            ))}
-            <button
-              onClick={onSignup}
-              style={{
-                width: '100%',
-                marginTop: 24,
-                background: GOLD,
-                color: '#080f1e',
-                border: 'none',
-                padding: '13px',
-                fontFamily: 'Syne,DM Sans,sans-serif',
                 fontSize: 13,
                 fontWeight: 700,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                borderRadius: 4,
+                color: B.text,
+                marginBottom: 4,
               }}
             >
-              Start Free Trial
-            </button>
-            <div
-              style={{
-                fontFamily: 'DM Mono,monospace',
-                fontSize: 10,
-                color: '#475569',
-                textAlign: 'center',
-                marginTop: 12,
-                letterSpacing: '0.08em',
-              }}
-            >
-              14-day free trial. No credit card required.
+              {tpl.name}
+            </div>
+            <div style={{ fontSize: 11, color: B.faint, lineHeight: 1.5 }}>
+              {tpl.desc}
+            </div>
+          </Card>
+        ))}
+      </div>
+      {selected && (
+        <Card style={{ padding: '20px 24px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 14,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: B.text }}>
+                {selected.name}
+              </div>
+              <div style={{ fontSize: 12, color: B.faint, marginTop: 2 }}>
+                Sections: {selected.sections.join(' - ')}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Btn
+                label={generating ? 'Generating...' : 'Quick Generate'}
+                onClick={() => generate(selected)}
+                primary
+                loading={generating}
+                disabled={generating}
+              />
+              <Btn
+                label="🤝 Build with AI Partner"
+                onClick={() => setPartnerOpen(selected)}
+              />
+              {generated[selected.id] && (
+                <Btn
+                  label="Copy to Clipboard"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(generated[selected.id]);
+                  }}
+                />
+              )}
             </div>
           </div>
+          {generated[selected.id] ? (
+            <div
+              style={{
+                background: '#fafcfc',
+                border: `1px solid ${B.border}`,
+                borderRadius: 8,
+                padding: '16px 20px',
+                maxHeight: 500,
+                overflowY: 'auto',
+                fontSize: 13,
+                color: B.muted,
+                lineHeight: 1.8,
+                whiteSpace: 'pre-wrap',
+                fontFamily: "'DM Sans',sans-serif",
+              }}
+            >
+              {generated[selected.id]}
+            </div>
+          ) : (
+            <div
+              style={{
+                background: '#fafcfc',
+                border: `1px solid ${B.border}`,
+                borderRadius: 8,
+                padding: '28px',
+                textAlign: 'center',
+                color: B.faint,
+              }}
+            >
+              <div style={{ fontSize: 13, marginBottom: 6 }}>
+                Click "Generate with AI" to create a template pre-filled with
+                your program data
+              </div>
+              <div style={{ fontSize: 11 }}>
+                The AI will use your organization name, jurisdiction, hazard
+                profile, and existing plans to customize the output
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+      {partnerOpen && (
+        <div style={{ marginTop: 20 }}>
+          <SAGE
+            title={`${partnerOpen.name} Builder`}
+            icon="📋"
+            systemPrompt={`You are an expert emergency management document writer specializing in ${partnerOpen.name} development. Guide the EM director through building this document by asking targeted questions about their program, jurisdiction, capabilities, and needs. Cover these sections: ${partnerOpen.sections.join(', ')}.`}
+            orgContext={ctx}
+            initialMessage={`Let's build your **${partnerOpen.name}** together. I'll walk you through each section and ask questions specific to your program.\n\nFirst, let me confirm — your organization is ${orgName || 'your agency'}. Is that correct, and can you tell me briefly about your jurisdiction and the community you serve?`}
+            completeLabel={`Generate ${partnerOpen.name}`}
+            onComplete={(result) => {
+              setGenerated(p => ({ ...p, [partnerOpen.id]: result }));
+            }}
+            onClose={() => setPartnerOpen(null)}
+          />
         </div>
-      </div>
+      )}
+    </div>
+  );
+}
 
-      {/* CTA */}
-      <div
-        style={{
-          background: '#0d1829',
-          borderTop: '1px solid rgba(194,150,74,0.22)',
-          borderBottom: '1px solid rgba(194,150,74,0.22)',
-          padding: '64px 40px',
-          textAlign: 'center',
-        }}
-      >
-        <h2
+/* -------------------------------------------------------
+   ONE-CLICK EVIDENCE EXPORT PER STANDARD
+------------------------------------------------------- */
+function EvidenceExportView({ data, orgName }) {
+  const standards = data.standards || {};
+  const [selectedSection, setSelectedSection] = useState(null);
+  const [exporting, setExporting] = useState(null);
+
+  const buildEvidencePackage = (stdId) => {
+    const std = ALL_STANDARDS.find((s) => s.id === stdId);
+    const rec = standards[stdId] || initRecord();
+    const evidence = {
+      standard: stdId,
+      title: std?.text || '',
+      status: rec.status,
+      notes: rec.notes,
+      assignee: rec.assignee,
+      docs: (rec.docs || []).map((d) => ({
+        name: d.name,
+        size: d.size,
+        type: d.type,
+        rationale: d.rationale,
+        confidence: d.confidence,
+      })),
+      linkedData: {},
+    };
+    // Pull linked program ops data
+    const section = stdId.split('.').slice(0, 2).join('.');
+    if (section === '4.5' || section === '4.4')
+      (data.plans || []).forEach((p) => {
+        if (
+          p.emapRef &&
+          stdId.startsWith(p.emapRef.split('.').slice(0, 2).join('.'))
+        )
+          evidence.linkedData.plans = [
+            ...(evidence.linkedData.plans || []),
+            {
+              name: p.name,
+              type: p.type,
+              status: p.status,
+              lastReview: p.lastReview,
+            },
+          ];
+      });
+    if (section === '4.10')
+      (data.training || []).forEach((t) => {
+        evidence.linkedData.training = [
+          ...(evidence.linkedData.training || []),
+          { person: t.person, type: t.type, date: t.date },
+        ];
+      });
+    if (section === '4.11') {
+      (data.exercises || []).forEach((e) => {
+        evidence.linkedData.exercises = [
+          ...(evidence.linkedData.exercises || []),
+          {
+            name: e.name,
+            type: e.type,
+            date: e.date,
+            status: e.status,
+            hasAAR: !!e.aarFinal,
+          },
+        ];
+      });
+      evidence.linkedData.correctiveActions = (data.capItems || []).map(
+        (c) => ({ finding: c.finding, status: c.closed ? 'Closed' : 'Open' })
+      );
+    }
+    if (section === '4.7')
+      (data.partners || []).forEach((p) => {
+        evidence.linkedData.partners = [
+          ...(evidence.linkedData.partners || []),
+          { name: p.name, type: p.agreementType, expires: p.expires },
+        ];
+      });
+    if (section === '4.1')
+      (data.thira?.hazards || []).forEach((h) => {
+        evidence.linkedData.hazards = [
+          ...(evidence.linkedData.hazards || []),
+          {
+            type: h.type,
+            likelihood: h.likelihood,
+            consequence: h.consequence,
+          },
+        ];
+      });
+    if (section === '3.4')
+      (data.grants || [])
+        .filter((g) => g.status === 'active')
+        .forEach((g) => {
+          evidence.linkedData.grants = [
+            ...(evidence.linkedData.grants || []),
+            { name: g.name, type: g.type, amount: g.amount },
+          ];
+        });
+    return evidence;
+  };
+
+  const exportStandard = (stdId) => {
+    setExporting(stdId);
+    const pkg = buildEvidencePackage(stdId);
+    const lines = [
+      `EVIDENCE PACKAGE: EMAP Standard ${stdId}`,
+      `Organization: ${orgName || ''}`,
+      `Generated: ${new Date().toLocaleDateString()}`,
+      `${'='.repeat(60)}`,
+      ``,
+      `STANDARD: ${pkg.title}`,
+      `STATUS: ${ST[pkg.status]?.label || pkg.status}`,
+      `ASSIGNEE: ${pkg.assignee || 'Unassigned'}`,
+      ``,
+    ];
+    if (pkg.notes) lines.push(`NOTES:`, pkg.notes, ``);
+    if (pkg.docs.length > 0) {
+      lines.push(`UPLOADED EVIDENCE (${pkg.docs.length} documents):`);
+      pkg.docs.forEach((d, i) => {
+        lines.push(
+          `  ${i + 1}. ${d.name} (${d.type || 'file'})${
+            d.confidence ? ` - AI Confidence: ${d.confidence}%` : ''
+          }${d.rationale ? `\n     Rationale: ${d.rationale}` : ''}`
+        );
+      });
+      lines.push(``);
+    }
+    Object.entries(pkg.linkedData).forEach(([key, items]) => {
+      if (items && items.length > 0) {
+        lines.push(
+          `LINKED ${key.toUpperCase()} DATA (${items.length} records):`
+        );
+        items.forEach((item, i) =>
+          lines.push(`  ${i + 1}. ${JSON.stringify(item)}`)
+        );
+        lines.push(``);
+      }
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `evidence_${stdId}_${
+      new Date().toISOString().split('T')[0]
+    }.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setTimeout(() => setExporting(null), 1000);
+  };
+
+  const exportSection = (sec) => {
+    sec.standards.forEach((std, i) => {
+      setTimeout(() => exportStandard(std.id), i * 200);
+    });
+  };
+
+  return (
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 960 }}>
+      <div style={{ marginBottom: 20 }}>
+        <h1
           style={{
-            fontFamily: 'Syne,DM Sans,sans-serif',
-            fontSize: 'clamp(26px,4vw,42px)',
+            fontSize: 22,
             fontWeight: 800,
-            letterSpacing: '-1.5px',
-            marginBottom: 14,
+            color: B.text,
+            letterSpacing: '-0.3px',
           }}
         >
-          Your program deserves better
-          <br />
-          than a <span style={{ color: GOLD }}>spreadsheet.</span>
-        </h2>
-        <p
-          style={{
-            color: '#94a3b8',
-            fontSize: 15,
-            fontWeight: 300,
-            marginBottom: 32,
-            maxWidth: 480,
-            margin: '0 auto 32px',
-            lineHeight: 1.7,
-          }}
-        >
-          planrr.app is in early access. Join the founding cohort and be among
-          the first EM programs to bring real structure and daily readiness to
-          how they operate.
+          Evidence Export
+        </h1>
+        <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
+          Generate evidence packages for your EMAP assessors. Each export
+          includes standards data, uploaded documents, notes, and linked program
+          records.
         </p>
-        <div
-          style={{
-            display: 'flex',
-            gap: 14,
-            justifyContent: 'center',
-            flexWrap: 'wrap',
-          }}
-        >
-          <button
-            onClick={onSignup}
-            style={{
-              background: GOLD,
-              color: '#080f1e',
-              border: 'none',
-              padding: '13px 28px',
-              fontFamily: 'Syne,DM Sans,sans-serif',
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              borderRadius: 4,
-            }}
-          >
-            Join Early Access
-          </button>
-          <button
-            onClick={onLogin}
-            style={{
-              border: '1px solid rgba(194,150,74,0.22)',
-              color: GOLD,
-              background: 'none',
-              padding: '12px 24px',
-              fontFamily: 'DM Mono,monospace',
-              fontSize: 12,
-              letterSpacing: '0.08em',
-              cursor: 'pointer',
-              borderRadius: 4,
-            }}
-          >
-            Sign In
-          </button>
-        </div>
-        <div
-          style={{
-            fontFamily: 'DM Mono,monospace',
-            fontSize: 10,
-            color: '#475569',
-            letterSpacing: '0.1em',
-            marginTop: 18,
-          }}
-        >
-          Founding agency pricing. Locked for life. Direct input into the
-          product roadmap.
-        </div>
       </div>
-
-      {/* Footer */}
+      <CoachBanner moduleId="evidence" />
       <div
-        style={{
-          borderTop: '1px solid #1a2d47',
-          padding: '22px 40px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 10,
-        }}
+        style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}
       >
-        <div
-          style={{
-            fontFamily: 'Syne,DM Sans,sans-serif',
-            fontSize: 15,
-            fontWeight: 800,
-            letterSpacing: '-0.5px',
-          }}
-        >
-          <span style={{ color: '#f0f4fa' }}>planrr</span>
-          <span style={{ color: GOLD }}>.app</span>
-        </div>
-        <div
-          style={{
-            fontFamily: 'DM Mono,monospace',
-            fontSize: 10,
-            color: '#475569',
-            letterSpacing: '0.1em',
-          }}
-        >
-          Emergency Management Program Platform. EMAP EMS 5-2022 Aligned.
-        </div>
+        <Btn
+          label="Export All Standards"
+          onClick={() => ALL_SECTIONS.forEach((sec) => exportSection(sec))}
+          primary
+          small
+        />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {ALL_SECTIONS.map((sec) => {
+          const stats = sectionStats(sec, data.standards || {});
+          const docCount = sec.standards.reduce(
+            (a, s) => a + ((standards[s.id] || {}).docs || []).length,
+            0
+          );
+          return (
+            <Card key={sec.id} style={{ padding: '14px 18px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  cursor: 'pointer',
+                }}
+                onClick={() =>
+                  setSelectedSection(selectedSection === sec.id ? null : sec.id)
+                }
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: sec.chapter.color,
+                    background: `${sec.chapter.color}15`,
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    flexShrink: 0,
+                  }}
+                >
+                  {sec.id}
+                </span>
+                <span
+                  style={{
+                    flex: 1,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: B.text,
+                  }}
+                >
+                  {sec.title}
+                </span>
+                <span style={{ fontSize: 10, color: B.faint }}>
+                  {docCount} docs
+                </span>
+                <div style={{ width: 50 }}>
+                  <div
+                    style={{
+                      height: 3,
+                      background: '#edf2f4',
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${stats.pct}%`,
+                        background: stats.pct === 100 ? B.green : B.teal,
+                        borderRadius: 2,
+                      }}
+                    />
+                  </div>
+                </div>
+                <Btn
+                  label="Export Section"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    exportSection(sec);
+                  }}
+                  small
+                />
+              </div>
+              {selectedSection === sec.id && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    borderTop: `1px solid ${B.border}`,
+                    paddingTop: 10,
+                  }}
+                >
+                  {sec.standards.map((std) => {
+                    const rec = standards[std.id] || initRecord();
+                    return (
+                      <div
+                        key={std.id}
+                        style={{
+                          display: 'flex',
+                          gap: 8,
+                          alignItems: 'center',
+                          padding: '6px 0',
+                        }}
+                      >
+                        <StatusDot status={rec.status} size={8} />
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: B.muted,
+                          }}
+                        >
+                          {std.id}
+                        </span>
+                        <span
+                          style={{
+                            flex: 1,
+                            fontSize: 11,
+                            color: B.faint,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {std.text.slice(0, 80)}...
+                        </span>
+                        <span style={{ fontSize: 9, color: B.faint }}>
+                          {(rec.docs || []).length} docs
+                        </span>
+                        <button
+                          onClick={() => exportStandard(std.id)}
+                          style={{
+                            background: exporting === std.id ? B.green : 'none',
+                            border: `1px solid ${
+                              exporting === std.id ? B.green : B.border
+                            }`,
+                            borderRadius: 5,
+                            padding: '3px 8px',
+                            fontSize: 10,
+                            color: exporting === std.id ? '#fff' : B.muted,
+                            cursor: 'pointer',
+                            fontFamily: "'DM Sans',sans-serif",
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          {exporting === std.id ? 'Exported' : 'Export'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
 }
 
+/* -------------------------------------------------------
+   MUTUAL AID MAP (Multi-Jurisdiction)
+------------------------------------------------------- */
+function MutualAidView({ data, setData }) {
+  const RESOURCE_TYPES = [
+    'Personnel',
+    'Vehicles',
+    'Heavy Equipment',
+    'Communications',
+    'Shelter/Mass Care',
+    'Medical/EMS',
+    'HAZMAT',
+    'Water Rescue',
+    'Search & Rescue',
+    'Aviation',
+    'IT/Cyber',
+    'Facilities',
+    'Other',
+  ];
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ partnerId: '', resources: [], notes: '' });
+  const partners = data.partners || [];
+  const mutualAid = data.mutualAid || [];
+  const save = () => {
+    if (!form.partnerId || form.resources.length === 0) return;
+    setData((prev) => ({
+      ...prev,
+      mutualAid: [
+        ...(prev.mutualAid || []),
+        { ...form, id: uid(), addedAt: Date.now() },
+      ],
+    }));
+    setForm({ partnerId: '', resources: [], notes: '' });
+    setShowForm(false);
+  };
+  const remove = (id) =>
+    setData((prev) => ({
+      ...prev,
+      mutualAid: (prev.mutualAid || []).filter((m) => m.id !== id),
+    }));
+  const toggleResource = (r) =>
+    setForm((p) => ({
+      ...p,
+      resources: p.resources.includes(r)
+        ? p.resources.filter((x) => x !== r)
+        : [...p.resources, r],
+    }));
+
+  // EMAP 4.7 coverage analysis
+  const stds = data.standards || {};
+  const s47Standards = [
+    '4.7.1',
+    '4.7.2',
+    '4.7.3',
+    '4.7.4',
+    '4.7.5',
+    '4.7.6',
+    '4.7.7',
+    '4.7.8',
+  ];
+  const s47Compliant = s47Standards.filter(
+    (id) => (stds[id] || {}).status === 'compliant'
+  ).length;
+
+  // Resource coverage matrix
+  const resourceMatrix = useMemo(() => {
+    const matrix = {};
+    RESOURCE_TYPES.forEach((r) => {
+      matrix[r] = { providers: [], count: 0 };
+    });
+    mutualAid.forEach((ma) => {
+      const partner = partners.find((p) => p.id === ma.partnerId);
+      if (partner)
+        (ma.resources || []).forEach((r) => {
+          if (matrix[r]) {
+            matrix[r].providers.push(partner.name);
+            matrix[r].count++;
+          }
+        });
+    });
+    return matrix;
+  }, [mutualAid, partners]);
+
+  return (
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 1060 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              fontSize: 22,
+              fontWeight: 800,
+              color: B.text,
+              letterSpacing: '-0.3px',
+            }}
+          >
+            Mutual Aid Resource Map
+          </h1>
+          <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
+            EMAP 4.7 - Map shared resources across jurisdictions -{' '}
+            {mutualAid.length} resource agreements
+          </p>
+        </div>
+        <CoachBanner moduleId="mutualaid" />
+        <Btn
+          label="+ Map Resources"
+          onClick={() => setShowForm(true)}
+          primary
+        />
+      </div>
+
+      {/* 4.7 Compliance strip */}
+      <Card
+        style={{
+          marginBottom: 16,
+          padding: '14px 18px',
+          background: `linear-gradient(135deg,#f0fafa,#fff)`,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: B.muted,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+              }}
+            >
+              EMAP 4.7 Resource Management & Mutual Aid
+            </div>
+            <div style={{ fontSize: 12, color: B.faint, marginTop: 3 }}>
+              {s47Compliant}/{s47Standards.length} standards compliant -{' '}
+              {partners.length} partner agreements - {mutualAid.length} resource
+              mappings
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {s47Standards.map((id) => (
+              <StatusDot
+                key={id}
+                status={(stds[id] || {}).status || 'not_started'}
+                size={10}
+              />
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {showForm && (
+        <Card
+          style={{
+            marginBottom: 14,
+            background: B.blueLight,
+            borderColor: B.blueBorder,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: B.text,
+              marginBottom: 12,
+            }}
+          >
+            Map Partner Resources
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <Label>Partner Organization</Label>
+            <FSel
+              value={form.partnerId}
+              onChange={(v) => setForm((p) => ({ ...p, partnerId: v }))}
+            >
+              <option value="">Select a partner...</option>
+              {partners.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.agreementType})
+                </option>
+              ))}
+            </FSel>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <Label>Shared Resources (select all that apply)</Label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              {RESOURCE_TYPES.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => toggleResource(r)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 6,
+                    border: `1px solid ${
+                      form.resources.includes(r) ? B.teal : B.border
+                    }`,
+                    background: form.resources.includes(r)
+                      ? B.tealLight
+                      : B.card,
+                    color: form.resources.includes(r) ? B.tealDark : B.muted,
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans',sans-serif",
+                    fontWeight: form.resources.includes(r) ? 700 : 400,
+                  }}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <Label>Notes</Label>
+            <FInput
+              value={form.notes}
+              onChange={(v) => setForm((p) => ({ ...p, notes: v }))}
+              placeholder="Capabilities, limitations, response time..."
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn label="Save" onClick={save} primary />
+            <Btn label="Cancel" onClick={() => setShowForm(false)} />
+          </div>
+        </Card>
+      )}
+
+      {/* Resource Coverage Matrix */}
+      <Card style={{ marginBottom: 14, padding: '16px 18px' }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: B.muted,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            marginBottom: 12,
+          }}
+        >
+          Resource Coverage Matrix
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4,1fr)',
+            gap: 6,
+          }}
+        >
+          {RESOURCE_TYPES.map((r) => {
+            const d = resourceMatrix[r];
+            return (
+              <div
+                key={r}
+                style={{
+                  padding: '10px 12px',
+                  background: d.count > 0 ? B.greenLight : '#fafcfc',
+                  border: `1px solid ${d.count > 0 ? B.greenBorder : B.border}`,
+                  borderRadius: 7,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: d.count > 0 ? B.green : B.faint,
+                  }}
+                >
+                  {r}
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: d.count > 0 ? '#065f46' : B.faint,
+                    marginTop: 2,
+                  }}
+                >
+                  {d.count > 0
+                    ? `${d.count} provider${d.count > 1 ? 's' : ''}${
+                        d.providers.length > 0 ? ' - ' + d.providers[0] : ''
+                      }${
+                        d.providers.length > 1
+                          ? ` +${d.providers.length - 1}`
+                          : ''
+                      }`
+                    : 'No coverage'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Mapped agreements list */}
+      {mutualAid.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {mutualAid.map((ma) => {
+            const partner = partners.find((p) => p.id === ma.partnerId);
+            return (
+              <Card key={ma.id} style={{ padding: '12px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
+                    style={{
+                      width: 30,
+                      height: 30,
+                      background: B.blueLight,
+                      borderRadius: 7,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: B.blue,
+                      fontSize: 12,
+                      flexShrink: 0,
+                    }}
+                  >
+                    -
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{ fontSize: 13, fontWeight: 700, color: B.text }}
+                    >
+                      {partner?.name || 'Unknown Partner'}
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 4,
+                        flexWrap: 'wrap',
+                        marginTop: 4,
+                      }}
+                    >
+                      {(ma.resources || []).map((r) => (
+                        <Tag
+                          key={r}
+                          label={r}
+                          color={B.green}
+                          bg={B.greenLight}
+                          border={B.greenBorder}
+                        />
+                      ))}
+                    </div>
+                    {ma.notes && (
+                      <div
+                        style={{ fontSize: 11, color: B.faint, marginTop: 4 }}
+                      >
+                        {ma.notes}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => remove(ma.id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#d1d5db',
+                      cursor: 'pointer',
+                      fontSize: 14,
+                    }}
+                  >
+                    x
+                  </button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+      {mutualAid.length === 0 && !showForm && (
+        <Card style={{ textAlign: 'center', padding: '32px', color: B.faint }}>
+          No resource mappings yet. Start by mapping which resources your
+          partner agencies can share.
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------
+   RECOVERY PLANNING MODULE (EMAP 4.5.4)
+------------------------------------------------------- */
+const RECOVERY_PHASES = [
+  'Short-Term (0-30 days)',
+  'Intermediate (30-180 days)',
+  'Long-Term (180+ days)',
+];
+const RECOVERY_FUNCTIONS = [
+  'Critical Infrastructure',
+  'Housing',
+  'Economic Recovery',
+  'Health & Social Services',
+  'Natural & Cultural Resources',
+  'Community Planning & Capacity',
+  'Public Information',
+];
+const RECOVERY_FRAMEWORK = [
+  {
+    phase: 'Short-Term (0-30 days)',
+    functions: [
+      'Damage assessment',
+      'Debris removal',
+      'Emergency shelter-to-housing',
+      'Temporary infrastructure',
+      'Crisis counseling',
+      'Immediate economic stabilization',
+      'Environmental hazard assessment',
+    ],
+  },
+  {
+    phase: 'Intermediate (30-180 days)',
+    functions: [
+      'Infrastructure repair prioritization',
+      'Interim housing solutions',
+      'Business recovery assistance',
+      'Long-term mental health services',
+      'Remediation planning',
+      'Recovery planning committees',
+      'Ongoing public communication',
+    ],
+  },
+  {
+    phase: 'Long-Term (180+ days)',
+    functions: [
+      'Permanent infrastructure rebuild',
+      'Affordable housing programs',
+      'Economic development incentives',
+      'Community health monitoring',
+      'Ecosystem restoration',
+      'Resilience-building measures',
+      'After-action integration',
+    ],
+  },
+];
+
+function RecoveryPlanningView({ data, setData }) {
+  const recovery = data.recovery || {
+    priorities: [],
+    functions: {},
+    notes: '',
+  };
+  const [tab, setTab] = useState('framework');
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    phase: 'Short-Term (0-30 days)',
+    function: 'Critical Infrastructure',
+    responsible: '',
+    status: 'not_started',
+    notes: '',
+  });
+  const STATUS_OPTS = [
+    { v: 'not_started', l: 'Not Started', c: B.faint },
+    { v: 'in_progress', l: 'In Progress', c: B.amber },
+    { v: 'complete', l: 'Complete', c: B.green },
+  ];
+  const stds = data.standards || {};
+  const recoveryStds = ['4.5.1', '4.5.2', '4.5.4', '4.5.5', '4.5.6', '4.5.7'];
+  const compliant = recoveryStds.filter(
+    (id) => (stds[id] || {}).status === 'compliant'
+  ).length;
+
+  const save = () => {
+    if (!form.name) return;
+    setData((prev) => ({
+      ...prev,
+      recovery: {
+        ...(prev.recovery || { priorities: [], functions: {}, notes: '' }),
+        priorities: [
+          ...((prev.recovery || {}).priorities || []),
+          { ...form, id: uid(), addedAt: Date.now() },
+        ],
+      },
+    }));
+    setForm({
+      name: '',
+      phase: 'Short-Term (0-30 days)',
+      function: 'Critical Infrastructure',
+      responsible: '',
+      status: 'not_started',
+      notes: '',
+    });
+    setShowAdd(false);
+  };
+  const updatePriority = (id, field, val) =>
+    setData((prev) => ({
+      ...prev,
+      recovery: {
+        ...(prev.recovery || {}),
+        priorities: ((prev.recovery || {}).priorities || []).map((p) =>
+          p.id === id ? { ...p, [field]: val } : p
+        ),
+      },
+    }));
+  const removePriority = (id) =>
+    setData((prev) => ({
+      ...prev,
+      recovery: {
+        ...(prev.recovery || {}),
+        priorities: ((prev.recovery || {}).priorities || []).filter(
+          (p) => p.id !== id
+        ),
+      },
+    }));
+
+  return (
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 1060 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              fontSize: 22,
+              fontWeight: 800,
+              color: B.text,
+              letterSpacing: '-0.3px',
+            }}
+          >
+            Recovery Planning
+          </h1>
+          <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>
+            EMAP 4.5.4 - Short and long-term recovery priorities - {compliant}/
+            {recoveryStds.length} recovery standards compliant
+          </p>
+        </div>
+        <Btn label="+ Add Priority" onClick={() => setShowAdd(true)} primary />
+      </div>
+      <CoachBanner moduleId="recovery" />
+
+      {/* EMAP Recovery compliance strip */}
+      <Card
+        style={{
+          marginBottom: 16,
+          padding: '14px 18px',
+          background: `linear-gradient(135deg,#f0fafa,#fff)`,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: B.muted,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+              }}
+            >
+              Recovery Planning Standards (4.5)
+            </div>
+            <div style={{ fontSize: 11, color: B.faint, marginTop: 3 }}>
+              Argonne Study: Agencies investing in recovery planning are better
+              positioned to meet community needs and compliance requirements
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {recoveryStds.map((id) => (
+              <StatusDot
+                key={id}
+                status={(stds[id] || {}).status || 'not_started'}
+                size={10}
+              />
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {[
+          ['framework', 'Recovery Framework'],
+          ['priorities', 'Active Priorities'],
+          ['functions', 'By Function'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            style={{
+              padding: '7px 16px',
+              borderRadius: 7,
+              border: `1px solid ${tab === id ? B.teal : B.border}`,
+              background: tab === id ? B.tealLight : B.card,
+              color: tab === id ? B.tealDark : B.muted,
+              fontSize: 12,
+              fontWeight: tab === id ? 700 : 400,
+              cursor: 'pointer',
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {showAdd && (
+        <Card
+          style={{
+            marginBottom: 14,
+            background: B.greenLight,
+            borderColor: B.greenBorder,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: B.text,
+              marginBottom: 12,
+            }}
+          >
+            Add Recovery Priority
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '2fr 1fr 1fr',
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <div>
+              <Label>Priority / Action</Label>
+              <FInput
+                value={form.name}
+                onChange={(v) => setForm((p) => ({ ...p, name: v }))}
+                placeholder="e.g., Establish emergency housing program"
+              />
+            </div>
+            <div>
+              <Label>Phase</Label>
+              <FSel
+                value={form.phase}
+                onChange={(v) => setForm((p) => ({ ...p, phase: v }))}
+              >
+                {RECOVERY_PHASES.map((p) => (
+                  <option key={p}>{p}</option>
+                ))}
+              </FSel>
+            </div>
+            <div>
+              <Label>Function Area</Label>
+              <FSel
+                value={form.function}
+                onChange={(v) => setForm((p) => ({ ...p, function: v }))}
+              >
+                {RECOVERY_FUNCTIONS.map((f) => (
+                  <option key={f}>{f}</option>
+                ))}
+              </FSel>
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <div>
+              <Label>Responsible Party</Label>
+              <FInput
+                value={form.responsible}
+                onChange={(v) => setForm((p) => ({ ...p, responsible: v }))}
+                placeholder="Role or organization"
+              />
+            </div>
+            <div>
+              <Label>Status</Label>
+              <FSel
+                value={form.status}
+                onChange={(v) => setForm((p) => ({ ...p, status: v }))}
+              >
+                {STATUS_OPTS.map((s) => (
+                  <option key={s.v} value={s.v}>
+                    {s.l}
+                  </option>
+                ))}
+              </FSel>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn label="Save" onClick={save} primary />
+            <Btn label="Cancel" onClick={() => setShowAdd(false)} />
+          </div>
+        </Card>
+      )}
+
+      {tab === 'framework' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {RECOVERY_FRAMEWORK.map((phase) => (
+            <Card key={phase.phase}>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: B.text,
+                  marginBottom: 10,
+                }}
+              >
+                {phase.phase}
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2,1fr)',
+                  gap: 6,
+                }}
+              >
+                {phase.functions.map((f, i) => {
+                  const hasPriority = (recovery.priorities || []).some(
+                    (p) => p.phase === phase.phase
+                  );
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        padding: '8px 12px',
+                        background: hasPriority ? B.greenLight : '#fafcfc',
+                        border: `1px solid ${
+                          hasPriority ? B.greenBorder : B.border
+                        }`,
+                        borderRadius: 6,
+                        fontSize: 12,
+                        color: hasPriority ? B.green : B.muted,
+                      }}
+                    >
+                      {f}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {tab === 'priorities' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {(recovery.priorities || []).length === 0 ? (
+            <Card
+              style={{ textAlign: 'center', padding: '32px', color: B.faint }}
+            >
+              No recovery priorities defined yet. Add priorities to build your
+              recovery plan.
+            </Card>
+          ) : (
+            (recovery.priorities || []).map((p) => {
+              const sc =
+                STATUS_OPTS.find((s) => s.v === p.status) || STATUS_OPTS[0];
+              return (
+                <Card key={p.id} style={{ padding: '12px 16px' }}>
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+                  >
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: sc.c,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{ fontSize: 13, fontWeight: 700, color: B.text }}
+                      >
+                        {p.name}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                        <Tag
+                          label={p.phase}
+                          color={B.blue}
+                          bg={B.blueLight}
+                          border={B.blueBorder}
+                        />
+                        <Tag
+                          label={p.function}
+                          color={B.purple}
+                          bg={B.purpleLight}
+                          border={B.purpleBorder}
+                        />
+                        {p.responsible && (
+                          <span style={{ fontSize: 11, color: B.faint }}>
+                            {p.responsible}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <FSel
+                      value={p.status}
+                      onChange={(v) => updatePriority(p.id, 'status', v)}
+                      style={{ width: 130 }}
+                    >
+                      {STATUS_OPTS.map((s) => (
+                        <option key={s.v} value={s.v}>
+                          {s.l}
+                        </option>
+                      ))}
+                    </FSel>
+                    <button
+                      onClick={() => removePriority(p.id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#d1d5db',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                      }}
+                    >
+                      x
+                    </button>
+                  </div>
+                </Card>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {tab === 'functions' && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2,1fr)',
+            gap: 10,
+          }}
+        >
+          {RECOVERY_FUNCTIONS.map((func) => {
+            const items = (recovery.priorities || []).filter(
+              (p) => p.function === func
+            );
+            const complete = items.filter(
+              (p) => p.status === 'complete'
+            ).length;
+            return (
+              <Card key={func} style={{ padding: '14px 16px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 700, color: B.text }}>
+                    {func}
+                  </div>
+                  <Tag
+                    label={`${complete}/${items.length}`}
+                    color={
+                      complete === items.length && items.length > 0
+                        ? B.green
+                        : B.faint
+                    }
+                    bg={
+                      complete === items.length && items.length > 0
+                        ? B.greenLight
+                        : '#f8fafc'
+                    }
+                    border={
+                      complete === items.length && items.length > 0
+                        ? B.greenBorder
+                        : B.border
+                    }
+                  />
+                </div>
+                {items.length === 0 ? (
+                  <div style={{ fontSize: 11, color: B.faint }}>
+                    No priorities defined
+                  </div>
+                ) : (
+                  <div
+                    style={{ display: 'flex', flexDirection: 'column', gap: 3 }}
+                  >
+                    {items.map((p) => {
+                      const sc =
+                        STATUS_OPTS.find((s) => s.v === p.status) ||
+                        STATUS_OPTS[0];
+                      return (
+                        <div
+                          key={p.id}
+                          style={{
+                            display: 'flex',
+                            gap: 6,
+                            alignItems: 'center',
+                            fontSize: 11,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: '50%',
+                              background: sc.c,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span style={{ color: B.muted }}>{p.name}</span>
+                          <span
+                            style={{
+                              marginLeft: 'auto',
+                              fontSize: 9,
+                              color: sc.c,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {sc.l}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LandingPage({ onLogin, onSignup, onBuyPlan }) {
+  const canvasRef = useRef(null);
+  const animRef   = useRef(null);
+  const [scrolled, setScrolled] = useState(false);
+
+  const sectionPlatform = useRef(null);
+  const sectionPillars  = useRef(null);
+  const sectionSage     = useRef(null);
+  const sectionPricing  = useRef(null);
+  const sectionSecurity = useRef(null);
+
+  const scrollTo = useCallback((ref) => {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 16);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let W, H, nodes;
+    const resize = () => {
+      W = canvas.width  = canvas.offsetWidth;
+      H = canvas.height = canvas.offsetHeight;
+      const count = Math.max(20, Math.floor((W * H) / 10000));
+      nodes = Array.from({ length: count }, () => ({
+        x: Math.random() * W, y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.28, vy: (Math.random() - 0.5) * 0.28,
+        r: Math.random() * 1.4 + 0.5, gold: Math.random() < 0.1,
+      }));
+    };
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      const MAX = 110;
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
+          const d = Math.sqrt(dx*dx+dy*dy);
+          if (d < MAX) {
+            ctx.strokeStyle = `rgba(62,207,207,${(1-d/MAX)*0.10})`;
+            ctx.lineWidth = 0.4;
+            ctx.beginPath(); ctx.moveTo(nodes[i].x,nodes[i].y); ctx.lineTo(nodes[j].x,nodes[j].y); ctx.stroke();
+          }
+        }
+      }
+      nodes.forEach(n => {
+        ctx.fillStyle = n.gold ? 'rgba(196,154,60,0.22)' : 'rgba(62,207,207,0.18)';
+        ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2); ctx.fill();
+        n.x+=n.vx; n.y+=n.vy;
+        if(n.x<0||n.x>W) n.vx*=-1; if(n.y<0||n.y>H) n.vy*=-1;
+      });
+      animRef.current = requestAnimationFrame(draw);
+    };
+    resize(); draw();
+    window.addEventListener('resize', resize);
+    return () => { cancelAnimationFrame(animRef.current); window.removeEventListener('resize', resize); };
+  }, []);
+
+  const navLinks = [
+    ['Platform', sectionPlatform],
+    ['Pillars',  sectionPillars],
+    ['SAGE',     sectionSage],
+    ['Pricing',  sectionPricing],
+    ['Security', sectionSecurity],
+  ];
+
+  const features = [
+    ['EMAP Standards',     'All 73 standards tracked live. Every change, every evidence upload, every gap surfaced automatically. Not a checklist — a real-time picture of where your program stands.', 'Accreditation Core'],
+    ['SAGE Priority Queue','Stop asking what to work on next. SAGE already knows. Expiring MOUs, overdue AARs, lapsed credentials — ranked by urgency, surfaced every session.', 'AI Intelligence'],
+    ['Exercises & AARs',  'Every AAR finding gets an owner, a due date, and a direct link to the standard it reveals. The loop closes when the gap does — not when the report is filed.', 'HSEEP Aligned'],
+    ['Document Templates','SAGE writes the first draft pre-filled with your program data. COOP, strategic plan, comms plan. You edit. You approve. You move on.', 'AI-Powered'],
+    ['Evidence Export',   'One click and every standard has its bundle — docs, training records, AARs, rationale. Ready the moment the assessor email lands.', 'Accreditation-Ready'],
+    ['Grant-EMAP Tracker','Your grant report says training was completed. Your records say otherwise. This module keeps those two things from diverging — and flags when a gap might cost you funding.', 'EMAP 3.4'],
+    ['Recovery Planning', "Most programs file their recovery plan once. This module treats recovery as a living discipline — phases, owners, dependencies that change as your community does.", 'EMAP 4.5.4'],
+    ['Mutual Aid Mapping','You have MOUs. Do you know who covers what? The coverage matrix shows resource gaps before a real event asks the question for you.', 'EMAP 4.7'],
+    ['FEMA/NIMS Alignment','EMAP progress and FEMA alignment in one place. Give leadership the full picture, not one credential in isolation.', 'ICS/NIMS'],
+  ];
+
+  const pillars = [
+    ['Nothing Expires Quietly',
+     "Your EOP was last reviewed 18 months ago. Your alternate EOC hasn't been verified since the previous director. Your MOU partner changed their coordinator and nobody updated the file. SAGE notices before you have to.",
+     GOLD],
+    ['Your Succession Line Is Probably Wrong',
+     "Your succession line references two positions that no longer exist. If your EM director is unavailable today, who's in charge? planrr turns your COOP from a filed document into a maintained record with actual people and actual depth.",
+     B.teal],
+    ['The Finding That Never Closes',
+     "The comms gap showed up in three consecutive AARs. It's still open. planrr connects every finding to an owner, a standard, and a due date. The loop closes when the gap does.",
+     GOLD],
+    ['What To Work On Today',
+     "You have 73 standards, 14 open corrective actions, 3 MOUs expiring in 60 days, and a training record 16 months out of date. SAGE surfaces what needs attention today — not next quarter.",
+     B.teal],
+  ];
+
+  const pricingPlans = [
+    { tier:'Solo Operator', price:'$79',   period:'/mo', desc:'1 FTE or fewer. For the solo EM director wearing every hat.', features:['Every feature included','1 user seat','200 AI calls / month','Email support'], plan:'solo', featured:false },
+    { tier:'Small Team',    price:'$149',  period:'/mo', desc:'2–5 FTE staff. The backbone of local EM.', features:['Every feature included','Up to 5 user seats','1,000 AI calls / month','Priority support'], plan:'small_team', featured:true },
+    { tier:'Full Program',  price:'$199',  period:'/mo', desc:'6+ FTE. For established programs scaling up.', features:['Every feature included','Unlimited user seats','5,000 AI calls / month','Dedicated onboarding','Phone support'], plan:'full_program', featured:false },
+    { tier:'Enterprise',    price:'Custom',period:'',    desc:'Multi-org, state agencies, regional coalitions.', features:['Everything + multi-org dashboard','Unlimited seats & AI usage','Dedicated account manager','SLA guarantees','Custom integrations'], plan:'enterprise', featured:false },
+  ];
+
+  const sageScenarios = [
+    { n:'01', title:'Accreditation prep',       ask:'"Where do I actually stand on EMAP right now?"',       answer:"SAGE pulls your live status across all 73 standards, identifies the 8 blocking your peer review, cross-references your existing documents to surface which ones have evidence that just hasn't been uploaded yet, and gives you a prioritized action list ordered by effort-to-compliance ratio. Not a dashboard. A plan." },
+    { n:'02', title:'Grant deliverable crunch', ask:'"My EMPG closeout is in 3 weeks. What am I missing?"', answer:"SAGE reviews your active grant deliverables, cross-checks them against your training records, exercise logs, and personnel data, identifies the two deliverables with documentation gaps, and drafts the narrative sections you're missing — with your program data pre-filled." },
+    { n:'03', title:'Post-exercise AAR',        ask:'"Help me write the AAR for last Tuesday\'s tabletop."', answer:"SAGE pulls your exercise record and drafts a complete HSEEP-compliant AAR with findings, strengths, and improvement plan pre-structured. It tags each finding to the EMAP standard it reveals, creates corrective action items with owners and due dates, and flags which match gaps from previous exercises. The loop closes automatically." },
+    { n:'04', title:'Monday morning',           ask:"You don't ask anything. You just log in.",             answer:"SAGE has already reviewed everything that changed since Friday. It surfaces the MOU expiring in 18 days, the corrective action 30 days overdue, the training record that lapsed over the weekend, and the one standard you could mark compliant today with a 10-minute upload. No prompt required. It's already done the work." },
+  ];
+
+  const LP = {
+    page: { fontFamily:"'DM Sans',sans-serif", background:'#0E0E0E', color:'#FFFFFF', minHeight:'100vh', overflowX:'hidden', position:'relative' },
+    canvas: { position:'fixed', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:0, opacity:0.8 },
+    overlay: { position:'fixed', inset:0, background:'linear-gradient(180deg,rgba(14,14,14,0.6) 0%,rgba(14,14,14,0.4) 40%,rgba(14,14,14,0.6) 100%)', pointerEvents:'none', zIndex:1 },
+    content: { position:'relative', zIndex:2 },
+    nav: { position:'sticky', top:0, zIndex:50, padding:'0 clamp(20px,4vw,52px)', height:58, display:'flex', alignItems:'center', justifyContent:'space-between', background:scrolled?'rgba(10,10,10,0.97)':'rgba(14,14,14,0.88)', backdropFilter:'blur(18px) saturate(1.3)', borderBottom:`1px solid ${scrolled?'rgba(196,154,60,0.28)':'rgba(196,154,60,0.14)'}`, transition:'all 0.25s ease' },
+    section: { maxWidth:1120, margin:'0 auto', padding:'84px clamp(20px,4vw,52px)' },
+    sectionSm: { maxWidth:1120, margin:'0 auto', padding:'68px clamp(20px,4vw,52px)' },
+    lbl: { display:'flex', alignItems:'center', gap:14, marginBottom:18 },
+    lblLine: { width:24, height:1, display:'inline-block', flexShrink:0 },
+    mono: { fontFamily:"'DM Mono',monospace", letterSpacing:'0.18em', textTransform:'uppercase', fontSize:10 },
+    headline: { fontFamily:"'Syne','DM Sans',sans-serif", fontWeight:800, letterSpacing:'-1.5px', lineHeight:1.03, color:'#FFFFFF' },
+    body: { color:'#A0AEBF', fontWeight:300 },
+    darkCard: { background:'#141414', border:'1px solid rgba(255,255,255,0.08)', padding:'24px 20px', position:'relative', overflow:'hidden', transition:'border-color 0.2s,transform 0.2s' },
+    accentTeal: { position:'absolute', left:0, top:0, bottom:0, width:3, background:B.teal },
+    accentGold: { position:'absolute', left:0, top:0, bottom:0, width:3, background:GOLD },
+    ctaPrimary: { background:GOLD, color:'#111', border:'none', padding:'14px 34px', fontFamily:"'Syne','DM Sans',sans-serif", fontSize:13, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', cursor:'pointer', borderRadius:3, transition:'all 0.18s ease' },
+    ctaGhost: { border:'1px solid rgba(196,154,60,0.3)', color:GOLD, background:'rgba(196,154,60,0.05)', padding:'13px 28px', fontFamily:"'DM Mono',monospace", fontSize:11, letterSpacing:'0.12em', textTransform:'uppercase', cursor:'pointer', borderRadius:3 },
+    strip: { background:'rgba(10,10,10,0.9)', borderTop:'1px solid rgba(255,255,255,0.06)', borderBottom:'1px solid rgba(255,255,255,0.06)' },
+  };
+
+  const hP = (e) => { e.currentTarget.style.background='#D4AA5A'; e.currentTarget.style.transform='translateY(-2px)'; };
+  const lP = (e) => { e.currentTarget.style.background=GOLD; e.currentTarget.style.transform='translateY(0)'; };
+  const hC = (e) => { e.currentTarget.style.borderColor='rgba(62,207,207,0.32)'; e.currentTarget.style.transform='translateY(-2px)'; };
+  const lC = (e) => { e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'; e.currentTarget.style.transform='translateY(0)'; };
+
+  return (
+    <div style={LP.page}>
+      <canvas ref={canvasRef} style={LP.canvas}/>
+      <div style={LP.overlay}/>
+      <div style={LP.content}>
+
+        {/* ── NAV ── */}
+        <nav style={LP.nav}>
+          <div style={{display:'flex',alignItems:'center',gap:11}}>
+            <div style={{width:30,height:30,borderRadius:8,background:B.sidebar,border:'1px solid rgba(62,207,207,0.3)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <svg width="18" height="18" viewBox="0 0 100 100" fill="none">
+                <path d="M20 78L20 20L66 20C80 20 86 30 86 40C86 50 80 58 66 58L32 58L32 78Z" fill={B.teal}/>
+                <path d="M32 30L58 30C64 30 68 34 68 38C68 42 64 46 58 46L32 46Z" fill={B.sidebar}/>
+              </svg>
+            </div>
+            <span style={{fontFamily:"'Oxanium','DM Sans',sans-serif",fontWeight:800,fontSize:18,color:'#FFFFFF',letterSpacing:'-0.3px'}}>planrr<span style={{color:GOLD}}>.app</span></span>
+            <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:GOLD,border:'1px solid rgba(196,154,60,0.3)',background:'rgba(196,154,60,0.07)',letterSpacing:'0.14em',textTransform:'uppercase',padding:'2px 8px',marginLeft:4}}>Early Access</div>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:2}} className="lp-hide-mobile">
+            {navLinks.map(([label,ref])=>(
+              <button key={label} onClick={()=>scrollTo(ref)} style={{background:'none',border:'none',fontFamily:"'DM Mono',monospace",fontSize:10,color:'#64748B',letterSpacing:'0.14em',textTransform:'uppercase',cursor:'pointer',padding:'6px 12px',borderRadius:4}}
+                onMouseEnter={e=>e.currentTarget.style.color=GOLD} onMouseLeave={e=>e.currentTarget.style.color='#64748B'}>{label}</button>
+            ))}
+            <div style={{width:1,height:20,background:'rgba(255,255,255,0.08)',margin:'0 10px'}}/>
+            <button onClick={onLogin} style={{background:'none',color:'#94A3B8',border:'1px solid rgba(255,255,255,0.1)',borderRadius:4,padding:'8px 18px',fontSize:13,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(196,154,60,0.4)';e.currentTarget.style.color='#F0F4FA';}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(255,255,255,0.1)';e.currentTarget.style.color='#94A3B8';}}>Sign In</button>
+            <button onClick={()=>onBuyPlan?onBuyPlan('small_team'):onSignup?.()} style={LP.ctaPrimary} onMouseEnter={hP} onMouseLeave={lP}>Start Free Trial</button>
+          </div>
+          <button onClick={()=>onBuyPlan?onBuyPlan('small_team'):onSignup?.()} style={{...LP.ctaPrimary,padding:'9px 18px'}} onMouseEnter={hP} onMouseLeave={lP}>Try Free</button>
+        </nav>
+
+        {/* ── HERO ── */}
+        <div style={{...LP.section,paddingTop:'96px',paddingBottom:'80px'}}>
+          <div style={{...LP.lbl}}><span style={{...LP.lblLine,background:GOLD}}/><span style={{...LP.mono,color:GOLD}}>Emergency Management Platform</span></div>
+          <h1 style={{...LP.headline,fontSize:'clamp(40px,5.5vw,72px)',marginBottom:24}}>
+            Your EM program.<br/>Running at full strength.<br/><span style={{color:GOLD}}>Every single day.</span>
+          </h1>
+          <p style={{fontSize:17,...LP.body,maxWidth:580,lineHeight:1.82,marginBottom:16}}>
+            planrr.app is the all-in-one platform for emergency management programs that need to operate at a high standard — 365 days a year. SAGE, your AI program partner, monitors everything so you know exactly what to work on next.
+          </p>
+          <div style={{maxWidth:660,background:'rgba(19,14,2,0.92)',border:'1px solid rgba(196,154,60,0.4)',borderLeft:`4px solid ${GOLD}`,padding:'18px 24px',marginBottom:40,borderRadius:'0 4px 4px 0'}}>
+            <div style={{fontFamily:"'Syne','DM Sans',sans-serif",fontSize:15,color:'#FFFFFF',fontWeight:700,lineHeight:1.45,marginBottom:8}}>
+              When the disaster hits, nobody asks about your budget.<br/>They ask if you were ready.
+            </div>
+            <div style={{fontSize:13,color:GOLD,fontWeight:300,lineHeight:1.6}}>
+              planrr.app doesn't make the plan survive. It makes your organization tough enough that it doesn't need to.
+            </div>
+          </div>
+          <div className="lp-hero-btns" style={{display:'flex',gap:14,flexWrap:'wrap'}}>
+            <button onClick={()=>onBuyPlan?onBuyPlan('small_team'):onSignup?.()} style={LP.ctaPrimary} onMouseEnter={hP} onMouseLeave={lP}>Start Free Trial</button>
+            <button onClick={onLogin} style={LP.ctaGhost}>Sign In to Your Program →</button>
+          </div>
+        </div>
+
+        {/* ── STATS ── */}
+        <div style={{borderTop:'1px solid rgba(196,154,60,0.18)',borderBottom:'1px solid rgba(196,154,60,0.18)',background:'rgba(10,10,10,0.88)'}}>
+          <div className="lp-stats" style={{maxWidth:1120,margin:'0 auto',display:'grid',gridTemplateColumns:'repeat(4,1fr)'}}>
+            {[['73','EMAP Standards','Tracked'],['32','FEMA Core','Capabilities'],['100%','End-to-End','EM System'],['SAGE','Your AI','Program Partner']].map(([n,l1,l2],i)=>(
+              <div key={l1} style={{padding:'28px clamp(18px,3vw,44px)',borderRight:i<3?'1px solid rgba(196,154,60,0.1)':'none'}}>
+                <div style={{fontFamily:"'Syne','DM Sans',sans-serif",fontSize:n==='SAGE'?28:40,fontWeight:800,color:GOLD,lineHeight:1,marginBottom:8,letterSpacing:n==='SAGE'?'-0.5px':'-1.5px'}}>{n}</div>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:'#475569',letterSpacing:'0.13em',textTransform:'uppercase',lineHeight:1.7}}>{l1}<br/>{l2}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── PLATFORM ── */}
+        <div ref={sectionPlatform} style={LP.section}>
+          <div style={LP.lbl}><span style={{...LP.lblLine,background:GOLD}}/><span style={{...LP.mono,color:GOLD}}>The Platform</span></div>
+          <h2 style={{...LP.headline,fontSize:'clamp(26px,3.2vw,42px)',marginBottom:14}}>Everything your program needs.<br/><span style={{color:GOLD}}>One place.</span></h2>
+          <p style={{...LP.body,fontSize:15,maxWidth:620,lineHeight:1.82,marginBottom:52}}>Every module talks to every other module. An exercise finding becomes a compliance gap. A lapsed MOU surfaces in your priority queue. Your program picture builds as you work — not separately from it.</p>
+          <div className="lp-3col" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:3}}>
+            {features.map(([title,desc,tag])=>(
+              <div key={title} style={LP.darkCard} onMouseEnter={hC} onMouseLeave={lC}>
+                <div style={LP.accentTeal}/>
+                <div style={{fontFamily:"'Syne','DM Sans',sans-serif",fontSize:15,fontWeight:700,marginBottom:8,paddingLeft:12,color:'#FFFFFF'}}>{title}</div>
+                <div style={{fontSize:13,color:'#A0AEBF',lineHeight:1.72,fontWeight:300,paddingLeft:12}}>{desc}</div>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:B.teal,border:'1px solid rgba(62,207,207,0.22)',background:'rgba(62,207,207,0.05)',padding:'2px 10px',display:'inline-block',letterSpacing:'0.14em',textTransform:'uppercase',marginLeft:12,marginTop:12}}>{tag}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── HONESTY STRIP ── */}
+        <div style={{...LP.strip,borderTopColor:'rgba(239,68,68,0.14)'}}>
+          <div style={LP.section}>
+            <div style={LP.lbl}><span style={{...LP.lblLine,background:'#EF4444'}}/><span style={{...LP.mono,color:'#EF4444'}}>Let's be honest</span></div>
+            <h2 style={{...LP.headline,fontSize:'clamp(22px,2.8vw,36px)',marginBottom:10}}>Every EM program says they learn from every incident.</h2>
+            <p style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:'#475569',letterSpacing:'0.04em',lineHeight:1.7,marginBottom:44,maxWidth:640}}>Almost none close the loop. The findings sit in a folder. The same gaps appear in the next AAR. This is not a people problem. It's a system problem.</p>
+            <div className="lp-3col" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:3}}>
+              {[
+                ['The AAR Gap',"You filed the AAR. You didn't action the findings. The same gap shows up in the next one. No mechanism connects finding → standard → corrective action → resolution."],
+                ['The Training Lie','"Our staff is trained." Last documented training: 22 months ago. 4 new hires since. 0 tabletops on the current EOP version. Saying it happened once isn\'t the same as it being current.'],
+                ['The Succession Gap',"Your COOP succession line references 2 positions that no longer exist. If your EM director is unavailable today, there is no clear line of authority. SAGE finds this weekly."],
+              ].map(([title,body])=>(
+                <div key={title} style={{background:'rgba(239,68,68,0.04)',border:'1px solid rgba(239,68,68,0.18)',borderLeft:'3px solid #EF4444',padding:'24px 22px'}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:'#EF4444',letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:12}}>× {title}</div>
+                  <div style={{fontSize:13,color:'#A0AEBF',lineHeight:1.72,fontWeight:300}}>{body}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── PILLARS ── */}
+        <div ref={sectionPillars} style={LP.section}>
+          <div style={LP.lbl}><span style={{...LP.lblLine,background:B.teal}}/><span style={{...LP.mono,color:B.teal}}>Four Quiet Failures</span></div>
+          <h2 style={{...LP.headline,fontSize:'clamp(24px,3vw,40px)',marginBottom:14}}>The four things that quietly<br/><span style={{color:GOLD}}>fail without a system.</span></h2>
+          <p style={{...LP.body,fontSize:15,maxWidth:660,lineHeight:1.82,marginBottom:52}}>Not because anyone made a bad decision. Because there was no system watching. These gaps accumulate in silence — and they all surface in the same place: the after-action report.</p>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:3}}>
+            {pillars.map(([title,body,accent])=>(
+              <div key={title} style={LP.darkCard} onMouseEnter={hC} onMouseLeave={lC}>
+                <div style={{...LP.accentTeal,background:accent}}/>
+                <div style={{fontFamily:"'Syne','DM Sans',sans-serif",fontSize:16,fontWeight:700,marginBottom:6,paddingLeft:14,color:'#FFFFFF'}}>{title}</div>
+                <div style={{fontSize:13,color:'#A0AEBF',lineHeight:1.72,fontWeight:300,paddingLeft:14}}>{body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            SAGE SECTION
+        ══════════════════════════════════════════════════════════════════ */}
+        <div ref={sectionSage} style={{background:'#0E0E0E',borderTop:'1px solid rgba(62,207,207,0.14)',borderBottom:'1px solid rgba(62,207,207,0.14)'}}>
+
+          {/* SAGE Hero */}
+          <div style={LP.section}>
+            <div style={LP.lbl}><span style={{...LP.lblLine,background:B.teal}}/><span style={{...LP.mono,color:B.teal}}>Your AI Program Partner</span></div>
+            <h2 style={{...LP.headline,fontSize:'clamp(36px,5vw,62px)',marginBottom:22}}>
+              Not a chatbot.<br/>Not a GPT wrapper.<br/><span style={{color:GOLD}}>Not even close.</span>
+            </h2>
+            <p style={{fontSize:16,...LP.body,maxWidth:580,lineHeight:1.82,marginBottom:22}}>
+              SAGE is the first AI built specifically for emergency management programs — trained on EMAP EMS 5-2022, HSEEP, CPG 201, and your live program data simultaneously. It doesn't answer generic questions. It answers yours.
+            </p>
+            <div style={{maxWidth:660,background:'rgba(19,14,2,0.92)',border:'1px solid rgba(196,154,60,0.4)',borderLeft:`4px solid ${GOLD}`,padding:'20px 24px',marginBottom:44,borderRadius:'0 4px 4px 0'}}>
+              <div style={{fontFamily:"'Syne','DM Sans',sans-serif",fontSize:15,color:'#FFFFFF',fontWeight:700,lineHeight:1.45,marginBottom:8}}>
+                You already have ChatGPT. You've asked it about EMAP.<br/>It gave you a generic answer about accreditation standards.
+              </div>
+              <div style={{fontSize:13,color:GOLD,fontWeight:300,lineHeight:1.65}}>
+                SAGE knows your program has 14 open corrective actions, that Standard 4.7.3 is your biggest gap, that your EMPG deliverable is due in 11 days, and that your last exercise was 14 months ago. The answer it gives you is completely different.
+              </div>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:16}}>
+              <div style={{width:52,height:52,borderRadius:13,background:B.sidebar,border:'1.5px solid rgba(62,207,207,0.35)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <svg width="28" height="28" viewBox="0 0 100 100" fill="none">
+                  <rect width="100" height="100" rx="18" fill={B.sidebar}/>
+                  <path d="M20 78L20 20L66 20C80 20 86 30 86 40C86 50 80 58 66 58L32 58L32 78Z" fill={B.teal}/>
+                  <path d="M32 30L58 30C64 30 68 34 68 38C68 42 64 46 58 46L32 46Z" fill={B.sidebar}/>
+                </svg>
+              </div>
+              <div>
+                <div style={{display:'flex',alignItems:'baseline',gap:10,flexWrap:'wrap'}}>
+                  <span style={{fontFamily:"'Oxanium','DM Sans',sans-serif",fontWeight:800,fontSize:18,color:'#FFFFFF'}}>SAGE</span>
+                  <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:GOLD,letterSpacing:'0.1em',textTransform:'uppercase'}}>Smart Adaptive Guidance Engine</span>
+                </div>
+                <div style={{fontSize:12,color:'#475569',marginTop:3,fontFamily:"'DM Mono',monospace",letterSpacing:'0.06em'}}>Context-aware · Program-specific · Always watching</div>
+              </div>
+            </div>
+          </div>
+
+          {/* SAGE: The Difference */}
+          <div style={LP.strip}>
+            <div style={LP.sectionSm}>
+              <div style={LP.lbl}><span style={{...LP.lblLine,background:GOLD}}/><span style={{...LP.mono,color:GOLD}}>The Difference That Matters</span></div>
+              <h2 style={{...LP.headline,fontSize:'clamp(22px,3vw,38px)',marginBottom:14}}>Every AI can answer a question.<br/><span style={{color:GOLD}}>Almost none know your situation.</span></h2>
+              <p style={{...LP.body,fontSize:15,maxWidth:600,lineHeight:1.82,marginBottom:44}}>The gap between "answering questions about EMAP" and "knowing your program's specific compliance state in real time" is the gap between a search engine and a partner.</p>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:3}}>
+                <div style={{background:'#150A0A',border:'1px solid rgba(239,68,68,0.2)',borderLeft:'3px solid #EF4444',padding:'26px 24px',borderRadius:'0 4px 4px 0'}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:'#EF4444',letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:18}}>Generic AI / ChatGPT</div>
+                  <div style={{background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.15)',padding:'13px 15px',marginBottom:10}}>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:'#EF4444',marginBottom:7,letterSpacing:'0.06em'}}>You ask</div>
+                    <div style={{fontSize:13,color:'#FFFFFF',fontWeight:300}}>"What does EMAP 4.7 require?"</div>
+                  </div>
+                  <div style={{background:'#0D0606',border:'1px solid rgba(239,68,68,0.1)',padding:'13px 15px'}}>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:'#EF4444',marginBottom:7,letterSpacing:'0.06em'}}>It answers</div>
+                    <div style={{fontSize:13,color:'#A0AEBF',lineHeight:1.7,fontWeight:300}}>"EMAP Standard 4.7 addresses Resource Management and Mutual Aid. Programs must develop a resource management plan with goals and objectives, conduct gap analysis..."</div>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:'#5A6070',marginTop:12}}>→ Correct. Useless. You already knew this.</div>
+                  </div>
+                </div>
+                <div style={{background:'#0A1515',border:'1px solid rgba(62,207,207,0.2)',borderLeft:'3px solid #3ECFCF',padding:'26px 24px',borderRadius:'0 4px 4px 0'}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:B.teal,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:18}}>SAGE — knows your program</div>
+                  <div style={{background:'rgba(62,207,207,0.08)',border:'1px solid rgba(62,207,207,0.15)',padding:'13px 15px',marginBottom:10}}>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:B.teal,marginBottom:7,letterSpacing:'0.06em'}}>You ask</div>
+                    <div style={{fontSize:13,color:'#FFFFFF',fontWeight:300}}>"What does EMAP 4.7 require?"</div>
+                  </div>
+                  <div style={{background:'#060D0D',border:'1px solid rgba(62,207,207,0.1)',padding:'13px 15px'}}>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:B.teal,marginBottom:7,letterSpacing:'0.06em'}}>SAGE answers</div>
+                    <div style={{fontSize:13,color:'#A0AEBF',lineHeight:1.7,fontWeight:300}}>"You're at 38% on 4.7. Your biggest gap is 4.7.3 — you have 4 MOUs but none address resource shortfalls from your hazard profile. There's no personnel coverage for a flood event, which is your highest-risk scenario."</div>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:B.teal,marginTop:12}}>→ Specific. Actionable. Yours.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SAGE: What It Knows */}
+          <div style={LP.section}>
+            <div style={LP.lbl}><span style={{...LP.lblLine,background:B.teal}}/><span style={{...LP.mono,color:B.teal}}>What SAGE Actually Knows</span></div>
+            <h2 style={{...LP.headline,fontSize:'clamp(22px,3vw,38px)',marginBottom:14}}>The context that changes<br/><span style={{color:GOLD}}>every answer it gives you.</span></h2>
+            <p style={{...LP.body,fontSize:15,maxWidth:580,lineHeight:1.82,marginBottom:44}}>SAGE doesn't just know EM doctrine. It knows your program — updated every time you touch the platform.</p>
+            <div className="lp-3col" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:3}}>
+              {[
+                ['Live EMAP Status',"Which of your 73 standards are compliant, in-progress, or flagged. Which evidence is missing. Which sections are blocking peer review."],
+                ['Your Hazard Profile',"Every threat you've profiled. Probability, magnitude, affected capabilities. Every recommendation ties back to your actual risk picture."],
+                ['Training & Exercise History',"Who's trained, on what, when. Which credentials are current or lapsed. When you last exercised and whether the AAR loop closed."],
+                ['Open Corrective Actions',"Every AAR finding, its owner, its due date, the standard it maps to. SAGE knows what's still open and how long it's been sitting there."],
+                ['Partner Agreements',"Every MOU, its expiration, the resources it covers. SAGE flags gaps between what your hazard profile demands and what your agreements provide."],
+                ['Grant Obligations',"Active grants, deliverables, deadlines. SAGE connects compliance gaps to funding risk — and tells you which gaps are most likely to cost you."],
+              ].map(([title,body])=>(
+                <div key={title} style={{background:'#141414',border:'1px solid rgba(255,255,255,0.08)',padding:'22px 18px',transition:'border-color 0.2s,transform 0.2s'}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(62,207,207,0.3)';e.currentTarget.style.transform='translateY(-2px)';}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(255,255,255,0.08)';e.currentTarget.style.transform='translateY(0)';}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:B.teal,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:14}}>{title}</div>
+                  <div style={{fontSize:13,color:'#A0AEBF',lineHeight:1.72,fontWeight:300}}>{body}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* SAGE: In Practice */}
+          <div style={LP.strip}>
+            <div style={LP.sectionSm}>
+              <div style={LP.lbl}><span style={{...LP.lblLine,background:GOLD}}/><span style={{...LP.mono,color:GOLD}}>SAGE In Practice</span></div>
+              <h2 style={{...LP.headline,fontSize:'clamp(22px,3vw,38px)',marginBottom:14}}>Not hypothetical.<br/><span style={{color:GOLD}}>This is what it actually does.</span></h2>
+              <p style={{...LP.body,fontSize:15,maxWidth:560,lineHeight:1.82,marginBottom:40}}>Real scenarios. Real outputs. No demos with fake data.</p>
+              <div style={{display:'flex',flexDirection:'column',gap:3}}>
+                {sageScenarios.map(({n,title,ask,answer})=>(
+                  <div key={n} style={{background:'#141414',border:'1px solid rgba(255,255,255,0.08)',display:'grid',gridTemplateColumns:'190px 1fr'}}>
+                    <div style={{padding:'22px 18px',borderRight:'1px solid rgba(255,255,255,0.08)',display:'flex',flexDirection:'column',justifyContent:'center'}}>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:GOLD,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:8}}>Scenario {n}</div>
+                      <div style={{fontFamily:"'Syne','DM Sans',sans-serif",fontSize:14,fontWeight:700,color:'#FFFFFF',lineHeight:1.3}}>{title}</div>
+                    </div>
+                    <div style={{padding:'22px 24px'}}>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:'#475569',marginBottom:10,letterSpacing:'0.06em',textTransform:'uppercase'}}>{n==='04'?'You open the app':'You open the app and ask'}</div>
+                      <div style={{fontSize:14,color:'#FFFFFF',marginBottom:12,fontStyle:'italic'}}>{ask}</div>
+                      <div style={{fontSize:13,color:'#A0AEBF',lineHeight:1.72,fontWeight:300}}>{answer}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* SAGE: Partner vs Assistant */}
+          <div style={LP.section}>
+            <div style={LP.lbl}><span style={{...LP.lblLine,background:B.teal}}/><span style={{...LP.mono,color:B.teal}}>Why Partner, Not Assistant</span></div>
+            <h2 style={{...LP.headline,fontSize:'clamp(22px,3vw,38px)',marginBottom:40}}>An assistant waits to be asked.<br/><span style={{color:GOLD}}>A partner tells you what you missed.</span></h2>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:3}}>
+              <div style={{background:'#141414',border:'1px solid rgba(255,255,255,0.08)',padding:'28px 24px'}}>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:'#475569',letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:18}}>An assistant</div>
+                {['Waits for you to ask the right question','Answers based on training data, not your data','Forgets everything between sessions',"Can't tell you what you don't know to ask",'Gives the same answer to every EM director'].map(t=>(
+                  <div key={t} style={{display:'flex',gap:10,alignItems:'flex-start',fontSize:13,color:'#5A6070',lineHeight:1.65,marginBottom:10}}>
+                    <span style={{color:'#EF4444',flexShrink:0,marginTop:2,fontSize:12,fontWeight:700}}>×</span>{t}
+                  </div>
+                ))}
+              </div>
+              <div style={{background:'#0A1515',border:'1px solid rgba(62,207,207,0.2)',borderLeft:'3px solid #3ECFCF',padding:'28px 24px',borderRadius:'0 4px 4px 0'}}>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:B.teal,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:18}}>SAGE</div>
+                {['Surfaces what matters before you log in','Answers using your live program data','Maintains full context across every session',"Proactively flags what you haven't noticed",'Every answer is specific to your jurisdiction'].map(t=>(
+                  <div key={t} style={{display:'flex',gap:10,alignItems:'flex-start',fontSize:13,color:'#A0AEBF',lineHeight:1.65,marginBottom:10}}>
+                    <span style={{color:B.teal,flexShrink:0,marginTop:2,fontSize:12,fontWeight:700}}>+</span>{t}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* SAGE: Trust + CTA */}
+          <div style={LP.strip}>
+            <div style={LP.sectionSm}>
+              <div style={LP.lbl}><span style={{...LP.lblLine,background:GOLD}}/><span style={{...LP.mono,color:GOLD}}>Built on truth, not demos</span></div>
+              <h2 style={{...LP.headline,fontSize:'clamp(20px,2.6vw,34px)',marginBottom:32}}>What SAGE will never do.</h2>
+              <div className="lp-3col" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:3,marginBottom:52}}>
+                {[
+                  ['Never hallucinate standards',"SAGE operates against the actual EMAP EMS 5-2022 standard text, loaded at build time. It doesn't invent requirements. If it doesn't know, it says so."],
+                  ['Never give legal advice',"SAGE helps you build compliance. It doesn't interpret law, guarantee accreditation outcomes, or replace your counsel. It tells you what it can and can't answer."],
+                  ['Never share your data',"Your program data stays in your org. SAGE doesn't train on your inputs. Your succession lines, facility locations, and operational data are not model training material."],
+                ].map(([title,body])=>(
+                  <div key={title} style={{background:'#141414',border:'1px solid rgba(255,255,255,0.08)',padding:'22px 18px'}}>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:GOLD,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:12}}>{title}</div>
+                    <div style={{fontSize:13,color:'#A0AEBF',lineHeight:1.65,fontWeight:300}}>{body}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{maxWidth:660,margin:'0 auto',textAlign:'center'}}>
+                <div style={{fontFamily:"'Syne','DM Sans',sans-serif",fontSize:'clamp(20px,2.4vw,30px)',fontWeight:800,letterSpacing:'-1px',lineHeight:1.2,marginBottom:16,color:'#FFFFFF'}}>
+                  The goal isn't to impress you with AI.<br/><span style={{color:GOLD}}>The goal is to make your program stronger.</span>
+                </div>
+                <p style={{fontSize:14,...LP.body,lineHeight:1.75,marginBottom:30}}>SAGE exists because emergency managers are running complex programs with limited staff and no system watching the gaps. It's not a feature. It's the reason planrr.app works the way it does.</p>
+                <div style={{display:'flex',gap:14,justifyContent:'center',flexWrap:'wrap'}}>
+                  <button onClick={()=>onBuyPlan?onBuyPlan('small_team'):onSignup?.()} style={LP.ctaPrimary} onMouseEnter={hP} onMouseLeave={lP}>Start Free Trial</button>
+                  <button onClick={onLogin} style={LP.ctaGhost}>Sign In →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* END SAGE SECTION */}
+
+        {/* ── PRICING ── */}
+        <div ref={sectionPricing} style={{borderTop:'1px solid rgba(196,154,60,0.18)',background:'rgba(13,13,13,0.82)'}}>
+          <div style={LP.section}>
+            <div style={LP.lbl}><span style={{...LP.lblLine,background:GOLD}}/><span style={{...LP.mono,color:GOLD}}>Pricing</span></div>
+            <h2 style={{...LP.headline,fontSize:'clamp(24px,3vw,40px)',marginBottom:14}}>Built for every shop size.<br/><span style={{color:GOLD}}>No feature gating. Ever.</span></h2>
+            <p style={{...LP.body,fontSize:15,maxWidth:520,lineHeight:1.82,marginBottom:52}}>Every plan includes every feature. We price by team size because understaffed shops deserve the same tools as large agencies.</p>
+            <div className="lp-pricing" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:2}}>
+              {pricingPlans.map(({tier,price,period,desc,features:feats,plan,featured})=>(
+                <div key={tier} style={{background:featured?'rgba(28,21,0,0.96)':'rgba(14,14,14,0.95)',border:featured?`2px solid ${GOLD}`:'1px solid rgba(255,255,255,0.06)',padding:'32px 22px',position:'relative',boxShadow:featured?'0 0 40px rgba(196,154,60,0.18)':'none'}}>
+                  {featured&&<div style={{position:'absolute',top:-1,left:'50%',transform:'translateX(-50%)',background:GOLD,color:'#111',fontFamily:"'DM Mono',monospace",fontSize:8,fontWeight:700,letterSpacing:'0.15em',padding:'4px 16px',whiteSpace:'nowrap',textTransform:'uppercase'}}>Most Popular</div>}
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:featured?GOLD:B.teal,letterSpacing:'0.15em',textTransform:'uppercase',marginBottom:18,marginTop:featured?12:0}}>{tier}</div>
+                  <div style={{display:'flex',alignItems:'baseline',gap:3,marginBottom:4}}>
+                    <span style={{fontFamily:"'Syne','DM Sans',sans-serif",fontSize:price==='Custom'?28:42,fontWeight:800,color:'#FFFFFF',lineHeight:1}}>{price}</span>
+                    {period&&<span style={{color:'#475569',fontSize:12}}>{period}</span>}
+                  </div>
+                  <div style={{fontSize:11,color:'#475569',marginBottom:22,lineHeight:1.55}}>{desc}</div>
+                  {feats.map(f=>(
+                    <div key={f} style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:8,fontSize:12,color:'#94A3B8'}}>
+                      <span style={{color:featured?GOLD:B.teal,flexShrink:0,marginTop:1,fontSize:11}}>+</span>{f}
+                    </div>
+                  ))}
+                  <button onClick={()=>plan==='enterprise'?onSignup?.():onBuyPlan?onBuyPlan(plan):onSignup?.()}
+                    style={{width:'100%',marginTop:20,background:featured?GOLD:'transparent',color:featured?'#111':plan==='enterprise'?'#8B5CF6':B.teal,border:featured?'none':`1px solid ${plan==='enterprise'?'rgba(139,92,246,0.3)':'rgba(62,207,207,0.3)'}`,padding:featured?'12px':'11px 20px',fontFamily:featured?"'Syne','DM Sans',sans-serif":"'DM Sans',sans-serif",fontSize:featured?13:12,fontWeight:700,cursor:'pointer',borderRadius:3}}
+                  >{plan==='enterprise'?'Contact Sales':'Start Free Trial'}</button>
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:16,background:'rgba(24,18,2,0.9)',border:'1px solid rgba(196,154,60,0.3)',padding:'14px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:GOLD,letterSpacing:'0.15em',textTransform:'uppercase'}}>⚡ Founding Agency Pricing</span>
+                <span style={{fontSize:13,color:'#FFFFFF'}}>50% off any plan, locked for life.</span>
+              </div>
+              <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:'#475569',letterSpacing:'0.08em'}}>14-day free trial · No credit card required</div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── BIG CTA ── */}
+        <div style={{borderTop:'1px solid rgba(196,154,60,0.2)',borderBottom:'1px solid rgba(196,154,60,0.2)',background:'rgba(13,13,13,0.88)',padding:'84px 40px',textAlign:'center'}}>
+          <div style={{...LP.lbl,color:B.teal,justifyContent:'center'}}>
+            <span style={{...LP.lblLine,background:B.teal}}/>
+            <span style={{...LP.mono,color:B.teal}}>Organizational resilience isn't a value. It's a practice.</span>
+            <span style={{...LP.lblLine,background:B.teal}}/>
+          </div>
+          <h2 style={{...LP.headline,fontSize:'clamp(30px,4.5vw,56px)',marginBottom:16}}>Adapt or don't.<br/><span style={{color:GOLD}}>The incident won't wait.</span></h2>
+          <p style={{...LP.body,fontSize:15,marginBottom:40,maxWidth:520,margin:'0 auto 40px',lineHeight:1.82}}>Organizations that learn, adapt, and build institutional resilience don't need the plan to be perfect. They need the people, the systems, and the muscle memory to respond when it isn't.</p>
+          <div style={{display:'flex',gap:14,justifyContent:'center',flexWrap:'wrap'}}>
+            <button onClick={()=>onBuyPlan?onBuyPlan('small_team'):onSignup?.()} style={LP.ctaPrimary} onMouseEnter={hP} onMouseLeave={lP}>Start Free Trial</button>
+            <button onClick={onLogin} style={LP.ctaGhost}>Sign In →</button>
+          </div>
+          <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:'#475569',letterSpacing:'0.1em',marginTop:20}}>Founding agency pricing · Locked for life · Direct input into the roadmap</div>
+        </div>
+
+        {/* ── SECURITY ── */}
+        <div ref={sectionSecurity} style={{borderTop:'1px solid rgba(62,207,207,0.1)',background:'rgba(10,14,14,0.9)'}}>
+          <div style={LP.section}>
+            <div style={LP.lbl}><span style={{...LP.lblLine,background:B.teal}}/><span style={{...LP.mono,color:B.teal}}>Security & Compliance</span></div>
+            <h2 style={{...LP.headline,fontSize:'clamp(24px,3vw,40px)',marginBottom:14}}>Built for agencies that handle<br/><span style={{color:GOLD}}>sensitive data.</span></h2>
+            <p style={{...LP.body,fontSize:15,maxWidth:560,lineHeight:1.82,marginBottom:52}}>Plans, succession lines, facility locations, resource inventories. Your program data has operational security implications. We treat it that way.</p>
+            <div className="lp-3col" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:3}}>
+              {[
+                ['HTTPS Everywhere','Every request, every file transfer. TLS 1.2+ with no exceptions.'],
+                ['Encryption at Rest',"AES-256 on everything stored. If someone got to the database, they'd get noise."],
+                ['Authenticated Access','Every API call requires a valid token. Org-scoped — no other agency sees your data.'],
+                ['Activity Logs','Who changed what, and when. Full audit trail for accountability.'],
+                ['Automated Backups',"Continuous backups with point-in-time recovery. Your program doesn't disappear."],
+                ['Secure Infrastructure','SOC 2-certified cloud. DDoS protection, 24/7 monitoring, network isolation.'],
+              ].map(([title,body])=>(
+                <div key={title} style={LP.darkCard} onMouseEnter={hC} onMouseLeave={lC}>
+                  <div style={LP.accentTeal}/>
+                  <div style={{fontFamily:"'Syne','DM Sans',sans-serif",fontSize:15,fontWeight:700,marginBottom:8,paddingLeft:12,color:'#FFFFFF'}}>{title}</div>
+                  <div style={{fontSize:13,color:'#A0AEBF',lineHeight:1.68,fontWeight:300,paddingLeft:12}}>{body}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── FOOTER ── */}
+        <div style={{borderTop:'1px solid rgba(196,154,60,0.16)',background:'rgba(10,10,10,0.97)',padding:'48px clamp(20px,4vw,52px) 32px'}}>
+          <div style={{maxWidth:1120,margin:'0 auto'}}>
+            <div style={{display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:32,marginBottom:36}}>
+              <div>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+                  <div style={{width:26,height:26,borderRadius:7,background:B.sidebar,border:'1px solid rgba(62,207,207,0.25)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <svg width="14" height="14" viewBox="0 0 100 100" fill="none"><path d="M20 78L20 20L66 20C80 20 86 30 86 40C86 50 80 58 66 58L32 58L32 78Z" fill={B.teal}/><path d="M32 30L58 30C64 30 68 34 68 38C68 42 64 46 58 46L32 46Z" fill={B.sidebar}/></svg>
+                  </div>
+                  <span style={{fontFamily:"'Oxanium','DM Sans',sans-serif",fontWeight:800,fontSize:16,color:'#FFFFFF'}}>planrr<span style={{color:GOLD}}>.app</span></span>
+                </div>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:'#475569',letterSpacing:'0.08em',lineHeight:1.8,maxWidth:280}}>Emergency management platform.<br/>EMAP EMS 5-2022 · HSEEP · CPG 201<br/>helloplanrr.app@gmail.com</div>
+              </div>
+              <div style={{display:'flex',gap:48,flexWrap:'wrap'}}>
+                <div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:GOLD,letterSpacing:'0.15em',textTransform:'uppercase',marginBottom:14}}>Product</div>
+                  {[['Platform',()=>scrollTo(sectionPlatform)],['SAGE',()=>scrollTo(sectionSage)],['Pricing',()=>scrollTo(sectionPricing)],['Security',()=>scrollTo(sectionSecurity)]].map(([l,fn])=>(
+                    <div key={l} style={{marginBottom:8}}>
+                      <button onClick={fn} style={{background:'none',border:'none',fontSize:13,color:'#475569',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",padding:0}}
+                        onMouseEnter={e=>e.currentTarget.style.color='#94A3B8'} onMouseLeave={e=>e.currentTarget.style.color='#475569'}>{l}</button>
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:GOLD,letterSpacing:'0.15em',textTransform:'uppercase',marginBottom:14}}>Legal</div>
+                  {[['Privacy Policy','/privacy'],['Terms of Service','/terms']].map(([l,href])=>(
+                    <div key={l} style={{marginBottom:8}}>
+                      <a href={href} style={{fontSize:13,color:'#475569',textDecoration:'none',fontFamily:"'DM Sans',sans-serif"}}
+                        onMouseEnter={e=>e.currentTarget.style.color='#94A3B8'} onMouseLeave={e=>e.currentTarget.style.color='#475569'}>{l}</a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div style={{borderTop:'1px solid rgba(196,154,60,0.1)',paddingTop:20,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+              <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:'#2E3439',letterSpacing:'0.08em'}}>© 2026 planrr.app · getplanrr.com</div>
+              <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:'#2E3439',letterSpacing:'0.08em'}}>EMAP EMS 5-2022 ALIGNED · NOT AFFILIATED WITH EMAP OR IAEM</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+
+
 /* AUTH */
-var SB_URL = 'https://ltnbvwnhtsaebyslbhil.supabase.co';
-var SB_KEY =
+var SB_URL = process.env.REACT_APP_SUPABASE_URL || 'https://ltnbvwnhtsaebyslbhil.supabase.co';
+var SB_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0bmJ2d25odHNhZWJ5c2xiaGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMTk0NDYsImV4cCI6MjA4OTU5NTQ0Nn0.VrfVyQPiWzVo7VpQJtRyKQgNBtoq3Du-uGCAGsH815c';
 async function sbSignIn(email, pw) {
   const r = await fetch(SB_URL + '/auth/v1/token?grant_type=password', {
@@ -17484,7 +23557,7 @@ async function sbSignOut() {
       },
     });
   localStorage.removeItem('sb_session');
-  window.location.reload();
+  window.location.href = '/';
 }
 async function sbReset(email) {
   const r = await fetch(SB_URL + '/auth/v1/recover', {
@@ -17496,12 +23569,39 @@ async function sbReset(email) {
   if (d.error) throw new Error(d.error.message || 'Failed');
   return d;
 }
+async function sbRefreshToken() {
+  try {
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    if (!s || !s.refresh_token) return false;
+    const r = await fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SB_KEY },
+      body: JSON.stringify({ refresh_token: s.refresh_token }),
+    });
+    if (!r.ok) return false;
+    const d = await r.json();
+    if (d.error || !d.access_token) return false;
+    localStorage.setItem('sb_session', JSON.stringify({ ...s, ...d }));
+    return true;
+  } catch { return false; }
+}
+
+function getTokenExpiry() {
+  try {
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    if (!s || !s.access_token) return 0;
+    const p = JSON.parse(atob(s.access_token.split('.')[1]));
+    return (p.exp || 0) * 1000;
+  } catch { return 0; }
+}
+
 function isLoggedIn() {
   try {
     const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
     if (!s || !s.access_token) return false;
     const p = JSON.parse(atob(s.access_token.split('.')[1]));
     if (p.exp * 1000 < Date.now()) {
+      if (s.refresh_token) return 'needs_refresh';
       localStorage.removeItem('sb_session');
       return false;
     }
@@ -17511,499 +23611,260 @@ function isLoggedIn() {
   }
 }
 
-function AuthScreen({ onAuth, initialMode }) {
+function AuthScreen({ onAuth, initialMode, onClose }) {
   const [mode, setMode] = useState(initialMode || 'login');
-  const [fe, setFe] = useState('');
-  const [fp, setFp] = useState('');
-  const [fp2, setFp2] = useState('');
-  const [fn, setFn] = useState('');
-  const [fo, setFo] = useState('');
-  const [fj, setFj] = useState('');
-  const [fs, setFs] = useState('');
+  const [email, setEmail] = useState('');
+  const [pass, setPass] = useState('');
+  const [pass2, setPass2] = useState('');
+  const [name, setName] = useState('');
+  const [org, setOrg] = useState('');
+  const [jurisdiction, setJurisdiction] = useState('');
+  const [state, setState] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
-  const iS = {
-    width: '100%',
-    padding: '10px 12px',
-    background: '#132039',
-    border: '1px solid #1e3a5f',
-    borderRadius: 6,
-    color: '#f0f4fa',
-    fontSize: 14,
-    fontFamily: 'DM Sans,sans-serif',
-    outline: 'none',
-    marginBottom: 12,
-    boxSizing: 'border-box',
+
+  const inputStyle = {
+    width: '100%', padding: '11px 14px',
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 8, color: '#F0F4FA', fontSize: 14,
+    fontFamily: "'DM Sans',sans-serif", outline: 'none',
+    marginBottom: 12, transition: 'border-color 0.2s, box-shadow 0.2s',
   };
-  const bS = {
-    width: '100%',
-    padding: '11px',
-    background: GOLD,
-    color: '#080f1e',
-    border: 'none',
-    borderRadius: 7,
-    fontFamily: 'DM Sans,sans-serif',
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: 'pointer',
-    marginBottom: 8,
+  const btnPrimary = {
+    width: '100%', padding: 13,
+    background: `linear-gradient(135deg,${B.teal},${B.tealDark})`,
+    color: '#fff', border: 'none', borderRadius: 8,
+    fontFamily: "'DM Sans',sans-serif", fontSize: 14,
+    fontWeight: 700, cursor: 'pointer', marginBottom: 10,
+    boxShadow: '0 4px 16px rgba(62,207,207,0.3)',
+    transition: 'all 0.18s ease',
   };
-  const lS = {
-    display: 'block',
-    fontSize: 11,
-    fontWeight: 600,
-    color: '#94a3b8',
-    marginBottom: 4,
+  const linkStyle = {
+    background: 'none', border: 'none', color: B.teal,
+    fontSize: 13, cursor: 'pointer', padding: 0,
+    fontWeight: 600, fontFamily: "'DM Sans',sans-serif",
+    textDecoration: 'underline', textUnderlineOffset: 2,
   };
-  const lkS = {
-    background: 'none',
-    border: 'none',
-    color: GOLD,
-    fontSize: 12,
-    cursor: 'pointer',
-    padding: 0,
-    textDecoration: 'underline',
+  const labelStyle = {
+    display: 'block', fontSize: 11, fontWeight: 600,
+    color: '#64748B', marginBottom: 5,
+    textTransform: 'uppercase', letterSpacing: '0.07em',
+    fontFamily: "'DM Mono',monospace",
   };
+
+  const focusInput = (e) => {
+    e.target.style.borderColor = B.teal;
+    e.target.style.boxShadow = '0 0 0 3px rgba(62,207,207,0.12)';
+  };
+  const blurInput = (e) => {
+    e.target.style.borderColor = 'rgba(255,255,255,0.1)';
+    e.target.style.boxShadow = 'none';
+  };
+
   async function doLogin(e) {
-    e.preventDefault();
-    setErr('');
-    setLoading(true);
-    try {
-      await sbSignIn(fe, fp);
-      onAuth();
-    } catch (x) {
-      setErr(x.message);
-    }
+    e.preventDefault(); setErr(''); setLoading(true);
+    try { await sbSignIn(email, pass); onAuth(); }
+    catch (x) { setErr(x.message); }
     setLoading(false);
   }
   async function doSignup(e) {
-    e.preventDefault();
-    setErr('');
-    if (fp !== fp2) {
-      setErr('Passwords do not match');
-      return;
-    }
-    if (fp.length < 8) {
-      setErr('Password must be at least 8 characters');
-      return;
-    }
-    if (!fo.trim()) {
-      setErr('Organization name is required');
-      return;
-    }
+    e.preventDefault(); setErr('');
+    if (pass !== pass2) { setErr('Passwords do not match'); return; }
+    if (pass.length < 8) { setErr('Password must be at least 8 characters'); return; }
+    if (!org.trim()) { setErr('Organization name is required'); return; }
     setLoading(true);
     try {
-      await sbSignUp(fe, fp, fo.trim(), fn.trim(), fj, fs);
-      setOk('Account created! You can now sign in.');
-    } catch (x) {
-      setErr(x.message);
-    }
+      await sbSignUp(email, pass, org.trim(), name.trim(), jurisdiction, state);
+      await sbSignIn(email, pass);
+      try {
+        const session = JSON.parse(localStorage.getItem('sb_session') || '{}');
+        const meta = session?.user?.user_metadata || {};
+        const stds = {};
+        ALL_STANDARDS.forEach(s => { stds[s.id] = initRecord(); });
+        const seedData = {
+          ...initData(),
+          orgName: meta.org_name || org.trim() || '',
+          emName: meta.full_name || name.trim() || '',
+          emEmail: email || '',
+          jurisdiction: meta.jurisdiction || '',
+          state: meta.state || '',
+          standards: stds,
+          welcomeDismissed: false,
+        };
+        await saveData(seedData);
+      } catch {}
+      onAuth();
+      return;
+    } catch (x) { setErr(x.message); }
     setLoading(false);
   }
   async function doReset(e) {
-    e.preventDefault();
-    setErr('');
-    setLoading(true);
-    try {
-      await sbReset(fe);
-      setOk('Reset link sent - check your inbox.');
-    } catch (x) {
-      setErr(x.message);
-    }
+    e.preventDefault(); setErr(''); setLoading(true);
+    try { await sbReset(email); setOk('Reset link sent — check your inbox.'); }
+    catch (x) { setErr(x.message); }
     setLoading(false);
   }
+
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: '#080f1e',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <>
+      {/* Backdrop — animates independently, no transform conflict */}
       <div
+        onClick={onClose}
         style={{
-          background: '#0d1829',
-          border: '1px solid rgba(194,150,74,0.25)',
-          borderRadius: 12,
-          padding: '36px 40px',
-          width: 400,
-          maxWidth: 'calc(100vw - 40px)',
-          position: 'relative',
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(10,12,14,0.78)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 200,
+          animation: 'auth-backdrop 0.22s ease both',
         }}
-      >
-        <div style={{ marginBottom: 24 }}>
-          <Wordmark dark size="lg" />
+      />
+
+      {/* Card — auth-card keyframe owns the FULL transform so centering never fights animation */}
+      <div style={{
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        zIndex: 201,
+        width: 430,
+        maxWidth: 'calc(100vw - 32px)',
+        maxHeight: 'calc(100vh - 40px)',
+        overflowY: 'auto',
+        animation: 'auth-card 0.28s cubic-bezier(0.34,1.06,0.64,1) both',
+      }}>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
+            <div style={{ background: B.sidebar, borderRadius: 10, padding: 8, border: '1px solid rgba(62,207,207,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 100 100" fill="none">
+                <rect width="100" height="100" rx="18" fill={B.sidebar}/>
+                <path d="M20 78L20 20L66 20C80 20 86 30 86 40C86 50 80 58 66 58L32 58L32 78Z" fill={B.teal}/>
+                <path d="M32 30L58 30C64 30 68 34 68 38C68 42 64 46 58 46L32 46Z" fill={B.sidebar}/>
+              </svg>
+            </div>
+            <span style={{ fontFamily: "'Oxanium','DM Sans',sans-serif", fontWeight: 800, fontSize: 20, color: '#F0F4FA', letterSpacing: '-0.3px' }}>
+              planrr<span style={{ color: GOLD }}>.app</span>
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: '#64748B', letterSpacing: '0.03em' }}>AI-powered emergency management</div>
         </div>
-        {err && (
-          <div
-            style={{
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 6,
-              padding: '9px 12px',
-              fontSize: 12,
-              color: '#ef4444',
-              marginBottom: 12,
-            }}
-          >
-            {err}
-          </div>
-        )}
-        {ok && (
-          <div
-            style={{
-              background: 'rgba(27,201,196,0.1)',
-              border: '1px solid rgba(27,201,196,0.3)',
-              borderRadius: 6,
-              padding: '9px 12px',
-              fontSize: 12,
-              color: B.teal,
-              marginBottom: 12,
-            }}
-          >
-            {ok}
-          </div>
-        )}
-        {mode === 'login' && (
-          <form onSubmit={doLogin}>
-            <div
-              style={{
-                fontSize: 19,
-                fontWeight: 700,
-                color: '#f0f4fa',
-                marginBottom: 4,
-              }}
-            >
-              Welcome back
-            </div>
-            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20 }}>
-              Sign in to your program
-            </div>
-            <label style={lS}>Work email</label>
-            <input
-              type="email"
-              value={fe}
-              onChange={(e) => setFe(e.target.value)}
-              placeholder="you@county.gov"
-              style={iS}
-              required
-            />
-            <label style={lS}>Password</label>
-            <input
-              type="password"
-              value={fp}
-              onChange={(e) => setFp(e.target.value)}
-              placeholder="Password"
-              style={iS}
-              required
-            />
-            <button type="submit" disabled={loading} style={bS}>
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-            <div style={{ textAlign: 'center', marginBottom: 6 }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('reset');
-                  setErr('');
-                  setOk('');
-                }}
-                style={lkS}
-              >
-                Forgot password?
+
+        {/* Card body */}
+        <div style={{
+          background: 'rgba(22,25,28,0.97)',
+          backdropFilter: 'blur(24px)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 16,
+          padding: '28px 30px',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
+          position: 'relative',
+        }}>
+          {onClose && (
+            <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#64748B', fontSize: 16, cursor: 'pointer', padding: '4px 8px', lineHeight: 1, borderRadius: 6 }}>✕</button>
+          )}
+
+          {err && (
+            <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#EF4444', marginBottom: 14 }}>{err}</div>
+          )}
+          {ok && (
+            <div style={{ background: `rgba(62,207,207,0.1)`, border: `1px solid rgba(62,207,207,0.3)`, borderRadius: 8, padding: '10px 14px', fontSize: 12, color: B.teal, marginBottom: 14 }}>{ok}</div>
+          )}
+
+          {mode === 'login' && (
+            <form onSubmit={doLogin}>
+              <div style={{ fontSize: 21, fontWeight: 800, color: '#F0F4FA', marginBottom: 4, letterSpacing: '-0.5px', fontFamily: "'Syne','DM Sans',sans-serif" }}>Welcome back</div>
+              <div style={{ fontSize: 13, color: '#64748B', marginBottom: 22 }}>Sign in to your program</div>
+              <label style={labelStyle}>Work email</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@agency.gov" style={inputStyle} onFocus={focusInput} onBlur={blurInput} required />
+              <label style={labelStyle}>Password</label>
+              <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Password" style={inputStyle} onFocus={focusInput} onBlur={blurInput} required />
+              <button type="submit" disabled={loading} style={{ ...btnPrimary, opacity: loading ? 0.7 : 1 }}
+                onMouseEnter={e => { if (!loading) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 22px rgba(62,207,207,0.4)'; }}}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(62,207,207,0.3)'; }}>
+                {loading && <span style={{ display: 'inline-block', animation: 'spinner 0.8s linear infinite', marginRight: 8 }}>⟳</span>}
+                {loading ? 'Signing in…' : 'Sign In'}
               </button>
-            </div>
-            <div
-              style={{ height: 1, background: '#1a2d47', margin: '12px 0' }}
-            />
-            <div
-              style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center' }}
-            >
-              No account?{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('signup');
-                  setErr('');
-                  setOk('');
-                }}
-                style={lkS}
-              >
-                Request access
-              </button>
-            </div>
-          </form>
-        )}
-        {mode === 'signup' && (
-          <form onSubmit={doSignup}>
-            <div
-              style={{
-                fontSize: 19,
-                fontWeight: 700,
-                color: '#f0f4fa',
-                marginBottom: 4,
-              }}
-            >
-              Start your program
-            </div>
-            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20 }}>
-              Create your PLANRR account
-            </div>
-            <label style={lS}>Full name</label>
-            <input
-              type="text"
-              value={fn}
-              onChange={(e) => setFn(e.target.value)}
-              placeholder="Jane Smith"
-              style={iS}
-            />
-            <label style={lS}>Work email</label>
-            <input
-              type="email"
-              value={fe}
-              onChange={(e) => setFe(e.target.value)}
-              placeholder="you@county.gov"
-              style={iS}
-              required
-            />
-            <label style={lS}>Organization name</label>
-            <input
-              type="text"
-              value={fo}
-              onChange={(e) => setFo(e.target.value)}
-              placeholder="San Joaquin County OES"
-              style={iS}
-              required
-            />
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '0 12px',
-              }}
-            >
-              <div>
-                <label style={lS}>Jurisdiction type</label>
-                <select
-                  value={fj}
-                  onChange={(e) => setFj(e.target.value)}
-                  style={{ ...iS, marginBottom: 12 }}
-                >
-                  <option value="">Select type...</option>
-                  <option>County</option>
-                  <option>Municipal</option>
-                  <option>State</option>
-                  <option>Tribal</option>
-                  <option>Territory</option>
-                  <option>University / College</option>
-                  <option>Hospital / Healthcare</option>
-                  <option>Private Sector</option>
-                  <option>Federal Agency</option>
-                </select>
+              <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                <button type="button" style={linkStyle} onClick={() => { setMode('reset'); setErr(''); setOk(''); }}>Forgot password?</button>
               </div>
-              <div>
-                <label style={lS}>State</label>
-                <select
-                  value={fs}
-                  onChange={(e) => setFs(e.target.value)}
-                  style={{ ...iS, marginBottom: 12 }}
-                >
-                  <option value="">Select state...</option>
-                  {[
-                    'AL',
-                    'AK',
-                    'AZ',
-                    'AR',
-                    'CA',
-                    'CO',
-                    'CT',
-                    'DE',
-                    'FL',
-                    'GA',
-                    'HI',
-                    'ID',
-                    'IL',
-                    'IN',
-                    'IA',
-                    'KS',
-                    'KY',
-                    'LA',
-                    'ME',
-                    'MD',
-                    'MA',
-                    'MI',
-                    'MN',
-                    'MS',
-                    'MO',
-                    'MT',
-                    'NE',
-                    'NV',
-                    'NH',
-                    'NJ',
-                    'NM',
-                    'NY',
-                    'NC',
-                    'ND',
-                    'OH',
-                    'OK',
-                    'OR',
-                    'PA',
-                    'RI',
-                    'SC',
-                    'SD',
-                    'TN',
-                    'TX',
-                    'UT',
-                    'VT',
-                    'VA',
-                    'WA',
-                    'WV',
-                    'WI',
-                    'WY',
-                    'DC',
-                    'PR',
-                    'GU',
-                    'VI',
-                  ].map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
-                </select>
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '14px 0' }} />
+              <div style={{ fontSize: 12, color: '#64748B', textAlign: 'center' }}>
+                No account?{' '}
+                <button type="button" style={linkStyle} onClick={() => { setMode('signup'); setErr(''); setOk(''); }}>Request access</button>
               </div>
-            </div>
-            <label style={lS}>Password</label>
-            <input
-              type="password"
-              value={fp}
-              onChange={(e) => setFp(e.target.value)}
-              placeholder="8 or more characters"
-              style={iS}
-              required
-            />
-            <label style={lS}>Confirm password</label>
-            <input
-              type="password"
-              value={fp2}
-              onChange={(e) => setFp2(e.target.value)}
-              placeholder="Repeat password"
-              style={iS}
-              required
-            />
-            <button type="submit" disabled={loading} style={bS}>
-              {loading ? 'Creating...' : 'Create Account'}
-            </button>
-            <div
-              style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center' }}
-            >
-              Have an account?{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('login');
-                  setErr('');
-                  setOk('');
-                }}
-                style={lkS}
-              >
-                Sign in
+            </form>
+          )}
+
+          {mode === 'signup' && (
+            <form onSubmit={doSignup}>
+              <div style={{ fontSize: 21, fontWeight: 800, color: '#F0F4FA', marginBottom: 4, letterSpacing: '-0.5px', fontFamily: "'Syne','DM Sans',sans-serif" }}>Start your free trial</div>
+              <div style={{ fontSize: 13, color: '#64748B', marginBottom: 20 }}>14 days free · Cancel anytime</div>
+              <label style={labelStyle}>Your name</label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full name" style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
+              <label style={labelStyle}>Work email</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@agency.gov" style={inputStyle} onFocus={focusInput} onBlur={blurInput} required />
+              <label style={labelStyle}>Organization name</label>
+              <input type="text" value={org} onChange={e => setOrg(e.target.value)} placeholder="County Emergency Management" style={inputStyle} onFocus={focusInput} onBlur={blurInput} required />
+              <label style={labelStyle}>Password</label>
+              <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="8+ characters" style={inputStyle} onFocus={focusInput} onBlur={blurInput} required />
+              <label style={labelStyle}>Confirm password</label>
+              <input type="password" value={pass2} onChange={e => setPass2(e.target.value)} placeholder="Repeat password" style={inputStyle} onFocus={focusInput} onBlur={blurInput} required />
+              <button type="submit" disabled={loading} style={{ ...btnPrimary, opacity: loading ? 0.7 : 1 }}
+                onMouseEnter={e => { if (!loading) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 22px rgba(62,207,207,0.4)'; }}}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(62,207,207,0.3)'; }}>
+                {loading ? 'Setting up…' : 'Start Free Trial'}
               </button>
-            </div>
-          </form>
-        )}
-        {mode === 'reset' && (
-          <form onSubmit={doReset}>
-            <div
-              style={{
-                fontSize: 19,
-                fontWeight: 700,
-                color: '#f0f4fa',
-                marginBottom: 4,
-              }}
-            >
-              Reset password
-            </div>
-            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20 }}>
-              We will send a reset link to your email
-            </div>
-            <label style={lS}>Work email</label>
-            <input
-              type="email"
-              value={fe}
-              onChange={(e) => setFe(e.target.value)}
-              placeholder="you@county.gov"
-              style={iS}
-              required
-            />
-            {!ok && (
-              <button type="submit" disabled={loading} style={bS}>
-                {loading ? 'Sending...' : 'Send Reset Link'}
+              <div style={{ fontSize: 12, color: '#64748B', textAlign: 'center' }}>
+                Have an account?{' '}
+                <button type="button" style={linkStyle} onClick={() => { setMode('login'); setErr(''); setOk(''); }}>Sign in</button>
+              </div>
+            </form>
+          )}
+
+          {mode === 'reset' && (
+            <form onSubmit={doReset}>
+              <div style={{ fontSize: 21, fontWeight: 800, color: '#F0F4FA', marginBottom: 4, letterSpacing: '-0.5px', fontFamily: "'Syne','DM Sans',sans-serif" }}>Reset password</div>
+              <div style={{ fontSize: 13, color: '#64748B', marginBottom: 22 }}>We'll send a reset link to your email</div>
+              <label style={labelStyle}>Work email</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@agency.gov" style={inputStyle} onFocus={focusInput} onBlur={blurInput} required />
+              {!ok && (
+                <button type="submit" disabled={loading} style={btnPrimary}>{loading ? 'Sending…' : 'Send Reset Link'}</button>
+              )}
+              <button type="button" onClick={() => { setMode('login'); setErr(''); setOk(''); }} style={{ width: '100%', padding: 11, background: 'none', color: '#94A3B8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = `rgba(62,207,207,0.3)`; e.currentTarget.style.color = B.teal; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#94A3B8'; }}>
+                ← Back to Sign In
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setMode('login');
-                setErr('');
-                setOk('');
-              }}
-              style={{
-                width: '100%',
-                padding: '10px',
-                background: 'none',
-                color: '#94a3b8',
-                border: '1px solid #1e3a5f',
-                borderRadius: 7,
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              Back to Sign In
-            </button>
-          </form>
-        )}
+            </form>
+          )}
+        </div>
+
+        {/* Footer badges */}
+        <div style={{ textAlign: 'center', marginTop: 20 }}>
+          <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#334155', justifyContent: 'center', fontFamily: "'DM Mono',monospace", letterSpacing: '0.06em' }}>
+            <span>EMAP EMS 5-2022</span>
+            <span>HSEEP Aligned</span>
+            <span>FEMA Compatible</span>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
 function FirstRunWelcome({ onDone, setView }) {
   const [step, setStep] = useState(0);
-  const steps = [
-    {
-      t: 'Welcome to planrr.app',
-      b: 'Your program is ready with all 73 EMAP standards. Here are 3 things to do first.',
-      a: 'Get started',
-    },
-    {
-      t: 'Set up your profile',
-      b: 'Go to Settings and enter your organization name, jurisdiction, state, and EM contact. This flows into every report and AI document.',
-      a: 'Next',
-      lnk: 'settings',
-      ll: 'Open Settings',
-    },
-    {
-      t: 'Drop in your documents',
-      b: 'Use Bulk Doc Intake to upload your EOP, COOP, AARs and plans. AI maps each one to the relevant EMAP standards automatically.',
-      a: 'Next',
-      lnk: 'intake',
-      ll: 'Open Bulk Intake',
-    },
-    {
-      t: 'Build your hazard profile',
-      b: 'Go to SPAR/THIRA to profile your jurisdiction hazards. Drop in an existing THIRA and AI extracts every hazard automatically. Satisfies EMAP 4.1.',
-      a: 'Open planrr.app',
-      lnk: 'thira',
-      ll: 'Open SPAR/THIRA',
-      last: true,
-    },
-  ];
-  const s = steps[step];
+  const [path, setPath] = useState(null);
+  const totalSteps = 5;
+  const pct = Math.round((step / totalSteps) * 100);
+
+  // Step 0: Welcome + path selection
+  // Step 1: What your role looks like
+  // Step 2: The Plan → Build → Sustain framework
+  // Step 3: Where to start based on path
+  // Step 4: Your first action
+
   return (
     <>
       <div
@@ -18013,9 +23874,11 @@ function FirstRunWelcome({ onDone, setView }) {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(8,15,30,0.85)',
+          background: 'rgba(20,23,25,0.92)',
           zIndex: 98,
+          backdropFilter: 'blur(4px)',
         }}
+        onClick={step >= 4 ? onDone : undefined}
       />
       <div
         style={{
@@ -18024,99 +23887,640 @@ function FirstRunWelcome({ onDone, setView }) {
           left: '50%',
           transform: 'translate(-50%,-50%)',
           zIndex: 99,
-          width: 460,
+          width: 520,
           maxWidth: 'calc(100vw - 40px)',
-          background: '#0d1829',
-          border: '1px solid rgba(194,150,74,0.3)',
-          borderRadius: 12,
-          padding: '32px 36px',
+          background: '#1C1F22',
+          border: '1px solid #2E3439',
+          borderRadius: 16,
+          padding: 0,
+          overflow: 'hidden',
+          boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
         }}
       >
-        <div style={{ display: 'flex', gap: 6, marginBottom: 24 }}>
-          {steps.map((_, i) => (
-            <div
-              key={i}
-              style={{
-                height: 3,
-                flex: 1,
-                borderRadius: 2,
-                background: i <= step ? '#c2964a' : '#1e3a5f',
-              }}
-            />
-          ))}
-        </div>
-        <div
-          style={{
-            fontSize: 18,
-            fontWeight: 700,
-            color: '#f0f4fa',
-            marginBottom: 8,
-          }}
-        >
-          {s.t}
-        </div>
-        <div
-          style={{
-            fontSize: 14,
-            color: '#94a3b8',
-            lineHeight: 1.7,
-            marginBottom: 22,
-          }}
-        >
-          {s.b}
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            onClick={() => (s.last ? onDone() : setStep((p) => p + 1))}
+        {/* Progress bar */}
+        <div style={{ height: 3, background: '#2E3439' }}>
+          <div
             style={{
-              background: '#c2964a',
-              color: '#080f1e',
-              border: 'none',
-              borderRadius: 7,
-              padding: '10px 22px',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: 'pointer',
+              height: '100%',
+              width: `${pct}%`,
+              background: `linear-gradient(90deg, ${B.teal}, GOLD)`,
+              borderRadius: 2,
+              transition: 'width 0.4s ease',
             }}
-          >
-            {s.a}
-          </button>
-          {s.lnk && (
-            <button
-              onClick={() => {
-                setView(s.lnk);
-                onDone();
-              }}
-              style={{
-                background: 'none',
-                color: '#c2964a',
-                border: '1px solid rgba(194,150,74,0.3)',
-                borderRadius: 7,
-                padding: '9px 16px',
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              {s.ll}
-            </button>
-          )}
+          />
         </div>
-        {step > 0 && (
-          <button
-            onClick={() => setStep((p) => p - 1)}
+
+        <div style={{ padding: '32px 36px' }}>
+          {/* Step counter */}
+          <div
             style={{
-              background: 'none',
-              border: 'none',
+              fontSize: 10,
               color: '#475569',
-              fontSize: 11,
-              cursor: 'pointer',
-              marginTop: 12,
-              padding: 0,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              marginBottom: 16,
+              fontWeight: 600,
             }}
           >
-            Back
-          </button>
-        )}
+            {step === 0
+              ? 'Welcome'
+              : step === totalSteps
+              ? 'Ready'
+              : 'Step ' + step + ' of ' + (totalSteps - 1)}
+          </div>
+
+          {step === 0 && (
+            <>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 8,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                Welcome to planrr.app
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: '#94a3b8',
+                  lineHeight: 1.8,
+                  marginBottom: 24,
+                }}
+              >
+                We're going to help you build a professional emergency
+                management program — whether you're starting from scratch or
+                organizing what you already have. First, tell us where you are:
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  marginBottom: 20,
+                }}
+              >
+                <button
+                  onClick={() => {
+                    setPath('new');
+                    setStep(1);
+                  }}
+                  style={{
+                    background:
+                      path === 'new' ? 'rgba(27,201,196,0.12)' : '#252A2E',
+                    border: `1px solid ${
+                      path === 'new' ? 'rgba(27,201,196,0.3)' : '#2E3439'
+                    }`,
+                    borderRadius: 12,
+                    padding: '16px 20px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.borderColor = 'rgba(27,201,196,0.3)')
+                  }
+                  onMouseLeave={(e) => {
+                    if (path !== 'new')
+                      e.currentTarget.style.borderColor = '#2E3439';
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: B.teal,
+                      marginBottom: 4,
+                    }}
+                  >
+                    🆕 I'm starting a new program
+                  </div>
+                  <div
+                    style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}
+                  >
+                    EM was just assigned to me, or I'm building from the ground
+                    up. I need guidance on what to do and where to start.
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setPath('existing');
+                    setStep(1);
+                  }}
+                  style={{
+                    background:
+                      path === 'existing' ? 'rgba(194,150,74,0.12)' : '#252A2E',
+                    border: `1px solid ${
+                      path === 'existing' ? 'rgba(194,150,74,0.3)' : '#2E3439'
+                    }`,
+                    borderRadius: 12,
+                    padding: '16px 20px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.borderColor = 'rgba(194,150,74,0.3)')
+                  }
+                  onMouseLeave={(e) => {
+                    if (path !== 'existing')
+                      e.currentTarget.style.borderColor = '#2E3439';
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: GOLD,
+                      marginBottom: 4,
+                    }}
+                  >
+                    📂 I have an existing program
+                  </div>
+                  <div
+                    style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}
+                  >
+                    I already have plans, training records, and documents. I
+                    want to organize them and track EMAP compliance.
+                  </div>
+                </button>
+              </div>
+            </>
+          )}
+
+          {step === 1 && (
+            <>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 8,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                {path === 'new'
+                  ? "You're not alone in this"
+                  : "Let's organize what you have"}
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: '#94a3b8',
+                  lineHeight: 1.8,
+                  marginBottom: 20,
+                }}
+              >
+                {path === 'new'
+                  ? 'Over half of local EM programs are managed by someone doing it as an additional duty. Planrr is built for exactly that — it walks you through every step so nothing falls through the cracks.'
+                  : 'Most EM programs have documents scattered across drives, email, and filing cabinets. Planrr brings everything into one place and maps it to EMAP standards automatically.'}
+              </div>
+              <div
+                style={{
+                  background: '#252A2E',
+                  borderRadius: 10,
+                  padding: '16px 18px',
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 10,
+                  }}
+                >
+                  {(path === 'new'
+                    ? [
+                        { n: '73', l: 'EMAP standards loaded' },
+                        { n: '32', l: 'FEMA capabilities mapped' },
+                        { n: '6', l: 'AI templates ready' },
+                        { n: '∞', l: 'Guided coaching built in' },
+                      ]
+                    : [
+                        { n: '📤', l: 'Bulk document upload' },
+                        { n: '🤖', l: 'AI auto-maps to standards' },
+                        { n: '📊', l: 'Instant gap analysis' },
+                        { n: '📋', l: 'Evidence packaging' },
+                      ]
+                  ).map((s) => (
+                    <div
+                      key={s.l}
+                      style={{ textAlign: 'center', padding: '10px' }}
+                    >
+                      <div
+                        style={{ fontSize: 18, fontWeight: 800, color: B.teal }}
+                      >
+                        {s.n}
+                      </div>
+                      <div
+                        style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}
+                      >
+                        {s.l}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 8,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                Plan → Build → Sustain
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: '#94a3b8',
+                  lineHeight: 1.8,
+                  marginBottom: 20,
+                }}
+              >
+                Every EM program follows the same three phases. The sidebar
+                groups your tools by function:
+              </div>
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+              >
+                {[
+                  {
+                    phase: 'Plan',
+                    color: B.teal,
+                    icon: '📋',
+                    items: [
+                      'Identify your hazards (THIRA)',
+                      'Write your plans & SOPs',
+                      'Map your partners',
+                      'Inventory your resources',
+                    ],
+                  },
+                  {
+                    phase: 'Build',
+                    color: GOLD,
+                    icon: '🔨',
+                    items: [
+                      'Staff & credential your people',
+                      'Train your team',
+                      'Exercise your plans',
+                      'Secure funding',
+                    ],
+                  },
+                  {
+                    phase: 'Sustain',
+                    color: '#8B5CF6',
+                    icon: '✅',
+                    items: [
+                      'Track EMAP standards',
+                      'Build evidence packages',
+                      'Maintain accreditation',
+                    ],
+                  },
+                ].map((p) => (
+                  <div
+                    key={p.phase}
+                    style={{
+                      background: '#252A2E',
+                      borderRadius: 10,
+                      padding: '14px 18px',
+                      borderLeft: `3px solid ${p.color}`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginBottom: 6,
+                      }}
+                    >
+                      <span style={{ fontSize: 16 }}>{p.icon}</span>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: p.color,
+                        }}
+                      >
+                        {p.phase}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {p.items.map((i) => (
+                        <span
+                          key={i}
+                          style={{
+                            fontSize: 11,
+                            color: '#94a3b8',
+                            background: '#1C1F22',
+                            padding: '3px 10px',
+                            borderRadius: 6,
+                          }}
+                        >
+                          {i}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 8,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                {path === 'new'
+                  ? 'Your first 3 steps'
+                  : 'Your fast-track setup'}
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: '#94a3b8',
+                  lineHeight: 1.8,
+                  marginBottom: 20,
+                }}
+              >
+                {path === 'new'
+                  ? "Don't try to do everything at once. Here's exactly where to start:"
+                  : "Here's the fastest way to get your existing program loaded:"}
+              </div>
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+              >
+                {(path === 'new'
+                  ? [
+                      {
+                        n: '1',
+                        title: 'Set up My Program',
+                        desc: 'Enter your org name, jurisdiction, and contact info. Takes 2 minutes. This populates every document and report.',
+                        where: 'settings',
+                      },
+                      {
+                        n: '2',
+                        title: 'Profile your hazards',
+                        desc: 'Go to Hazard Analysis and list 3-5 threats your area faces. This is the foundation for everything else.',
+                        where: 'thira',
+                      },
+                      {
+                        n: '3',
+                        title: 'Generate your first plan',
+                        desc: 'Go to AI Tools → Doc Templates and generate a Strategic Plan. AI uses your org data to create a 70% starting point.',
+                        where: 'templates',
+                      },
+                    ]
+                  : [
+                      {
+                        n: '1',
+                        title: 'Set up My Program',
+                        desc: 'Enter your org name, jurisdiction, and contact info. Takes 2 minutes.',
+                        where: 'settings',
+                      },
+                      {
+                        n: '2',
+                        title: 'Bulk upload your documents',
+                        desc: 'Drop your EOP, COOP, AARs, MOUs, and training records into Bulk Doc Intake. AI maps them to EMAP standards.',
+                        where: 'intake',
+                      },
+                      {
+                        n: '3',
+                        title: 'Review your gap analysis',
+                        desc: 'Check the Dashboard and EMAP Standards to see where you stand. Focus on the gaps.',
+                        where: 'dashboard',
+                      },
+                    ]
+                ).map((s) => (
+                  <div
+                    key={s.n}
+                    style={{
+                      display: 'flex',
+                      gap: 14,
+                      alignItems: 'flex-start',
+                      background: '#252A2E',
+                      borderRadius: 10,
+                      padding: '14px 18px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 8,
+                        background: `linear-gradient(135deg, ${B.teal}, ${B.tealDark})`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 14,
+                        fontWeight: 800,
+                        color: '#fff',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {s.n}
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: '#f0f4fa',
+                          marginBottom: 3,
+                        }}
+                      >
+                        {s.title}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: '#94a3b8',
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {s.desc}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {step === 4 && (
+            <>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#f0f4fa',
+                  marginBottom: 8,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                You're ready to go
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: '#94a3b8',
+                  lineHeight: 1.8,
+                  marginBottom: 16,
+                }}
+              >
+                Every section has a coaching guide that explains what it is, why
+                it matters, and what to do first. Look for the teal guide
+                banners as you go.
+              </div>
+              <div
+                style={{
+                  background:
+                    'linear-gradient(135deg, rgba(27,201,196,0.1), rgba(194,150,74,0.1))',
+                  borderRadius: 10,
+                  padding: '16px 18px',
+                  border: '1px solid #2E3439',
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>💡</span>
+                  <span
+                    style={{ fontSize: 13, fontWeight: 700, color: '#f0f4fa' }}
+                  >
+                    Pro tip
+                  </span>
+                </div>
+                <div
+                  style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.7 }}
+                >
+                  {path === 'new'
+                    ? 'Follow the sidebar top to bottom. Each section builds on the one before it. The numbered steps (①-⑧) are your roadmap. Take it one section at a time.'
+                    : "Start with Bulk Doc Intake to upload everything you have. Then check the Dashboard — it'll show you exactly where your gaps are and what to tackle next."}
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: '#475569', marginBottom: 4 }}>
+                The guide banners can be dismissed any time. You can always find
+                help in the AI Assistant.
+              </div>
+            </>
+          )}
+
+          {/* Navigation buttons */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              marginTop: 24,
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              {step > 0 && (
+                <button
+                  onClick={() => setStep((p) => p - 1)}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #2E3439',
+                    color: '#94a3b8',
+                    borderRadius: 8,
+                    padding: '8px 16px',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans',sans-serif",
+                  }}
+                >
+                  Back
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {step < totalSteps && step > 0 && (
+                <button
+                  onClick={() => setStep((p) => p + 1)}
+                  style={{
+                    background: `linear-gradient(135deg, ${B.teal}, ${B.tealDark})`,
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '10px 24px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans',sans-serif",
+                    boxShadow: '0 2px 10px rgba(27,201,196,0.3)',
+                  }}
+                >
+                  Continue
+                </button>
+              )}
+              {step === totalSteps - 1 && <></>}
+              {step >= 4 && (
+                <button
+                  onClick={() => {
+                    setView(path === 'new' ? 'settings' : 'intake');
+                    onDone();
+                  }}
+                  style={{
+                    background: `linear-gradient(135deg, ${B.teal}, ${B.tealDark})`,
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '10px 24px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans',sans-serif",
+                    boxShadow: '0 2px 10px rgba(27,201,196,0.3)',
+                  }}
+                >
+                  {path === 'new'
+                    ? 'Start with My Program →'
+                    : 'Go to Bulk Upload →'}
+                </button>
+              )}
+              <button
+                onClick={onDone}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#475569',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  fontFamily: "'DM Sans',sans-serif",
+                  padding: '8px 4px',
+                }}
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -18182,12 +24586,12 @@ function Onboarding({ onComplete }) {
                 justifyContent: 'center',
               }}
             >
-              <BrainIcon size={28} color={B.teal} strokeWidth={1.3} />
+              <BrainIcon size={28} strokeWidth={1.3} />
             </div>
             <Wordmark size="lg" />
           </div>
           <p style={{ fontSize: 14, color: B.muted, lineHeight: 1.65 }}>
-            AI-powered EM program management — EMAP accreditation, exercises &
+            AI-powered EM program management - EMAP accreditation, exercises &
             AARs, personnel credentialing, and operations in one place.
           </p>
         </div>
@@ -18196,7 +24600,7 @@ function Onboarding({ onComplete }) {
           <FInput
             value={name}
             onChange={setName}
-            placeholder="e.g. San Joaquin County OES"
+            placeholder="e.g. County Emergency Management"
           />
         </div>
         <div
@@ -18210,7 +24614,7 @@ function Onboarding({ onComplete }) {
           <div>
             <Label>Jurisdiction Type</Label>
             <FSel value={jur} onChange={setJur}>
-              <option value="">Select…</option>
+              <option value="">Select...</option>
               {[
                 'State EM Agency',
                 'County / Parish EM',
@@ -18229,7 +24633,7 @@ function Onboarding({ onComplete }) {
           <div>
             <Label>State</Label>
             <FSel value={state} onChange={setState}>
-              <option value="">Select state…</option>
+              <option value="">Select state...</option>
               {US_STATES.map((s) => (
                 <option key={s}>{s}</option>
               ))}
@@ -18254,29 +24658,413 @@ function Onboarding({ onComplete }) {
             letterSpacing: '0.01em',
           }}
         >
-          Plan Smartr →
+          Plan Smartr -
         </button>
       </div>
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    APP ROOT
-═══════════════════════════════════════════════════════ */
-export default function App() {
+------------------------------------------------------- */
+
+/* --- FEEDBACK MODAL ---------------------------------- */
+function FeedbackModal() {
+  const [show, setShow] = useState(false);
+  const [type, setType] = useState('bug');
+  const [text, setText] = useState('');
+  const [sent, setSent] = useState(false);
+  // Check display style via DOM (triggered by topbar button)
+  useEffect(() => {
+    const el = document.getElementById('planrr-feedback');
+    if (el) {
+      const obs = new MutationObserver(() =>
+        setShow(el.style.display === 'flex')
+      );
+      obs.observe(el, { attributes: true, attributeFilter: ['style'] });
+      return () => obs.disconnect();
+    }
+  }, []);
+  const close = () => {
+    document.getElementById('planrr-feedback').style.display = 'none';
+    setSent(false);
+    setText('');
+  };
+  const submit = async () => {
+    if (!text.trim()) return;
+    // Store in localStorage as simple feedback log
+    const fb = JSON.parse(localStorage.getItem('planrr_feedback') || '[]');
+    fb.push({
+      id: uid(),
+      type,
+      text,
+      ts: Date.now(),
+      url: window.location.href,
+    });
+    localStorage.setItem('planrr_feedback', JSON.stringify(fb));
+    setSent(true);
+    setTimeout(close, 2000);
+  };
+  return (
+    <div
+      id="planrr-feedback"
+      style={{
+        display: 'none',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(15,23,42,0.5)',
+        zIndex: 999,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        style={{
+          background: '#fff',
+          borderRadius: 12,
+          padding: '28px 32px',
+          width: 440,
+          maxWidth: 'calc(100vw - 40px)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          fontFamily: 'DM Sans,sans-serif',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 700, color: B.text }}>
+            Send Feedback
+          </div>
+          <button
+            onClick={close}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: 18,
+              cursor: 'pointer',
+              color: B.faint,
+            }}
+          >
+            x
+          </button>
+        </div>
+        {sent ? (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '20px 0',
+              color: B.green,
+              fontWeight: 600,
+            }}
+          >
+            Thank you! Feedback received.
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+              {[
+                ['bug', 'Bug Report'],
+                ['idea', 'Feature Idea'],
+                ['praise', 'What Works Well'],
+                ['other', 'Other'],
+              ].map(([v, l]) => (
+                <button
+                  key={v}
+                  onClick={() => setType(v)}
+                  style={{
+                    flex: 1,
+                    padding: '7px 4px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    border: `1px solid ${type === v ? B.teal : B.border}`,
+                    background: type === v ? B.tealLight : '#f8fafc',
+                    color: type === v ? B.tealDark : B.muted,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            <FTextarea
+              value={text}
+              onChange={setText}
+              placeholder={
+                type === 'bug'
+                  ? 'Describe what happened and what you expected...'
+                  : type === 'idea'
+                  ? 'Describe the feature you would like to see...'
+                  : type === 'praise'
+                  ? "Tell us what's working well..."
+                  : 'Your feedback...'
+              }
+              rows={4}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <Btn label="Send Feedback" onClick={submit} primary />
+              <Btn label="Cancel" onClick={close} />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SagePageView({ data, orgName }) {
+  const overall = useMemo(() => {
+    const c = { compliant:0, in_progress:0, needs_review:0, not_started:0 };
+    ALL_STANDARDS.forEach(s => c[data.standards?.[s.id]?.status || 'not_started']++);
+    const total = ALL_STANDARDS.length;
+    return { ...c, total, pct: Math.round((c.compliant / total) * 100) };
+  }, [data.standards]);
+
+  const [msgs, setMsgs] = useState([{
+    role: 'assistant',
+    content: `Hi — I'm SAGE, your planrr.app AI program partner.\n\nI have full context on your program: ${overall.compliant}/${overall.total} EMAP standards compliant (${overall.pct}%), ${(data.training||[]).length} training records, ${(data.exercises||[]).length} exercises, ${(data.partners||[]).length} partner agreements, ${(data.employees||[]).length} personnel, ${(data.grants||[]).filter(g=>g.status==='active').length} active grants, and ${(data.thira?.hazards||[]).length} hazards profiled.\n\nI don't answer generic EM questions. I answer yours — specific to this program, this jurisdiction, this moment. What do you need?`,
+  }]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const endRef = useRef();
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [msgs]);
+
+  const quickPrompts = [
+    'Where are my biggest compliance gaps right now?',
+    'What should I prioritize this week?',
+    'Which standards could I close quickly?',
+    'How do my open corrective actions map to EMAP standards?',
+    "What's my grant compliance risk?",
+    'Help me prepare for my EMAP assessment',
+  ];
+
+  const send = async () => {
+    if (!input.trim() || loading) return;
+    const msg = input.trim();
+    setInput('');
+    const hist = [...msgs, { role: 'user', content: msg }];
+    setMsgs(hist);
+    setLoading(true);
+    try {
+      let r = '';
+      setMsgs(p => [...p, { role: 'assistant', content: '' }]);
+      await callAI(
+        getSYS(),
+        hist.map(m => `${m.role === 'user' ? 'User' : 'SAGE'}: ${m.content}`).join('\n') + '\nUser: ' + msg,
+        (chunk) => {
+          r += chunk;
+          setMsgs(p => { const n = [...p]; n[n.length-1] = { role: 'assistant', content: r }; return n; });
+        },
+        'general'
+      );
+    } catch {
+      setMsgs(p => [...p, { role: 'assistant', content: 'Connection error — please try again.' }]);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 800 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+        <div style={{ width: 48, height: 48, borderRadius: 12, background: B.sidebar, border: `1.5px solid rgba(62,207,207,0.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg width="26" height="26" viewBox="0 0 100 100" fill="none">
+            <rect width="100" height="100" rx="18" fill={B.sidebar}/>
+            <path d="M20 78L20 20L66 20C80 20 86 30 86 40C86 50 80 58 66 58L32 58L32 78Z" fill={B.teal}/>
+            <path d="M32 30L58 30C64 30 68 34 68 38C68 42 64 46 58 46L32 46Z" fill={B.sidebar}/>
+          </svg>
+        </div>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+            <span style={{ fontFamily: "'Oxanium','DM Sans',sans-serif", fontWeight: 800, fontSize: 20, color: B.text }}>SAGE</span>
+            <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: GOLD, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Smart Adaptive Guidance Engine</span>
+          </div>
+          <p style={{ color: B.faint, fontSize: 13, marginTop: 2 }}>Context-aware AI partner — knows your program, your standards, your gaps</p>
+        </div>
+      </div>
+
+      {/* Stats strip */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 20 }}>
+        {[
+          [overall.pct + '%', 'EMAP compliance'],
+          [overall.compliant + '/' + overall.total, 'Standards'],
+          [(data.exercises||[]).filter(e => e.aarFinal).length, 'Final AARs'],
+          [(data.capItems||[]).filter(c => !c.closed).length, 'Open CAs'],
+        ].map(([val, lbl]) => (
+          <div key={lbl} style={{ background: B.card, border: `1px solid ${B.border}`, borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: B.teal }}>{val}</div>
+            <div style={{ fontSize: 10, color: B.faint, marginTop: 2 }}>{lbl}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Chat window */}
+      <div style={{ background: B.card, border: `1px solid ${B.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}>
+        <div style={{ height: 440, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {msgs.map((m, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 8, alignItems: 'flex-start' }}>
+              {m.role === 'assistant' && (
+                <div style={{ width: 26, height: 26, background: B.sidebar, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                  <svg width="14" height="14" viewBox="0 0 100 100" fill="none">
+                    <path d="M20 78L20 20L66 20C80 20 86 30 86 40C86 50 80 58 66 58L32 58L32 78Z" fill={B.teal}/>
+                    <path d="M32 30L58 30C64 30 68 34 68 38C68 42 64 46 58 46L32 46Z" fill={B.sidebar}/>
+                  </svg>
+                </div>
+              )}
+              <div style={{ maxWidth: '82%', padding: '10px 14px', borderRadius: m.role === 'user' ? '12px 12px 3px 12px' : '3px 12px 12px 12px', background: m.role === 'user' ? B.sidebar : '#f0fafa', border: m.role === 'user' ? 'none' : `1px solid ${B.tealBorder}`, fontSize: 13, color: m.role === 'user' ? '#fff' : B.text, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                {m.content}
+                {loading && i === msgs.length - 1 && m.role === 'assistant' && !m.content && (
+                  <span style={{ display: 'inline-flex', gap: 3 }}>
+                    {[0,1,2].map(d => (
+                      <span key={d} style={{ width: 4, height: 4, borderRadius: '50%', background: B.teal, display: 'inline-block', animation: `typingDot 1.2s infinite ${d * 0.2}s` }}/>
+                    ))}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+          <div ref={endRef}/>
+        </div>
+
+        {/* Quick prompts — show only on first load */}
+        {msgs.length <= 1 && (
+          <div style={{ padding: '0 16px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {quickPrompts.map(q => (
+              <button key={q} onClick={() => setInput(q)} style={{ padding: '5px 11px', background: B.tealLight, border: `1px solid ${B.tealBorder}`, borderRadius: 14, color: B.tealDark, fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontWeight: 500 }}>{q}</button>
+            ))}
+          </div>
+        )}
+
+        {/* Input bar */}
+        <div style={{ padding: '10px 14px', borderTop: `1px solid ${B.border}`, display: 'flex', gap: 8 }}>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder="Ask SAGE anything about your program..."
+            style={{ flex: 1, border: `1px solid ${B.border}`, borderRadius: 8, padding: '10px 14px', color: B.text, fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: 'none', background: '#f8fafb' }}
+            onFocus={e => { e.target.style.borderColor = B.teal; e.target.style.boxShadow = '0 0 0 3px rgba(62,207,207,0.1)'; }}
+            onBlur={e => { e.target.style.borderColor = B.border; e.target.style.boxShadow = 'none'; }}
+          />
+          <button onClick={send} disabled={!input.trim() || loading} style={{ background: input.trim() && !loading ? B.teal : '#edf2f4', border: 'none', borderRadius: 8, width: 40, height: 40, cursor: input.trim() && !loading ? 'pointer' : 'not-allowed', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: input.trim() && !loading ? '#fff' : B.faint, transition: 'all 0.15s', fontWeight: 700 }}>→</button>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 12, padding: '10px 14px', background: B.tealLight, border: `1px solid ${B.tealBorder}`, borderRadius: 8, fontSize: 12, color: B.tealDark }}>
+        SAGE has full context on your program — standards, training, exercises, partners, grants, and hazards. Every answer is specific to your jurisdiction.
+      </div>
+    </div>
+  );
+}
+
+function AppInner() {
+  // Inject global CSS once on mount (fonts, topbar glass, auth fix)
+  useEffect(() => {
+    const styleId = 'planrr-global-css';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = GLOBAL_CSS;
+      document.head.appendChild(style);
+    }
+  }, []);
+
+  const navigate = useNavigate();
+  const location = useLocation();
   const [data, setData] = useState(null);
-  const [view, setView] = useState('dashboard');
+  const pathView = location.pathname.replace(/^\/app\//, '').replace(/^\//, '') || 'dashboard';
+  const view = VIEW_TITLES[pathView] ? pathView : 'dashboard';
+  const setView = useCallback((v) => {
+    navigate('/app/' + v);
+  }, [navigate]);
   const [onboarding, setOnboarding] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [subStatus, setSubStatus] = useState(null); // null=loading, 'active'|'trialing'|'none'
   const [searchOpen, setSearchOpen] = useState(false);
-  const [authed, setAuthed] = useState(isLoggedIn());
+  const [authed, setAuthed] = useState(() => {
+    const status = isLoggedIn();
+    return status === true || status === 'needs_refresh';
+  });
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [firstRun, setFirstRun] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('planrr_sidebar_collapsed') === '1'; } catch { return false; }
+  });
+  const toggleCollapse = () => {
+    setSidebarCollapsed(p => {
+      const next = !p;
+      try { localStorage.setItem('planrr_sidebar_collapsed', next ? '1' : '0'); } catch {}
+      return next;
+    });
+  };
   const saveTimer = useRef(null);
+  const refreshTimer = useRef(null);
+
+  useEffect(() => {
+    if (!authed) return;
+    const scheduleRefresh = () => {
+      clearTimeout(refreshTimer.current);
+      const exp = getTokenExpiry();
+      const msUntilRefresh = Math.max((exp - Date.now()) - 60000, 5000);
+      refreshTimer.current = setTimeout(async () => {
+        const ok = await sbRefreshToken();
+        if (ok) {
+          scheduleRefresh();
+        } else {
+          setSessionExpired(true);
+        }
+      }, msUntilRefresh);
+    };
+    const init = async () => {
+      const status = isLoggedIn();
+      if (status === 'needs_refresh') {
+        const ok = await sbRefreshToken();
+        if (!ok) { setAuthed(false); return; }
+      }
+      scheduleRefresh();
+    };
+    init();
+    return () => clearTimeout(refreshTimer.current);
+  }, [authed]);
+
   useEffect(() => {
     if (!authed) {
       setLoaded(true);
       return;
+    }
+    const token = getAccessToken();
+    if (token) {
+      fetch(SB_URL + '/rest/v1/subscriptions?select=status,trial_end,current_period_end&limit=1', {
+        headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      }).then(r => r.ok ? r.json() : []).then(rows => {
+        if (rows.length > 0) {
+          const s = rows[0];
+          if (s.status === 'active' || s.status === 'trialing') {
+            setSubStatus(s.status);
+          } else if (s.status === 'past_due' || s.status === 'canceled') {
+            setSubStatus('expired');
+          } else {
+            setSubStatus(s.status || 'none');
+          }
+        } else {
+          setSubStatus('none');
+        }
+      }).catch(() => setSubStatus('none'));
+    } else {
+      setSubStatus('none');
     }
     loadData().then((d) => {
       if (d) {
@@ -18284,7 +25072,7 @@ export default function App() {
         ALL_STANDARDS.forEach((s) => {
           stds[s.id] = d.standards?.[s.id] || initRecord();
         });
-        setData({
+        const loaded = {
           ...initData(),
           ...d,
           standards: stds,
@@ -18294,9 +25082,14 @@ export default function App() {
           capItems: d.capItems || [],
           activityLog: d.activityLog || [],
           journey: d.journey || {},
-        });
+          incidents: d.incidents || [],
+        };
+        const synced = syncStandardsFromOps(loaded);
+        if (synced) loaded.standards = synced;
+        setData(loaded);
+        setCurrentDataRef(loaded);
         if (!d.orgName) setOnboarding(true);
-        else setFirstRun(true);
+        else if (!d.welcomeDismissed) setFirstRun(true);
       } else {
         const stds = {};
         ALL_STANDARDS.forEach((s) => {
@@ -18312,11 +25105,38 @@ export default function App() {
     setData((prev) => {
       const next =
         typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
+      const synced = syncStandardsFromOps(next);
+      const final = synced ? { ...next, standards: synced } : next;
+      const autoLog = [];
+      const track = [
+        ['training', 'training', 'Training record'],
+        ['exercises', 'exercises', 'Exercise'],
+        ['partners', 'partners', 'Partner agreement'],
+        ['plans', 'plans', 'Plan'],
+        ['employees', 'employees', 'Personnel record'],
+        ['resources', 'resources', 'Resource'],
+      ];
+      track.forEach(([key, mod, label]) => {
+        const pLen = (prev[key] || []).length;
+        const nLen = (final[key] || []).length;
+        if (nLen > pLen) autoLog.push({ type: 'created', module: mod, detail: `${label} added (${nLen} total)` });
+        else if (nLen < pLen) autoLog.push({ type: 'deleted', module: mod, detail: `${label} removed (${nLen} total)` });
+      });
+      if (autoLog.length > 0 && final.activityLog) {
+        const entries = autoLog.map(a => ({ id: uid(), ts: Date.now(), ...a }));
+        final.activityLog = [...entries, ...final.activityLog].slice(0, 200);
+      }
       clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => saveData(next), 500);
-      return next;
+      setCurrentDataRef(final);
+      saveTimer.current = setTimeout(() => saveData(final), 500);
+      return final;
     });
   }, []);
+  // Update document title on view change
+  useEffect(() => {
+    const title = VIEW_TITLES[view] || 'Dashboard';
+    document.title = `${title} | planrr.app`;
+  }, [view]);
   // Global search keyboard shortcut
   useEffect(() => {
     const h = (e) => {
@@ -18352,27 +25172,57 @@ export default function App() {
         <LandingPage
           onLogin={() => setAuthMode('login')}
           onSignup={() => setAuthMode('signup')}
+          onBuy={() => setAuthMode('signup')}
+          onBuyPlan={(planId) => {
+            sessionStorage.setItem('planrr_pending_plan', planId);
+            setAuthMode('signup');
+          }}
         />
         {authMode && (
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 200,
-            }}
-          >
-            <AuthScreen
-              onAuth={() => {
-                setLoaded(false);
-                setAuthed(true);
-                setAuthMode(null);
+          <>
+            <div
+              onClick={() => setAuthMode(null)}
+              style={{
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(15,17,19,0.75)', backdropFilter: 'blur(6px)',
+                zIndex: 200, cursor: 'pointer',
               }}
-              initialMode={authMode}
             />
-          </div>
+            <div style={{
+              position: 'fixed', top: '50%', left: '50%',
+              transform: 'translate(-50%,-50%)', zIndex: 201,
+              width: 440, maxWidth: 'calc(100vw - 32px)',
+              maxHeight: 'calc(100vh - 40px)', overflowY: 'auto',
+              animation: 'fadeUp 0.25s ease',
+            }}>
+              <AuthScreen
+                onAuth={() => {
+                  setLoaded(false);
+                  setAuthed(true);
+                  setAuthMode(null);
+                  const pendingPlan = sessionStorage.getItem('planrr_pending_plan');
+                  if (pendingPlan) {
+                    sessionStorage.removeItem('planrr_pending_plan');
+                    const link = STRIPE_BUY_LINKS[pendingPlan];
+                    if (link) {
+                      try {
+                        const s = JSON.parse(localStorage.getItem('sb_session') || '{}');
+                        const email = s?.user?.email || '';
+                        const url = email ? `${link}?prefilled_email=${encodeURIComponent(email)}` : link;
+                        window.location.href = url;
+                      } catch {
+                        window.location.href = link;
+                      }
+                      return;
+                    }
+                  }
+                  navigate('/app/dashboard');
+                }}
+                initialMode={authMode}
+                onClose={() => setAuthMode(null)}
+              />
+            </div>
+          </>
         )}
       </>
     );
@@ -18397,15 +25247,67 @@ export default function App() {
             border: '1px solid rgba(255,255,255,0.08)',
           }}
         >
-          <BrainIcon size={34} color={B.teal} strokeWidth={1.2} />
+          <BrainIcon size={34} strokeWidth={1.2} />
         </div>
         <Wordmark dark size="md" />
         <div style={{ color: B.sidebarMuted, fontSize: 12 }}>
-          Loading your program…
+          Loading your program...
         </div>
       </div>
     );
-  // onboarding handled in signup flow
+  if (onboarding)
+    return <Onboarding onComplete={handleOnboard} />;
+  if (subStatus === 'none' || subStatus === 'expired') {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: B.sidebar, flexDirection: 'column', gap: 16,
+        fontFamily: "'DM Sans',sans-serif", padding: 20,
+      }}>
+        <BrainIcon size={40} strokeWidth={1.2} />
+        <Wordmark dark size="lg" />
+        <div style={{ maxWidth: 400, textAlign: 'center', marginTop: 8 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#f0f4fa', marginBottom: 8 }}>
+            {subStatus === 'expired' ? 'Your subscription has ended' : 'Choose a plan to get started'}
+          </div>
+          <div style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7, marginBottom: 24 }}>
+            {subStatus === 'expired'
+              ? 'Your subscription is no longer active. Resubscribe to continue using planrr.app. Your data is safe and waiting.'
+              : 'Start your 14-day free trial to access all features. No credit card required upfront — cancel anytime.'}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { label: 'Solo Operator — $79/mo', plan: 'solo' },
+              { label: 'Small Team — $149/mo', plan: 'small_team' },
+              { label: 'Full Program — $199/mo', plan: 'full_program' },
+            ].map(p => (
+              <button key={p.plan} onClick={() => {
+                const link = STRIPE_BUY_LINKS[p.plan];
+                if (link) {
+                  try {
+                    const s = JSON.parse(localStorage.getItem('sb_session') || '{}');
+                    const email = s?.user?.email || '';
+                    window.location.href = email ? `${link}?prefilled_email=${encodeURIComponent(email)}` : link;
+                  } catch { window.location.href = link; }
+                }
+              }} style={{
+                background: p.plan === 'small_team' ? GOLD : 'rgba(255,255,255,0.06)',
+                color: p.plan === 'small_team' ? '#141719' : '#f0f4fa',
+                border: p.plan === 'small_team' ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 10, padding: '14px 20px', fontSize: 14, fontWeight: 700,
+                cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s',
+              }}>{p.label}{p.plan === 'small_team' ? ' — Most Popular' : ''}</button>
+            ))}
+          </div>
+          <button onClick={sbSignOut} style={{
+            background: 'none', border: 'none', color: '#64748b', fontSize: 12,
+            cursor: 'pointer', marginTop: 16, padding: '4px 8px',
+          }}>Sign out</button>
+        </div>
+      </div>
+    );
+  }
+  const checkoutSuccess = new URLSearchParams(window.location.search).get('checkout') === 'success';
   const notifications = buildNotifications(data);
   return (
     <div
@@ -18416,14 +25318,32 @@ export default function App() {
         fontFamily: "'DM Sans',sans-serif",
       }}
     >
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800;9..40,900&family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:${B.bg};}::-webkit-scrollbar-thumb{background:#cdd6da;border-radius:3px;}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes typingDot{0%,60%,100%{transform:translateY(0);opacity:0.4}30%{transform:translateY(-3px);opacity:1}}@media print{#planrr-sidebar{display:none!important}#planrr-topbar{display:none!important}#planrr-main{margin-left:0!important}}`}</style>
-      <div id="planrr-sidebar">
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800;9..40,900&family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=Oxanium:wght@700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0;}:focus-visible{outline:2px solid #1BC9C4;outline-offset:2px;border-radius:4px}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:${B.bg};}::-webkit-scrollbar-thumb{background:#cdd6da;border-radius:3px;}#planrr-sidebar ::-webkit-scrollbar{width:4px;}#planrr-sidebar ::-webkit-scrollbar-track{background:transparent;}#planrr-sidebar ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px;}#planrr-sidebar ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2);}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes typingDot{0%,60%,100%{transform:translateY(0);opacity:0.4}30%{transform:translateY(-3px);opacity:1}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@media print{#planrr-sidebar{display:none!important}#planrr-topbar{display:none!important}#planrr-main{margin-left:0!important}}@media(max-width:1024px){#planrr-sidebar{position:fixed!important;left:-260px!important;transition:left 0.25s ease!important;z-index:100!important}#planrr-sidebar.open{left:0!important}#planrr-main{margin-left:0!important}.planrr-menu-toggle{display:flex!important}.planrr-sidebar-overlay{display:block!important}}@media(max-width:768px){.planrr-pricing-grid{grid-template-columns:1fr!important}.planrr-features-grid{grid-template-columns:1fr!important}.planrr-stats-strip{grid-template-columns:repeat(2,1fr)!important}.planrr-security-grid{grid-template-columns:1fr!important}.planrr-landing-header{padding:14px 16px!important}.planrr-landing-hero{padding:48px 20px 40px!important}.planrr-landing-section{padding:48px 20px!important}}@media(max-width:480px){.planrr-stats-strip{grid-template-columns:1fr!important}}`}</style>
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 99,
+            display: 'none',
+          }}
+          className="planrr-sidebar-overlay"
+        />
+      )}
+      <div id="planrr-sidebar" className={sidebarOpen ? 'open' : ''} style={sidebarCollapsed ? { width: 64 } : undefined}>
         <Sidebar
           view={view}
-          setView={setView}
+          setView={(v) => { setView(v); setSidebarOpen(false); }}
           data={data}
           notifCount={notifications.length}
           orgName={data.orgName}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={toggleCollapse}
           onEditOrg={() => {
             const n = prompt('Organization name:', data.orgName);
             if (n) updateData((p) => ({ ...p, orgName: n }));
@@ -18433,12 +25353,13 @@ export default function App() {
       <div
         id="planrr-main"
         style={{
-          marginLeft: 244,
+          marginLeft: sidebarCollapsed ? 64 : 244,
           flex: 1,
           minHeight: '100vh',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'stretch',
+          transition: 'margin-left 0.2s ease',
         }}
       >
         <div
@@ -18447,26 +25368,45 @@ export default function App() {
             position: 'sticky',
             top: 0,
             zIndex: 30,
-            background: 'rgba(240,244,245,0.96)',
-            backdropFilter: 'blur(8px)',
-            borderBottom: `1px solid ${B.border}`,
-            height: 50,
+            background: 'rgba(240,244,245,0.92)',
+            backdropFilter: 'blur(12px)',
+            borderBottom: `1px solid rgba(226,232,234,0.8)`,
+            height: 52,
             display: 'flex',
             alignItems: 'center',
-            padding: '0 28px',
-            gap: 10,
+            padding: '0 32px',
+            gap: 12,
           }}
         >
+          <button
+            className="planrr-menu-toggle"
+            onClick={() => setSidebarOpen((p) => !p)}
+            style={{
+              display: 'none',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 20,
+              color: B.text,
+              padding: 4,
+              marginRight: 4,
+            }}
+            aria-label="Toggle sidebar"
+          >
+            ☰
+          </button>
           <div
             style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}
           >
-            <span style={{ fontSize: 13, color: B.muted, fontWeight: 500 }}>
+            <span style={{ fontSize: 13, color: B.faint, fontWeight: 500 }}>
               {data.orgName && (
                 <>
                   <span style={{ color: B.text, fontWeight: 700 }}>
                     {data.orgName}
-                  </span>{' '}
-                  ·{' '}
+                  </span>
+                  <span style={{ margin: '0 8px', color: '#d1d5db' }}>/</span>
                 </>
               )}
               {view === 'journey' && 'Accreditation Journey'}
@@ -18477,17 +25417,21 @@ export default function App() {
               {view === 'training' && 'Training Manager'}
               {view === 'exercises' && 'Exercises & AARs'}
               {view === 'partners' && 'Partner Registry'}
-              {view === 'plans' && 'Plan Library'}
-              {view === 'resources' && 'Resource Inventory'}
-              {view === 'employees' && 'Employees & Credentials'}
+              {view === 'plans' && 'Plans & SOPs'}
+              {view === 'resources' && 'Resources'}
+              {view === 'employees' && 'Personnel'}
               {view === 'calendar' && 'Program Calendar'}
               {view === 'reports' && 'Compliance Report'}
               {view === 'assistant' && 'AI Assistant'}
-              {view === 'grants' && 'Grant Tracker'}
-              {view === 'thira' && 'THIRA/SPR'}
+              {view === 'grants' && 'Grants & Funding'}
+              {view === 'thira' && 'Hazard Analysis'}
               {view === 'cap' && 'Corrective Action Program'}
               {view === 'activity' && 'Activity Log'}
-              {view === 'settings' && 'Settings'}
+              {view === 'settings' && 'My Program'}
+              {view === 'templates' && 'Document Templates'}
+              {view === 'evidence' && 'Evidence Export'}
+              {view === 'recovery' && 'Recovery Planning'}
+              {view === 'mutualaid' && 'Mutual Aid Map'}
             </span>
           </div>
           {/* Search button */}
@@ -18534,7 +25478,7 @@ export default function App() {
                 lineHeight: 1.4,
               }}
             >
-              ⌘K
+              -K
             </kbd>
           </button>
           {notifications.length > 0 && (
@@ -18618,19 +25562,60 @@ export default function App() {
           <button
             onClick={sbSignOut}
             style={{
-              fontSize: 10,
+              fontSize: 11,
               color: B.faint,
               background: 'none',
               border: '1px solid ' + B.border,
-              borderRadius: 5,
-              padding: '3px 8px',
+              borderRadius: 7,
+              padding: '4px 10px',
               cursor: 'pointer',
               marginLeft: 6,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = B.red;
+              e.currentTarget.style.color = B.red;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = B.border;
+              e.currentTarget.style.color = B.faint;
             }}
           >
             Sign out
           </button>
         </div>
+        {checkoutSuccess && (
+          <div style={{
+            background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8,
+            padding: '12px 20px', margin: '8px 32px 0', display: 'flex',
+            alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#065F46', marginBottom: 2 }}>Welcome to planrr.app!</div>
+              <div style={{ fontSize: 12, color: '#047857' }}>Your subscription is active with a 14-day free trial. Start building your program.</div>
+            </div>
+            <button onClick={() => { window.history.replaceState({}, '', window.location.pathname); window.location.reload(); }} style={{
+              background: B.teal, color: '#fff', border: 'none', borderRadius: 6,
+              padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+            }}>Got it</button>
+          </div>
+        )}
+        {sessionExpired && (
+          <div style={{
+            background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8,
+            padding: '10px 20px', margin: '8px 32px 0', display: 'flex',
+            alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          }}>
+            <span style={{ fontSize: 13, color: '#92400e' }}>
+              Your session has expired. Please sign in again to continue syncing your data.
+            </span>
+            <button onClick={() => { sbSignOut(); }} style={{
+              background: GOLD, color: '#141719', border: 'none', borderRadius: 6,
+              padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}>Sign In Again</button>
+          </div>
+        )}
         <div
           style={{
             animation: 'fadeUp 0.3s ease',
@@ -18648,7 +25633,7 @@ export default function App() {
             />
           )}
           {view === 'dashboard' && (
-            <Dashboard data={data} setView={setView} orgName={data.orgName} />
+            <Dashboard data={data} setView={setView} orgName={data.orgName} updateData={updateData} />
           )}
           {view === 'accreditation' && (
             <AccreditationView data={data} updateData={updateData} />
@@ -18679,6 +25664,9 @@ export default function App() {
           {view === 'reports' && (
             <ReportsView data={data} orgName={data.orgName} />
           )}
+          {view === 'sage' && (
+            <SagePageView data={data} orgName={data.orgName} />
+          )}
           {view === 'assistant' && (
             <AiAssistantView data={data} orgName={data.orgName} />
           )}
@@ -18693,13 +25681,30 @@ export default function App() {
           {view === 'settings' && (
             <SettingsView data={data} updateData={updateData} />
           )}
+          {view === 'templates' && (
+            <DocTemplatesView data={data} orgName={data.orgName} />
+          )}
+          {view === 'evidence' && (
+            <EvidenceExportView data={data} orgName={data.orgName} />
+          )}
+          {view === 'recovery' && (
+            <RecoveryPlanningView data={data} setData={updateData} />
+          )}
+          {view === 'mutualaid' && (
+            <MutualAidView data={data} setData={updateData} />
+          )}
         </div>
         {firstRun && !onboarding && (
           <FirstRunWelcome
-            onDone={() => setFirstRun(false)}
+            onDone={() => {
+              setFirstRun(false);
+              updateData({ welcomeDismissed: true });
+            }}
             setView={setView}
           />
         )}
+        <FeedbackModal />
+
         {searchOpen && (
           <GlobalSearch
             data={data}
@@ -18711,5 +25716,21 @@ export default function App() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/report" element={<SharedReport />} />
+        <Route path="/founder" element={<Founder />} />
+        <Route path="/faq" element={<FAQ />} />
+        <Route path="/app/*" element={<AppInner />} />
+        <Route path="/*" element={<AppInner />} />
+      </Routes>
+    </ErrorBoundary>
   );
 }

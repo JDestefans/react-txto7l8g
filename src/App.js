@@ -22,6 +22,7 @@ class ErrorBoundary extends Component {
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
+  componentDidCatch() {}
   render() {
     if (this.state.hasError) {
       return (
@@ -187,7 +188,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 @keyframes brain-glow { 0%,100%{box-shadow:0 0 0 0 rgba(62,207,207,0)} 50%{box-shadow:0 0 40px 8px rgba(62,207,207,0.15)} }
 @keyframes spinner { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
 @media(max-width:900px){ .lp-3col{grid-template-columns:1fr 1fr!important} .lp-pricing{grid-template-columns:1fr 1fr!important} }
-@media(max-width:600px){ .lp-3col,.lp-pricing{grid-template-columns:1fr!important} .lp-hero-btns{flex-direction:column!important} .lp-hide-mobile{display:none!important} }
+@media(max-width:600px){ .lp-3col,.lp-pricing{grid-template-columns:1fr!important} .lp-hero-btns{flex-direction:column!important} .lp-hide-mobile{display:none!important} .lp-mobile-only{display:block!important} }
 `;
 
 /* --- LOADING SKELETON --------------------------------- */
@@ -1200,6 +1201,49 @@ const fmtDate = (d) =>
     : '-';
 const daysUntil = (d) =>
   d ? Math.ceil((new Date(d + 'T00:00:00') - new Date()) / 86400000) : null;
+function decodeJwtPayload(token) {
+  try {
+    if (!token || typeof token !== 'string') return null;
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+const PARTNER_SAFEGUARD_PLAN_TYPES = new Set([
+  'EOP',
+  'COOP',
+  'COG Plan',
+  'Recovery Plan',
+  'Communications Plan',
+  'Evacuation Plan',
+]);
+function planTypeRequiresPartnerSafeguard(type) {
+  return PARTNER_SAFEGUARD_PLAN_TYPES.has(type);
+}
+function getPlanSafeguardGaps(plan) {
+  if (!plan) return [];
+  const requiresSafeguard =
+    plan.requirePartnerSafeguard ?? planTypeRequiresPartnerSafeguard(plan.type);
+  if (!requiresSafeguard) return [];
+  const missing = [];
+  if (!plan.partnerReviewDate) missing.push('partner review date');
+  if (!String(plan.partnerReviewParticipants || '').trim())
+    missing.push('reviewed departments/partners');
+  if (!plan.partnerReviewAttested) missing.push('reviewer acknowledgment');
+  if (!plan.partnerExerciseDate) missing.push('exercise / tabletop date');
+  if (!String(plan.partnerExerciseNotes || '').trim())
+    missing.push('exercise outcome notes');
+  if (!String(plan.partnerReviewAck || '').trim())
+    missing.push('acknowledgment text');
+  if (!String(plan.signoffBy || '').trim()) missing.push('signoff authority');
+  if (!plan.signoffDate) missing.push('signoff date');
+  if (!plan.signoffConfirmed) missing.push('final signoff confirmation');
+  return missing;
+}
 const timeAgo = (ts) => {
   if (!ts) return null;
   const d = Date.now() - ts;
@@ -8290,6 +8334,22 @@ function PartnerRegistry({ data, setData }) {
 function PlanLibrary({ data, setData }) {
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
+  const updatePlanStatus = useCallback((plan, nextStatus) => {
+    if (nextStatus === 'current') {
+      const gaps = getPlanSafeguardGaps(plan);
+      if (gaps.length) {
+        window.alert(
+          'Cannot mark this plan as Current yet.\n\nComplete the partner review safeguard before signoff:\n- ' +
+            gaps.join('\n- ')
+        );
+        return;
+      }
+    }
+    setData((prev) => ({
+      ...prev,
+      plans: prev.plans.map((p) => (p.id === plan.id ? { ...p, status: nextStatus } : p)),
+    }));
+  }, [getPlanSafeguardGaps, setData]);
   const [form, setForm] = useState({
     name: '',
     type: 'EOP',
@@ -8297,7 +8357,7 @@ function PlanLibrary({ data, setData }) {
     lastReview: today(),
     nextReview: '',
     owner: '',
-    status: 'current',
+    status: 'draft',
   });
   const PLAN_TYPES = [
     'EOP',
@@ -8336,6 +8396,16 @@ function PlanLibrary({ data, setData }) {
           docs: [],
           emapRef: EMAP_REFS[form.type] || '4.5',
           addedAt: Date.now(),
+          requirePartnerSafeguard: planTypeRequiresPartnerSafeguard(form.type),
+          partnerReviewDate: '',
+          partnerReviewParticipants: '',
+          partnerReviewAttested: false,
+          partnerReviewAck: '',
+          partnerExerciseDate: '',
+          partnerExerciseNotes: '',
+          signoffBy: '',
+          signoffDate: '',
+          signoffConfirmed: false,
         },
       ],
     }));
@@ -8346,7 +8416,7 @@ function PlanLibrary({ data, setData }) {
       lastReview: today(),
       nextReview: '',
       owner: '',
-      status: 'current',
+      status: 'draft',
     });
     setShowForm(false);
   };
@@ -8517,6 +8587,10 @@ function PlanLibrary({ data, setData }) {
                 : rd < 60
                 ? B.amber
                 : B.green;
+            const safeguardGaps = getPlanSafeguardGaps(plan);
+            const safeguardReady = safeguardGaps.length === 0;
+            const safeguardRequired =
+              plan.requirePartnerSafeguard ?? planTypeRequiresPartnerSafeguard(plan.type);
             return (
               <div
                 key={plan.id}
@@ -8590,6 +8664,18 @@ function PlanLibrary({ data, setData }) {
                           border={B.tealBorder}
                         />
                       )}
+                      {safeguardRequired && (
+                        <Tag
+                          label={
+                            safeguardReady
+                              ? 'Partner safeguard complete'
+                              : `Safeguard pending (${safeguardGaps.length})`
+                          }
+                          color={safeguardReady ? B.green : B.red}
+                          bg={safeguardReady ? B.greenLight : B.redLight}
+                          border={safeguardReady ? B.greenBorder : B.redBorder}
+                        />
+                      )}
                     </div>
                     <div
                       style={{
@@ -8625,8 +8711,8 @@ function PlanLibrary({ data, setData }) {
                   </div>
                   <FSel
                     value={plan.status}
-                    onChange={(v) => update(plan.id, 'status', v)}
-                    style={{ width: 130 }}
+                    onChange={(v) => updatePlanStatus(plan, v)}
+                    style={{ width: 170 }}
                   >
                     {STATUS_OPTS.map((s) => (
                       <option key={s.v} value={s.v}>
@@ -8736,6 +8822,115 @@ function PlanLibrary({ data, setData }) {
                         placeholder="Plan scope, key contacts, last major update summary..."
                       />
                     </div>
+                    {safeguardRequired && (
+                      <div
+                        style={{
+                          marginBottom: 10,
+                          border: `1px solid ${safeguardReady ? B.greenBorder : B.amberBorder}`,
+                          background: safeguardReady ? B.greenLight : B.amberLight,
+                          borderRadius: 8,
+                          padding: '12px 12px',
+                        }}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 700, color: B.text, marginBottom: 6 }}>
+                          Partner review safeguard
+                        </div>
+                        <div style={{ fontSize: 11, color: B.faint, marginBottom: 8, lineHeight: 1.45 }}>
+                          Capture partner understanding before final signoff. Plans cannot be marked <strong>Current</strong> until these fields are complete.
+                        </div>
+                        {!safeguardReady && (
+                          <div style={{ fontSize: 11, color: B.amber, marginBottom: 8, fontWeight: 600 }}>
+                            Remaining: {safeguardGaps.join(', ')}
+                          </div>
+                        )}
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: 10,
+                            marginBottom: 8,
+                          }}
+                        >
+                          <div>
+                            <Label>Partner review date</Label>
+                            <FInput
+                              type="date"
+                              value={plan.partnerReviewDate || ''}
+                              onChange={(v) => update(plan.id, 'partnerReviewDate', v)}
+                            />
+                          </div>
+                          <div>
+                            <Label>Signoff authority</Label>
+                            <FInput
+                              value={plan.signoffBy || ''}
+                              onChange={(v) => update(plan.id, 'signoffBy', v)}
+                              placeholder="EM Director / policy authority"
+                            />
+                          </div>
+                          <div>
+                            <Label>Signoff date</Label>
+                            <FInput
+                              type="date"
+                              value={plan.signoffDate || ''}
+                              onChange={(v) => update(plan.id, 'signoffDate', v)}
+                            />
+                          </div>
+                          <div>
+                            <Label>Exercise / tabletop date</Label>
+                            <FInput
+                              type="date"
+                              value={plan.partnerExerciseDate || ''}
+                              onChange={(v) => update(plan.id, 'partnerExerciseDate', v)}
+                            />
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: 8 }}>
+                          <Label>Reviewed departments / partners</Label>
+                          <FTextarea
+                            rows={2}
+                            value={plan.partnerReviewParticipants || ''}
+                            onChange={(v) => update(plan.id, 'partnerReviewParticipants', v)}
+                            placeholder="Fire, Law, EMS, Public Works, Health, Schools, NGO partners..."
+                          />
+                        </div>
+                        <div style={{ marginBottom: 8 }}>
+                          <Label>Exercise outcome notes</Label>
+                          <FTextarea
+                            rows={2}
+                            value={plan.partnerExerciseNotes || ''}
+                            onChange={(v) => update(plan.id, 'partnerExerciseNotes', v)}
+                            placeholder="What did partners confirm, misunderstand, or request changes on?"
+                          />
+                        </div>
+                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: B.text, cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={!!plan.partnerReviewAttested}
+                              onChange={(e) => update(plan.id, 'partnerReviewAttested', e.target.checked)}
+                            />
+                            Partner acknowledgment captured
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: B.text, cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={!!plan.signoffConfirmed}
+                              onChange={(e) => update(plan.id, 'signoffConfirmed', e.target.checked)}
+                            />
+                            Final signoff confirms partner understanding
+                          </label>
+                        </div>
+                        <div>
+                          <Label>Acknowledgment text (what partners confirmed)</Label>
+                          <FTextarea
+                            rows={2}
+                            value={plan.partnerReviewAck || ''}
+                            onChange={(v) => update(plan.id, 'partnerReviewAck', v)}
+                            placeholder="Partners confirm they reviewed responsibilities, triggers, and resource commitments before signoff."
+                          />
+                        </div>
+                      </div>
+                    )}
                     <Attachments
                       docs={plan.docs || []}
                       onAdd={(doc) =>
@@ -10262,6 +10457,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapse
     const canvas = sidebarCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     let W, H, nodes;
     const resize = () => {
       W = canvas.width = canvas.offsetWidth;
@@ -22977,6 +23173,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     let W, H, nodes;
     const resize = () => {
       W = canvas.width  = canvas.offsetWidth;
@@ -23119,7 +23316,6 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
               onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(255,255,255,0.1)';e.currentTarget.style.color='#94A3B8';}}>Sign In</button>
             <button onClick={()=>onBuyPlan?onBuyPlan('small_team'):onSignup?.()} style={LP.ctaPrimary} onMouseEnter={hP} onMouseLeave={lP}>Start Free Trial</button>
           </div>
-          <button onClick={()=>onBuyPlan?onBuyPlan('small_team'):onSignup?.()} style={{...LP.ctaPrimary,padding:'9px 18px'}} onMouseEnter={hP} onMouseLeave={lP}>Try Free</button>
         </nav>
 
         {/* ── HERO ── */}
@@ -23515,6 +23711,127 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
 }
 
 
+
+/* AUTH */
+var SB_URL = process.env.REACT_APP_SUPABASE_URL || 'https://ltnbvwnhtsaebyslbhil.supabase.co';
+var SB_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0bmJ2d25odHNhZWJ5c2xiaGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMTk0NDYsImV4cCI6MjA4OTU5NTQ0Nn0.VrfVyQPiWzVo7VpQJtRyKQgNBtoq3Du-uGCAGsH815c';
+async function parseAuthResponse(r, fallbackMessage) {
+  let d = {};
+  try { d = await r.json(); } catch {}
+  if (!r.ok || d.error) {
+    const message =
+      d?.error_description ||
+      d?.error?.message ||
+      d?.msg ||
+      d?.message ||
+      fallbackMessage;
+    throw new Error(message);
+  }
+  return d;
+}
+async function sbSignIn(email, pw) {
+  const r = await fetch(SB_URL + '/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SB_KEY,
+    },
+    body: JSON.stringify({ email: String(email || '').trim().toLowerCase(), password: pw }),
+  });
+  const d = await parseAuthResponse(r, 'Login failed');
+  if (!d.access_token) throw new Error('Login failed: missing session token');
+  localStorage.setItem('sb_session', JSON.stringify(d));
+  return d;
+}
+async function sbSignUp(email, pw, org, name, jur, state) {
+  const r = await fetch(SB_URL + '/auth/v1/signup', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SB_KEY,
+    },
+    body: JSON.stringify({
+      email: String(email || '').trim().toLowerCase(),
+      password: pw,
+      data: { org_name: org, full_name: name, jurisdiction: jur, state: state },
+    }),
+  });
+  const d = await parseAuthResponse(r, 'Signup failed');
+  return d;
+}
+async function sbSignOut() {
+  const s = JSON.parse(localStorage.getItem('sb_session') || '{}');
+  if (s.access_token)
+    await fetch(SB_URL + '/auth/v1/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SB_KEY,
+        Authorization: 'Bearer ' + s.access_token,
+      },
+    });
+  localStorage.removeItem('sb_session');
+  window.location.href = '/';
+}
+async function sbReset(email) {
+  const r = await fetch(SB_URL + '/auth/v1/recover', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SB_KEY,
+    },
+    body: JSON.stringify({ email: String(email || '').trim().toLowerCase() }),
+  });
+  const d = await parseAuthResponse(r, 'Failed to send reset link');
+  return d;
+}
+async function sbRefreshToken() {
+  try {
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    if (!s || !s.refresh_token) return false;
+    const r = await fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SB_KEY,
+      },
+      body: JSON.stringify({ refresh_token: s.refresh_token }),
+    });
+    const d = await parseAuthResponse(r, 'Session refresh failed');
+    if (!d.access_token) return false;
+    localStorage.setItem('sb_session', JSON.stringify({ ...s, ...d }));
+    return true;
+  } catch { return false; }
+}
+
+function getTokenExpiry() {
+  try {
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    if (!s || !s.access_token) return 0;
+    const p = decodeJwtPayload(s.access_token);
+    if (!p) return 0;
+    return (p.exp || 0) * 1000;
+  } catch { return 0; }
+}
+
+function isLoggedIn() {
+  try {
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    if (!s || !s.access_token) return false;
+    const p = decodeJwtPayload(s.access_token);
+    if (!p || !p.exp) return false;
+    if (p.exp * 1000 < Date.now()) {
+      if (s.refresh_token) return 'needs_refresh';
+      localStorage.removeItem('sb_session');
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function AuthScreen({ onAuth, initialMode, onClose }) {
   const [mode, setMode] = useState(initialMode || 'login');
   const [email, setEmail] = useState('');
@@ -23527,7 +23844,6 @@ function AuthScreen({ onAuth, initialMode, onClose }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
-
   const inputStyle = {
     width: '100%', padding: '11px 14px',
     background: 'rgba(255,255,255,0.05)',
