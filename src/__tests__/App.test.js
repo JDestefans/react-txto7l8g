@@ -53,8 +53,8 @@ describe('App', () => {
 
   test('renders SOC 2 roadmap', () => {
     renderApp('/');
-    expect(screen.getByText(/SOC 2 Compliance Roadmap/i)).toBeInTheDocument();
-    expect(screen.getByText(/Q2 – Q3 2026/i)).toBeInTheDocument();
+    expect(screen.getByText(/Secure Infrastructure/i)).toBeInTheDocument();
+    expect(screen.getByText(/SOC 2-certified cloud/i)).toBeInTheDocument();
   });
 
   test('renders footer with legal links', () => {
@@ -67,6 +67,6 @@ describe('App', () => {
   test('renders features section', () => {
     renderApp('/');
     expect(screen.getAllByText(/EMAP Standards/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Smart Priority Queue/i)).toBeInTheDocument();
+    expect(screen.getByText(/SAGE Priority Queue/i)).toBeInTheDocument();
   });
 });
