@@ -25263,6 +25263,7 @@ function AppInner() {
 
   useEffect(() => {
     if (!authed) {
+      setSubStatus('none');
       setLoaded(true);
       return;
     }
@@ -25446,7 +25447,7 @@ function AppInner() {
         )}
       </>
     );
-  if (!loaded || subStatus === null)
+  if (!loaded || (authed && subStatus === null))
     return (
       <div
         style={{
