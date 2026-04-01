@@ -22,6 +22,7 @@ class ErrorBoundary extends Component {
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
+  componentDidCatch() {}
   render() {
     if (this.state.hasError) {
       return (
@@ -23843,7 +23844,6 @@ function AuthScreen({ onAuth, initialMode, onClose }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
-
   const inputStyle = {
     width: '100%', padding: '11px 14px',
     background: 'rgba(255,255,255,0.05)',
