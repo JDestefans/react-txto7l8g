@@ -66,7 +66,6 @@ const VIEW_TITLES = {
   employees: 'Personnel',
   calendar: 'Program Calendar',
   reports: 'Compliance Report',
-  assistant: 'AI Assistant',
   grants: 'Grants & Funding',
   thira: 'Hazard Analysis',
   cap: 'Corrective Action Program',
@@ -1309,6 +1308,17 @@ function initData() {
     mutualAid: [],
     incidents: [],
   };
+}
+
+function isRecentlyCreatedAccount(maxAgeHours = 72) {
+  try {
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    const createdAt = s?.user?.created_at ? Date.parse(s.user.created_at) : NaN;
+    if (!Number.isFinite(createdAt)) return false;
+    return Date.now() - createdAt <= maxAgeHours * 60 * 60 * 1000;
+  } catch {
+    return false;
+  }
 }
 function addActivity(updateData, type, module, detail) {
   updateData((prev) => ({
@@ -10544,7 +10554,6 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapse
       group: 'AI Tools',
       items: [
         { id: 'sage', icon: null, label: 'SAGE', ai: true },
-        { id: 'assistant', icon: null, label: 'AI Assistant', ai: true },
         { id: 'intake', icon: '↑', label: 'Bulk Doc Intake' },
         { id: 'templates', icon: '✦', label: 'Doc Templates' },
         { id: 'evidence', icon: '↓', label: 'Evidence Export' },
@@ -11784,7 +11793,7 @@ function AiAssistantView({ data, orgName }) {
               letterSpacing: '-0.3px',
             }}
           >
-            AI Assistant
+            SAGE
           </h1>
           <p style={{ color: B.faint, fontSize: 13, marginTop: 1 }}>
             EMAP expert - knows your full program - Plan Smartr
@@ -23710,6 +23719,92 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
   );
 }
 
+function AmbientNodeBackground({ dark = true, density = 3600, maxLink = 96 }) {
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let W = 0;
+    let H = 0;
+    let nodes = [];
+    const resize = () => {
+      W = canvas.width = canvas.offsetWidth;
+      H = canvas.height = canvas.offsetHeight;
+      const count = Math.max(16, Math.floor((W * H) / density));
+      nodes = Array.from({ length: count }, () => ({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.2,
+        vy: (Math.random() - 0.5) * 0.2,
+        r: Math.random() * 1.2 + 0.4,
+        gold: Math.random() < 0.1,
+      }));
+    };
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dx = nodes[i].x - nodes[j].x;
+          const dy = nodes[i].y - nodes[j].y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < maxLink) {
+            ctx.strokeStyle = dark
+              ? `rgba(62,207,207,${(1 - d / maxLink) * 0.08})`
+              : `rgba(27,201,196,${(1 - d / maxLink) * 0.06})`;
+            ctx.lineWidth = 0.3;
+            ctx.beginPath();
+            ctx.moveTo(nodes[i].x, nodes[i].y);
+            ctx.lineTo(nodes[j].x, nodes[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+      nodes.forEach((n) => {
+        ctx.fillStyle = n.gold
+          ? dark
+            ? 'rgba(196,154,60,0.16)'
+            : 'rgba(196,154,60,0.12)'
+          : dark
+            ? 'rgba(62,207,207,0.12)'
+            : 'rgba(27,201,196,0.10)';
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        ctx.fill();
+        n.x += n.vx;
+        n.y += n.vy;
+        if (n.x < 0 || n.x > W) n.vx *= -1;
+        if (n.y < 0 || n.y > H) n.vy *= -1;
+      });
+      animRef.current = requestAnimationFrame(draw);
+    };
+    resize();
+    draw();
+    window.addEventListener('resize', resize);
+    return () => {
+      cancelAnimationFrame(animRef.current);
+      window.removeEventListener('resize', resize);
+    };
+  }, [dark, density, maxLink]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }}
+    />
+  );
+}
+
 
 
 /* AUTH */
@@ -24645,7 +24740,7 @@ function FirstRunWelcome({ onDone, setView }) {
               </div>
               <div style={{ fontSize: 12, color: '#475569', marginBottom: 4 }}>
                 The guide banners can be dismissed any time. You can always find
-                help in the AI Assistant.
+                help in SAGE.
               </div>
             </>
           )}
@@ -25205,7 +25300,8 @@ function AppInner() {
   const location = useLocation();
   const [data, setData] = useState(null);
   const pathView = location.pathname.replace(/^\/app\//, '').replace(/^\//, '') || 'dashboard';
-  const view = VIEW_TITLES[pathView] ? pathView : 'dashboard';
+  const normalizedPathView = pathView === 'assistant' ? 'sage' : pathView;
+  const view = VIEW_TITLES[normalizedPathView] ? normalizedPathView : 'dashboard';
   const setView = useCallback((v) => {
     navigate('/app/' + v);
   }, [navigate]);
@@ -25274,10 +25370,28 @@ function AppInner() {
       }).then(r => r.ok ? r.json() : []).then(rows => {
         if (rows.length > 0) {
           const s = rows[0];
+          const now = Date.now();
+          const trialEnd = s?.trial_end ? Date.parse(s.trial_end) : NaN;
+          const periodEnd = s?.current_period_end ? Date.parse(s.current_period_end) : NaN;
+          const graceActive =
+            (Number.isFinite(trialEnd) && trialEnd > now) ||
+            (Number.isFinite(periodEnd) && periodEnd > now);
           if (s.status === 'active' || s.status === 'trialing') {
             setSubStatus(s.status);
-          } else if (s.status === 'past_due' || s.status === 'canceled') {
+          } else if (
+            (s.status === 'past_due' || s.status === 'canceled' || s.status === 'unpaid') &&
+            graceActive
+          ) {
+            setSubStatus('active');
+          } else if (
+            s.status === 'past_due' ||
+            s.status === 'canceled' ||
+            s.status === 'unpaid' ||
+            s.status === 'incomplete_expired'
+          ) {
             setSubStatus('expired');
+          } else if (s.status === 'incomplete') {
+            setSubStatus('none');
           } else {
             setSubStatus(s.status || 'none');
           }
@@ -25387,6 +25501,28 @@ function AppInner() {
     setFirstRun(true);
     saveData(d);
   }, []);
+  const recentAccount = isRecentlyCreatedAccount();
+  const hasLegacyAccountData = !!(
+    data &&
+    (
+      data.orgName ||
+      data.welcomeDismissed ||
+      (data.training || []).length > 0 ||
+      (data.exercises || []).length > 0 ||
+      (data.partners || []).length > 0 ||
+      (data.plans || []).length > 0 ||
+      (data.resources || []).length > 0 ||
+      (data.grants || []).length > 0
+    )
+  );
+  const shouldShowPaywall =
+    subStatus === 'expired' ||
+    (subStatus === 'none' && recentAccount && !hasLegacyAccountData);
+  useEffect(() => {
+    if (pathView === 'assistant') {
+      navigate('/app/sage', { replace: true });
+    }
+  }, [pathView, navigate]);
   if (!authed)
     return (
       <>
@@ -25433,79 +25569,92 @@ function AppInner() {
     return (
       <div
         style={{
+          position: 'relative',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           height: '100vh',
-          background: B.sidebar,
-          flexDirection: 'column',
-          gap: 14,
+          background:
+            'radial-gradient(1000px 500px at 50% -10%, rgba(62,207,207,0.12), transparent 60%), #1A1F2E',
         }}
       >
-        <div
-          style={{
-            background: 'rgba(255,255,255,0.05)',
-            borderRadius: 14,
-            padding: '14px',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <BrainIcon size={34} strokeWidth={1.2} />
-        </div>
-        <Wordmark dark size="md" />
-        <div style={{ color: B.sidebarMuted, fontSize: 12 }}>
-          Loading your program...
+        <AmbientNodeBackground dark density={3400} maxLink={86} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(17,24,39,0.45), rgba(17,24,39,0.6))', pointerEvents: 'none', zIndex: 1 }} />
+        <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center', justifyContent: 'center' }}>
+          <div
+            style={{
+              background: 'rgba(255,255,255,0.05)',
+              borderRadius: 14,
+              padding: '14px',
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+          >
+            <BrainIcon size={34} strokeWidth={1.2} />
+          </div>
+          <Wordmark dark size="md" />
+          <div style={{ color: B.sidebarMuted, fontSize: 12 }}>
+            Loading your program...
+          </div>
         </div>
       </div>
     );
   if (onboarding)
     return <Onboarding onComplete={handleOnboard} />;
-  if (subStatus === 'none' || subStatus === 'expired') {
+  if (shouldShowPaywall) {
     return (
       <div style={{
+        position: 'relative',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100vh', background: B.sidebar, flexDirection: 'column', gap: 16,
+        height: '100vh',
+        background:
+          'radial-gradient(1200px 620px at 50% -20%, rgba(62,207,207,0.14), transparent 60%), #1A1F2E',
         fontFamily: "'DM Sans',sans-serif", padding: 20,
       }}>
-        <BrainIcon size={40} strokeWidth={1.2} />
-        <Wordmark dark size="lg" />
-        <div style={{ maxWidth: 400, textAlign: 'center', marginTop: 8 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: '#f0f4fa', marginBottom: 8 }}>
-            {subStatus === 'expired' ? 'Your subscription has ended' : 'Choose a plan to get started'}
+        <AmbientNodeBackground dark density={3200} maxLink={92} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(17,24,39,0.4), rgba(17,24,39,0.7))', pointerEvents: 'none', zIndex: 1 }} />
+        <div style={{ position: 'relative', zIndex: 2, width: '100%', maxWidth: 460, textAlign: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
+            <BrainIcon size={40} strokeWidth={1.2} />
+            <Wordmark dark size="lg" />
           </div>
-          <div style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7, marginBottom: 24 }}>
-            {subStatus === 'expired'
-              ? 'Your subscription is no longer active. Resubscribe to continue using planrr.app. Your data is safe and waiting.'
-              : 'Start your 14-day free trial to access all features. No credit card required upfront — cancel anytime.'}
+          <div style={{ background: 'rgba(22,27,40,0.82)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '24px 22px', backdropFilter: 'blur(10px)' }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#f0f4fa', marginBottom: 8 }}>
+              {subStatus === 'expired' ? 'Your subscription has ended' : 'Choose a plan to get started'}
+            </div>
+            <div style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7, marginBottom: 24 }}>
+              {subStatus === 'expired'
+                ? 'Your subscription is no longer active. Resubscribe to continue using planrr.app. Your data is safe and waiting.'
+                : 'Start your 14-day free trial to access all features. No credit card required upfront — cancel anytime.'}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                { label: 'Solo Operator — $79/mo', plan: 'solo' },
+                { label: 'Small Team — $149/mo', plan: 'small_team' },
+                { label: 'Full Program — $199/mo', plan: 'full_program' },
+              ].map(p => (
+                <button key={p.plan} onClick={() => {
+                  const link = STRIPE_BUY_LINKS[p.plan];
+                  if (link) {
+                    try {
+                      const s = JSON.parse(localStorage.getItem('sb_session') || '{}');
+                      const email = s?.user?.email || s?.email || '';
+                      window.location.href = email ? `${link}?prefilled_email=${encodeURIComponent(email)}` : link;
+                    } catch { window.location.href = link; }
+                  }
+                }} style={{
+                  background: p.plan === 'small_team' ? GOLD : 'rgba(255,255,255,0.06)',
+                  color: p.plan === 'small_team' ? '#141719' : '#f0f4fa',
+                  border: p.plan === 'small_team' ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 10, padding: '14px 20px', fontSize: 14, fontWeight: 700,
+                  cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s',
+                }}>{p.label}{p.plan === 'small_team' ? ' — Most Popular' : ''}</button>
+              ))}
+            </div>
+            <button onClick={sbSignOut} style={{
+              background: 'none', border: 'none', color: '#64748b', fontSize: 12,
+              cursor: 'pointer', marginTop: 16, padding: '4px 8px',
+            }}>Sign out</button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { label: 'Solo Operator — $79/mo', plan: 'solo' },
-              { label: 'Small Team — $149/mo', plan: 'small_team' },
-              { label: 'Full Program — $199/mo', plan: 'full_program' },
-            ].map(p => (
-              <button key={p.plan} onClick={() => {
-                const link = STRIPE_BUY_LINKS[p.plan];
-                if (link) {
-                  try {
-                    const s = JSON.parse(localStorage.getItem('sb_session') || '{}');
-                    const email = s?.user?.email || s?.email || '';
-                    window.location.href = email ? `${link}?prefilled_email=${encodeURIComponent(email)}` : link;
-                  } catch { window.location.href = link; }
-                }
-              }} style={{
-                background: p.plan === 'small_team' ? GOLD : 'rgba(255,255,255,0.06)',
-                color: p.plan === 'small_team' ? '#141719' : '#f0f4fa',
-                border: p.plan === 'small_team' ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 10, padding: '14px 20px', fontSize: 14, fontWeight: 700,
-                cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s',
-              }}>{p.label}{p.plan === 'small_team' ? ' — Most Popular' : ''}</button>
-            ))}
-          </div>
-          <button onClick={sbSignOut} style={{
-            background: 'none', border: 'none', color: '#64748b', fontSize: 12,
-            cursor: 'pointer', marginTop: 16, padding: '4px 8px',
-          }}>Sign out</button>
         </div>
       </div>
     );
@@ -25515,12 +25664,16 @@ function AppInner() {
   return (
     <div
       style={{
+        position: 'relative',
         display: 'flex',
-        background: B.bg,
+        background:
+          'radial-gradient(1200px 600px at 50% -18%, rgba(62,207,207,0.10), transparent 60%), #F2F5F7',
         minHeight: '100vh',
         fontFamily: "'DM Sans',sans-serif",
       }}
     >
+      <AmbientNodeBackground dark={false} density={14000} maxLink={120} />
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(255,255,255,0.30), rgba(242,245,247,0.88))', pointerEvents: 'none', zIndex: 1 }} />
       <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800;9..40,900&family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=Oxanium:wght@700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0;}:focus-visible{outline:2px solid #1BC9C4;outline-offset:2px;border-radius:4px}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:${B.bg};}::-webkit-scrollbar-thumb{background:#cdd6da;border-radius:3px;}#planrr-sidebar ::-webkit-scrollbar{width:4px;}#planrr-sidebar ::-webkit-scrollbar-track{background:transparent;}#planrr-sidebar ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px;}#planrr-sidebar ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2);}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes typingDot{0%,60%,100%{transform:translateY(0);opacity:0.4}30%{transform:translateY(-3px);opacity:1}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@media print{#planrr-sidebar{display:none!important}#planrr-topbar{display:none!important}#planrr-main{margin-left:0!important}}@media(max-width:1024px){#planrr-sidebar{position:fixed!important;left:-260px!important;transition:left 0.25s ease!important;z-index:100!important}#planrr-sidebar.open{left:0!important}#planrr-main{margin-left:0!important}.planrr-menu-toggle{display:flex!important}.planrr-sidebar-overlay{display:block!important}}@media(max-width:768px){.planrr-pricing-grid{grid-template-columns:1fr!important}.planrr-features-grid{grid-template-columns:1fr!important}.planrr-stats-strip{grid-template-columns:repeat(2,1fr)!important}.planrr-security-grid{grid-template-columns:1fr!important}.planrr-landing-header{padding:14px 16px!important}.planrr-landing-hero{padding:48px 20px 40px!important}.planrr-landing-section{padding:48px 20px!important}}@media(max-width:480px){.planrr-stats-strip{grid-template-columns:1fr!important}}`}</style>
       {sidebarOpen && (
         <div
@@ -25556,6 +25709,8 @@ function AppInner() {
       <div
         id="planrr-main"
         style={{
+          position: 'relative',
+          zIndex: 2,
           marginLeft: sidebarCollapsed ? 64 : 244,
           flex: 1,
           minHeight: '100vh',
@@ -25625,7 +25780,7 @@ function AppInner() {
               {view === 'employees' && 'Personnel'}
               {view === 'calendar' && 'Program Calendar'}
               {view === 'reports' && 'Compliance Report'}
-              {view === 'assistant' && 'AI Assistant'}
+              {view === 'sage' && 'SAGE'}
               {view === 'grants' && 'Grants & Funding'}
               {view === 'thira' && 'Hazard Analysis'}
               {view === 'cap' && 'Corrective Action Program'}
@@ -25869,9 +26024,6 @@ function AppInner() {
           )}
           {view === 'sage' && (
             <SagePageView data={data} orgName={data.orgName} />
-          )}
-          {view === 'assistant' && (
-            <AiAssistantView data={data} orgName={data.orgName} />
           )}
           {view === 'grants' && (
             <GrantTracker data={data} setData={updateData} />
