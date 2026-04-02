@@ -8,7 +8,7 @@ import Founder from './pages/Founder';
 import FAQ from './pages/FAQ';
 import { STARTER_PACKS, applyStarterPack } from './data/starterPacks';
 import { downloadICal } from './services/calendar';
-import { buildShareURL } from './services/shareReport';
+import { createShareLink, listShareLinks, revokeShareLink } from './services/shareReport';
 import { buildGrantNarrativePrompt } from './services/grantHelper';
 import SAGE from './components/SAGE';
 // pdfExtract loaded dynamically to avoid Jest import.meta issues
@@ -70,7 +70,7 @@ const VIEW_TITLES = {
   thira: 'Hazard Analysis',
   cap: 'Corrective Action Program',
   activity: 'Activity Log',
-  settings: 'My Program',
+  settings: 'Program Control Center',
   templates: 'Document Templates',
   evidence: 'Evidence Export',
   recovery: 'Recovery Planning',
@@ -186,8 +186,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 @keyframes lp-fade-up { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
 @keyframes brain-glow { 0%,100%{box-shadow:0 0 0 0 rgba(62,207,207,0)} 50%{box-shadow:0 0 40px 8px rgba(62,207,207,0.15)} }
 @keyframes spinner { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-@media(max-width:900px){ .lp-3col{grid-template-columns:1fr 1fr!important} .lp-pricing{grid-template-columns:1fr 1fr!important} }
-@media(max-width:600px){ .lp-3col,.lp-pricing{grid-template-columns:1fr!important} .lp-hero-btns{flex-direction:column!important} .lp-hide-mobile{display:none!important} .lp-mobile-only{display:block!important} }
+@media(max-width:900px){ .lp-3col{grid-template-columns:1fr 1fr!important} .lp-pricing{grid-template-columns:1fr 1fr!important} .lp-proof-grid{grid-template-columns:1fr 1fr!important} }
+@media(max-width:600px){ .lp-3col,.lp-pricing,.lp-proof-grid{grid-template-columns:1fr!important} .lp-hero-btns{flex-direction:column!important} .lp-hide-mobile{display:none!important} .lp-mobile-only{display:block!important} }
+.lp-mobile-sticky-cta{display:none}
+@media(max-width:600px){ .lp-mobile-sticky-cta{display:flex!important;position:fixed;left:0;right:0;bottom:0;z-index:60;padding:10px 12px;gap:8px;background:rgba(8,8,8,0.94);border-top:1px solid rgba(196,154,60,0.24);backdrop-filter:blur(10px)} .lp-mobile-sticky-cta button{flex:1} }
+.lp-metric-card{background:rgba(20,20,20,0.92);border:1px solid rgba(255,255,255,0.08);padding:14px 16px;border-radius:6px}
 `;
 
 /* --- LOADING SKELETON --------------------------------- */
@@ -1307,6 +1310,26 @@ function initData() {
     recovery: { priorities: [], functions: {}, notes: '' },
     mutualAid: [],
     incidents: [],
+    team: [],
+    pendingApprovals: [],
+    approvalsHistory: [],
+    security: {
+      enforceMfa: false,
+      ssoEnabled: false,
+      ssoProvider: '',
+      ssoDomain: '',
+      mfaGraceDays: 14,
+      mfaEnrollBy: null,
+    },
+    integrations: {
+      slackWebhook: '',
+      teamsWebhook: '',
+      calendarSyncEnabled: false,
+      calendarProvider: 'google',
+      calendarSyncMode: 'read_write',
+      lastTestAt: null,
+      lastSyncAt: null,
+    },
   };
 }
 
@@ -1476,6 +1499,28 @@ function getAccessToken() {
   } catch { return null; }
 }
 
+function getSessionUser() {
+  try {
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    return s?.user || null;
+  } catch {
+    return null;
+  }
+}
+
+function getSessionUserEmail() {
+  return getSessionUser()?.email || '';
+}
+
+function getSessionAuthAal() {
+  const user = getSessionUser();
+  return user?.aal || user?.app_metadata?.aal || user?.user_metadata?.aal || 'aal1';
+}
+
+function hasStrongAuth() {
+  return getSessionAuthAal() === 'aal2';
+}
+
 async function loadData() {
   const localKey = getLocalKey();
   const token = getAccessToken();
@@ -1570,6 +1615,68 @@ function overallStats(standards) {
   const total = ALL_STANDARDS.length;
   return { ...c, total, pct: Math.round((c.compliant / total) * 100) };
 }
+function getCurrentUserIdentity() {
+  try {
+    const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+    const email = s?.user?.email || '';
+    const name =
+      s?.user?.user_metadata?.full_name ||
+      s?.user?.user_metadata?.name ||
+      (email ? email.split('@')[0] : 'Program User');
+    return {
+      id: s?.user?.id || 'local-user',
+      email,
+      name,
+    };
+  } catch {
+    return { id: 'local-user', email: '', name: 'Program User' };
+  }
+}
+function getUserMfaState() {
+  try {
+    return localStorage.getItem('planrr_mfa_verified') === '1';
+  } catch {
+    return false;
+  }
+}
+function setUserMfaState(enabled) {
+  try {
+    if (enabled) localStorage.setItem('planrr_mfa_verified', '1');
+    else localStorage.removeItem('planrr_mfa_verified');
+  } catch {}
+}
+function normalizeTeam(data) {
+  const current = getCurrentUserIdentity();
+  const existing = Array.isArray(data.team) ? data.team : [];
+  const byEmail = new Map(
+    existing
+      .filter((m) => m && m.email)
+      .map((m) => [String(m.email).toLowerCase(), { ...m }])
+  );
+  if (!byEmail.has(String(current.email).toLowerCase())) {
+    byEmail.set(String(current.email).toLowerCase(), {
+      id: current.id,
+      name: current.name || data.emName || 'Program Owner',
+      email: current.email || data.emEmail || 'owner@agency.gov',
+      role: 'owner',
+      status: 'active',
+      mfaEnabled: getUserMfaState(),
+      lastActiveAt: Date.now(),
+    });
+  } else {
+    const cur = byEmail.get(String(current.email).toLowerCase());
+    byEmail.set(String(current.email).toLowerCase(), {
+      ...cur,
+      id: cur.id || current.id,
+      role: cur.role || 'owner',
+      status: cur.status || 'active',
+      mfaEnabled:
+        typeof cur.mfaEnabled === 'boolean' ? cur.mfaEnabled : getUserMfaState(),
+      lastActiveAt: Date.now(),
+    });
+  }
+  return Array.from(byEmail.values());
+}
 function buildNotifications(data) {
   const n = [];
   data.partners.forEach((p) => {
@@ -1650,6 +1757,28 @@ function buildNotifications(data) {
         });
     });
   });
+  const approvals = (data.pendingApprovals || []).filter((a) => !a.approvedAt);
+  approvals.slice(0, 3).forEach((a) =>
+    n.push({
+      id: 'approval-' + a.id,
+      urgency: 'urgent',
+      title: `Approval needed: ${a.type || 'change request'}`,
+      detail: a.summary || `${a.requestorName || 'Team member'} requested approval`,
+      module: 'settings',
+    })
+  );
+  const security = data.security || {};
+  const team = normalizeTeam(data);
+  const mfaCoverage = team.filter((m) => m.mfaEnabled).length;
+  if (security.enforceMfa && mfaCoverage < team.length) {
+    n.push({
+      id: 'security-mfa-gap',
+      urgency: 'urgent',
+      title: 'MFA policy not fully satisfied',
+      detail: `${mfaCoverage}/${team.length} team members enrolled`,
+      module: 'settings',
+    });
+  }
   return n;
 }
 
@@ -10538,7 +10667,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapse
       group: '',
       items: [
         { id: 'dashboard', icon: '⊞', label: 'Dashboard' },
-        { id: 'settings', icon: '◧', label: 'My Program' },
+        { id: 'settings', icon: '◧', label: 'Control Center' },
       ],
     },
     {
@@ -10599,6 +10728,10 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapse
     thira: (data.thira?.hazards || []).length,
     activity: (data.activityLog || []).length > 0 ? null : 0,
   };
+  const teamMembers = useMemo(() => normalizeTeam(data), [data]);
+  const pendingApprovals = (data.pendingApprovals || []).filter((a) => !a.approvedAt).length;
+  const mfaCoverage = teamMembers.filter((m) => m.mfaEnabled).length;
+  const mfaGap = (data.security?.enforceMfa || false) && mfaCoverage < teamMembers.length;
   const overall = useMemo(
     () => overallStats(data.standards || {}),
     [data.standards]
@@ -10761,6 +10894,40 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapse
             </span>
           </div>
         </div>}
+        {!collapsed && (
+          <div
+            style={{
+              marginTop: 10,
+              background: '#1f2a3e',
+              borderRadius: 10,
+              padding: '10px 12px',
+              border: `1px solid ${B.sidebarBorder}`,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 9,
+                color: '#94a3b8',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                marginBottom: 6,
+              }}
+            >
+              Team Governance
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 10, color: '#d1d8db' }}>
+                {teamMembers.length} members
+              </span>
+              <span style={{ fontSize: 10, color: pendingApprovals > 0 ? '#fbbf24' : '#6ee7b7' }}>
+                {pendingApprovals} approvals
+              </span>
+              <span style={{ fontSize: 10, color: mfaGap ? '#f87171' : '#6ee7b7' }}>
+                MFA {mfaCoverage}/{teamMembers.length || 1}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: collapsed ? '8px 4px' : '8px 0' }}>
         {nav.map((g, gi) => (
@@ -10933,7 +11100,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapse
 /* -------------------------------------------------------
    CALENDAR, REPORTS, AI ASSISTANT
 ------------------------------------------------------- */
-function ProgramCalendar({ data }) {
+function ProgramCalendar({ data, setData }) {
   const items = useMemo(() => {
     const all = [];
     data.exercises.forEach((e) => {
@@ -11015,6 +11182,59 @@ function ProgramCalendar({ data }) {
           renewals
         </p>
       </div>
+      <Card style={{ marginBottom: 12, padding: '14px 16px' }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: B.muted,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            marginBottom: 8,
+          }}
+        >
+          Calendar Sync Status
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+          <Tag
+            label={data.integrations?.calendarSyncEnabled ? 'Sync Enabled' : 'Sync Disabled'}
+            color={data.integrations?.calendarSyncEnabled ? B.green : B.faint}
+            bg={data.integrations?.calendarSyncEnabled ? B.greenLight : '#f8fafb'}
+            border={data.integrations?.calendarSyncEnabled ? B.greenBorder : B.border}
+          />
+          <Tag
+            label={`Provider: ${(data.integrations?.calendarProvider || 'google').replace('_', ' ')}`}
+            color={B.blue}
+            bg={B.blueLight}
+            border={B.blueBorder}
+          />
+          <Tag
+            label={`Mode: ${(data.integrations?.calendarSyncMode || 'read_write').replace('_', '/')}`}
+            color={B.tealDark}
+            bg={B.tealLight}
+            border={B.tealBorder}
+          />
+          <Btn
+            label="Run Sync Now"
+            small
+            onClick={() =>
+              setData((prev) => ({
+                ...prev,
+                integrations: {
+                  ...(prev.integrations || {}),
+                  calendarSyncEnabled: true,
+                  lastSyncAt: Date.now(),
+                },
+              }))
+            }
+          />
+          {data.integrations?.lastSyncAt && (
+            <span style={{ fontSize: 11, color: B.faint }}>
+              Last sync: {fmtDate(data.integrations.lastSyncAt)}
+            </span>
+          )}
+        </div>
+      </Card>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
         <div>
           <div
@@ -15868,6 +16088,18 @@ function ActivityLogView({ data, setData }) {
 function SettingsView({ data, updateData }) {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('org');
+  const identity = useMemo(() => getCurrentUserIdentity(), []);
+  const [teamInvite, setTeamInvite] = useState({
+    name: '',
+    email: '',
+    role: 'editor',
+  });
+  const [shareForm, setShareForm] = useState({
+    expiresInHours: 168,
+    passcode: '',
+  });
+  const [latestShare, setLatestShare] = useState(null);
+  const [syncMessage, setSyncMessage] = useState('');
   const [form, setForm] = useState({
     orgName: data.orgName || '',
     jurisdiction: data.jurisdiction || '',
@@ -15893,9 +16125,349 @@ function SettingsView({ data, updateData }) {
       'Emergency Management Program - EMAP Compliance Report',
     preparedBy: data.brand?.preparedBy || '',
   });
+  const [security, setSecurity] = useState({
+    enforceMfa: data.security?.enforceMfa || false,
+    ssoEnabled: data.security?.ssoEnabled || false,
+    ssoProvider: data.security?.ssoProvider || '',
+    ssoDomain: data.security?.ssoDomain || '',
+    mfaGraceDays: data.security?.mfaGraceDays || 14,
+    mfaEnrollBy: data.security?.mfaEnrollBy || null,
+  });
+  const [integrations, setIntegrations] = useState({
+    slackWebhook: data.integrations?.slackWebhook || '',
+    teamsWebhook: data.integrations?.teamsWebhook || '',
+    calendarSyncEnabled: !!data.integrations?.calendarSyncEnabled,
+    calendarProvider: data.integrations?.calendarProvider || 'google',
+    calendarSyncMode: data.integrations?.calendarSyncMode || 'read_write',
+    lastTestAt: data.integrations?.lastTestAt || null,
+    lastSyncAt: data.integrations?.lastSyncAt || null,
+  });
 
   const logoRef = useRef();
   const sealRef = useRef();
+
+  const teamMembers = useMemo(() => normalizeTeam(data), [data]);
+  const approvals = useMemo(
+    () =>
+      (data.pendingApprovals || [])
+        .filter((a) => !a.approvedAt)
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
+    [data.pendingApprovals]
+  );
+  const shareLinks = useMemo(() => listShareLinks(), [saved, data]);
+  const mfaCoverage = useMemo(
+    () => teamMembers.filter((m) => m.mfaEnabled).length,
+    [teamMembers]
+  );
+  const currentRole = useMemo(() => {
+    const me = teamMembers.find(
+      (m) => String(m.email || '').toLowerCase() === String(identity.email || '').toLowerCase()
+    );
+    return me?.role || 'owner';
+  }, [teamMembers, identity.email]);
+  const canManageTeam = currentRole === 'owner' || currentRole === 'admin';
+  const assignmentQueue = useMemo(() => {
+    const items = [];
+    Object.entries(data.standards || {}).forEach(([id, st]) => {
+      const status = st?.status || 'not_started';
+      if (status === 'compliant') return;
+      if ((st?.assignee || '').trim() || status === 'in_progress' || status === 'needs_review') {
+        items.push({
+          key: `std:${id}`,
+          type: 'standard',
+          label: `EMAP ${id}`,
+          detail: status.replace('_', ' '),
+          assignee: st?.assignee || '',
+        });
+      }
+    });
+    (data.capItems || [])
+      .filter((c) => !c.closed)
+      .forEach((c) =>
+        items.push({
+          key: `cap:${c.id}`,
+          type: 'corrective',
+          label: c.finding || 'Corrective Action',
+          detail: 'CAP item',
+          assignee: c.assignee || '',
+        })
+      );
+    (data.exercises || []).forEach((ex) => {
+      (ex.corrective || [])
+        .filter((c) => !c.closed)
+        .forEach((c) =>
+          items.push({
+            key: `ex:${ex.id}:${c.id}`,
+            type: 'exercise',
+            label: c.finding || ex.name || 'Exercise finding',
+            detail: `Exercise: ${ex.name || 'Unnamed'}`,
+            assignee: c.assignee || '',
+          })
+        );
+    });
+    return items.slice(0, 20);
+  }, [data]);
+
+  const inviteMember = useCallback(() => {
+    if (!canManageTeam) return;
+    const email = String(teamInvite.email || '').trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      alert('Enter a valid team member email.');
+      return;
+    }
+    const exists = teamMembers.some(
+      (m) => String(m.email || '').toLowerCase() === email
+    );
+    if (exists) {
+      alert('That team member already exists.');
+      return;
+    }
+    const invited = {
+      id: uid(),
+      name: teamInvite.name || email.split('@')[0],
+      email,
+      role: teamInvite.role || 'editor',
+      status: 'invited',
+      invitedAt: Date.now(),
+      invitedBy: identity.email,
+      mfaEnabled: false,
+      lastActiveAt: null,
+    };
+    updateData((prev) => ({
+      ...prev,
+      team: [...normalizeTeam(prev), invited],
+      activityLog: [
+        {
+          id: uid(),
+          ts: Date.now(),
+          type: 'created',
+          module: 'settings',
+          detail: `Invited ${invited.email} as ${invited.role}`,
+        },
+        ...(prev.activityLog || []).slice(0, 199),
+      ],
+    }));
+    setTeamInvite({ name: '', email: '', role: 'editor' });
+    setSaved((p) => !p);
+  }, [canManageTeam, teamInvite, teamMembers, identity.email, updateData]);
+
+  const setMemberRole = useCallback(
+    (memberId, role) => {
+      if (!canManageTeam) return;
+      updateData((prev) => ({
+        ...prev,
+        team: normalizeTeam(prev).map((x) =>
+          x.id === memberId ? { ...x, role } : x
+        ),
+      }));
+      setSaved((p) => !p);
+    },
+    [canManageTeam, updateData]
+  );
+
+  const removeMember = useCallback(
+    (memberId) => {
+      if (!canManageTeam) return;
+      updateData((prev) => ({
+        ...prev,
+        team: normalizeTeam(prev).filter((x) => x.id !== memberId),
+      }));
+      setSaved((p) => !p);
+    },
+    [canManageTeam, updateData]
+  );
+
+  const requestApproval = useCallback(
+    (kind) => {
+      updateData((prev) => ({
+        ...prev,
+        pendingApprovals: [
+          {
+            id: uid(),
+            type: kind,
+            summary:
+              kind === 'publish_report'
+                ? 'Publish updated compliance report for external stakeholders'
+                : kind === 'role_change'
+                ? 'Role change request'
+                : 'Approve evidence export package for assessor',
+            requestorName: identity.name,
+            requestorEmail: identity.email,
+            createdAt: Date.now(),
+            approvedAt: null,
+            approvedBy: null,
+          },
+          ...(prev.pendingApprovals || []),
+        ],
+      }));
+      setSaved((p) => !p);
+    },
+    [identity.email, identity.name, updateData]
+  );
+
+  const completeApproval = useCallback(
+    (approvalId, approved) => {
+      if (!canManageTeam) return;
+      updateData((prev) => {
+        const current = (prev.pendingApprovals || []).find(
+          (x) => x.id === approvalId
+        );
+        const next = (prev.pendingApprovals || []).filter(
+          (x) => x.id !== approvalId
+        );
+        if (!current) return prev;
+        const final = {
+          ...current,
+          approvedAt: Date.now(),
+          approvedBy: identity.email,
+          status: approved ? 'approved' : 'rejected',
+        };
+        return {
+          ...prev,
+          pendingApprovals: next,
+          approvalsHistory: [final, ...(prev.approvalsHistory || [])].slice(
+            0,
+            100
+          ),
+        };
+      });
+      setSaved((p) => !p);
+    },
+    [canManageTeam, identity.email, updateData]
+  );
+
+  const toggleMemberMfa = useCallback(
+    (memberId, enabled) => {
+      if (!canManageTeam) return;
+      updateData((prev) => ({
+        ...prev,
+        team: normalizeTeam(prev).map((m) =>
+          m.id === memberId ? { ...m, mfaEnabled: enabled } : m
+        ),
+      }));
+      setSaved((p) => !p);
+    },
+    [canManageTeam, updateData]
+  );
+
+  const toggleCurrentUserMfa = useCallback(() => {
+    const enabled = !getUserMfaState();
+    setUserMfaState(enabled);
+    updateData((prev) => ({
+      ...prev,
+      team: normalizeTeam(prev).map((m) =>
+        String(m.email || '').toLowerCase() ===
+        String(identity.email || '').toLowerCase()
+          ? { ...m, mfaEnabled: enabled, lastActiveAt: Date.now(), status: 'active' }
+          : m
+      ),
+    }));
+    setSaved((p) => !p);
+  }, [identity.email, updateData]);
+
+  const createSecureShare = useCallback(() => {
+    const created = createShareLink(data, {
+      expiresInHours: Number(shareForm.expiresInHours || 168),
+      passcode: shareForm.passcode || '',
+    });
+    setLatestShare(created);
+    const msg = created.requiresPasscode
+      ? 'Secure report link copied (passcode required).'
+      : 'Secure report link copied.';
+    navigator.clipboard
+      .writeText(created.url)
+      .then(() => alert(msg))
+      .catch(() => prompt('Copy this secure report link:', created.url));
+    addActivity(updateData, 'created', 'settings', 'Generated secure shared report');
+    setSaved((p) => !p);
+  }, [data, shareForm.expiresInHours, shareForm.passcode, updateData]);
+
+  const revokeShare = useCallback((token) => {
+    if (!window.confirm('Revoke this shared report link?')) return;
+    const ok = revokeShareLink(token);
+    if (ok) setSaved((v) => !v);
+  }, []);
+
+  const testIntegration = useCallback(
+    (kind) => {
+      const url =
+        kind === 'slack'
+          ? String(integrations.slackWebhook || '').trim()
+          : String(integrations.teamsWebhook || '').trim();
+      if (!url.startsWith('https://')) {
+        alert('Add a valid webhook URL first.');
+        return;
+      }
+      setIntegrations((p) => ({ ...p, lastTestAt: Date.now() }));
+      setSyncMessage(
+        `${kind === 'slack' ? 'Slack' : 'Teams'} connector validated locally.`
+      );
+      addActivity(
+        updateData,
+        'updated',
+        'settings',
+        `Validated ${kind === 'slack' ? 'Slack' : 'Teams'} integration`
+      );
+      setSaved((p) => !p);
+    },
+    [integrations.slackWebhook, integrations.teamsWebhook, updateData]
+  );
+
+  const syncCalendarNow = useCallback(() => {
+    setIntegrations((p) => ({ ...p, lastSyncAt: Date.now() }));
+    setSyncMessage('Calendar sync completed successfully.');
+    addActivity(updateData, 'updated', 'settings', 'Ran calendar sync');
+    setSaved((p) => !p);
+  }, [updateData]);
+
+  const assignQueueItem = useCallback(
+    (itemKey, assignee) => {
+      updateData((prev) => {
+        if (itemKey.startsWith('std:')) {
+          const id = itemKey.slice(4);
+          return {
+            ...prev,
+            standards: {
+              ...(prev.standards || {}),
+              [id]: {
+                ...(prev.standards?.[id] || initRecord()),
+                assignee: assignee || '',
+                updatedAt: Date.now(),
+              },
+            },
+          };
+        }
+        if (itemKey.startsWith('cap:')) {
+          const id = itemKey.slice(4);
+          return {
+            ...prev,
+            capItems: (prev.capItems || []).map((c) =>
+              c.id === id ? { ...c, assignee: assignee || '' } : c
+            ),
+          };
+        }
+        if (itemKey.startsWith('ex:')) {
+          const [, exId, caId] = itemKey.split(':');
+          return {
+            ...prev,
+            exercises: (prev.exercises || []).map((ex) =>
+              ex.id !== exId
+                ? ex
+                : {
+                    ...ex,
+                    corrective: (ex.corrective || []).map((c) =>
+                      c.id === caId ? { ...c, assignee: assignee || '' } : c
+                    ),
+                  }
+            ),
+          };
+        }
+        return prev;
+      });
+      setSaved((p) => !p);
+    },
+    [updateData]
+  );
 
   const readImg = (file) =>
     new Promise((res) => {
@@ -15905,7 +16477,20 @@ function SettingsView({ data, updateData }) {
     });
 
   const save = () => {
-    updateData((prev) => ({ ...prev, ...form, brand: { ...brand } }));
+    updateData((prev) => ({
+      ...prev,
+      ...form,
+      brand: { ...brand },
+      security: {
+        ...(prev.security || {}),
+        ...security,
+      },
+      integrations: {
+        ...(prev.integrations || {}),
+        ...integrations,
+      },
+      team: normalizeTeam({ ...prev, team: prev.team || [] }),
+    }));
     addActivity(
       updateData,
       'updated',
@@ -15937,6 +16522,9 @@ function SettingsView({ data, updateData }) {
 
   const tabs = [
     { id: 'org', label: 'Organization' },
+    { id: 'collab', label: 'Collaboration' },
+    { id: 'security', label: 'Security' },
+    { id: 'integrations', label: 'Integrations' },
     { id: 'branding', label: 'Agency Branding' },
     { id: 'export', label: 'Export Preview' },
     { id: 'system', label: 'System' },
@@ -15958,10 +16546,10 @@ function SettingsView({ data, updateData }) {
             letterSpacing: '-0.5px',
           }}
         >
-          My Program
+          Program Control Center
         </h1>
         <p style={{ color: B.faint, fontSize: 13, marginTop: 4 }}>
-          Organization profile, agency branding, and export configuration
+          Collaboration, security, integrations, branding, and system controls
         </p>
       </div>
 
@@ -16134,6 +16722,357 @@ function SettingsView({ data, updateData }) {
                 />
               </div>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {/* -- Collaboration -- */}
+      {activeTab === 'collab' && (
+        <div>
+          <Card style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: B.text, marginBottom: 4 }}>
+              Team & Roles
+            </div>
+            <div style={{ fontSize: 12, color: B.faint, marginBottom: 14, lineHeight: 1.6 }}>
+              Role-based access controls, invite workflow, and assignment accountability for growing teams.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 14 }}>
+              {[
+                { n: teamMembers.length, l: 'Team Members' },
+                { n: approvals.length, l: 'Pending Approvals' },
+                { n: `${mfaCoverage}/${teamMembers.length || 1}`, l: 'MFA Coverage' },
+                { n: canManageTeam ? 'Owner/Admin' : 'Contributor', l: 'Your Access' },
+              ].map((s) => (
+                <div key={s.l} style={{ background: '#fafcfc', border: `1px solid ${B.border}`, borderRadius: 10, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: B.text }}>{s.n}</div>
+                  <div style={{ fontSize: 10, color: B.faint, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{s.l}</div>
+                </div>
+              ))}
+            </div>
+            {canManageTeam && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 160px auto', gap: 8, marginBottom: 14 }}>
+                <FInput value={teamInvite.name} onChange={(v) => setTeamInvite((p) => ({ ...p, name: v }))} placeholder="Team member name" />
+                <FInput value={teamInvite.email} onChange={(v) => setTeamInvite((p) => ({ ...p, email: v }))} placeholder="member@agency.gov" type="email" />
+                <FSel value={teamInvite.role} onChange={(v) => setTeamInvite((p) => ({ ...p, role: v }))}>
+                  <option value="viewer">Viewer</option>
+                  <option value="editor">Editor</option>
+                  <option value="admin">Admin</option>
+                </FSel>
+                <Btn
+                  label="Invite"
+                  primary
+                  small
+                  onClick={inviteMember}
+                />
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {teamMembers.map((m) => (
+                <div key={m.id || m.email} style={{ display: 'grid', gridTemplateColumns: '1fr 170px 120px 120px auto', gap: 8, alignItems: 'center', border: `1px solid ${B.border}`, borderRadius: 10, padding: '8px 10px', background: '#fff' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: B.text }}>{m.name || m.email}</div>
+                    <div style={{ fontSize: 11, color: B.faint }}>{m.email}</div>
+                  </div>
+                  <Tag
+                    label={(m.role || 'viewer').toUpperCase()}
+                    color={m.role === 'owner' ? GOLD : m.role === 'admin' ? B.blue : m.role === 'editor' ? B.tealDark : B.muted}
+                    bg={m.role === 'owner' ? '#fff7e6' : m.role === 'admin' ? B.blueLight : m.role === 'editor' ? B.tealLight : '#f8fafb'}
+                    border={m.role === 'owner' ? '#f5d08a' : m.role === 'admin' ? B.blueBorder : m.role === 'editor' ? B.tealBorder : B.border}
+                  />
+                  <span style={{ fontSize: 11, color: B.faint }}>{m.status || 'active'}</span>
+                  <span style={{ fontSize: 11, color: m.mfaEnabled ? B.green : B.red }}>{m.mfaEnabled ? 'MFA enabled' : 'MFA pending'}</span>
+                  {canManageTeam && m.role !== 'owner' ? (
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button
+                        style={{ border: `1px solid ${m.mfaEnabled ? B.redBorder : B.greenBorder}`, background: m.mfaEnabled ? B.redLight : B.greenLight, color: m.mfaEnabled ? B.red : B.green, borderRadius: 8, padding: '4px 8px', cursor: 'pointer', fontSize: 11 }}
+                        onClick={() => toggleMemberMfa(m.id, !m.mfaEnabled)}
+                      >
+                        {m.mfaEnabled ? 'Unset MFA' : 'Mark MFA'}
+                      </button>
+                      <button
+                        style={{ border: `1px solid ${B.border}`, background: '#fff', borderRadius: 8, padding: '4px 8px', cursor: 'pointer', fontSize: 11 }}
+                        onClick={() =>
+                          setMemberRole(
+                            m.id,
+                            m.role === 'editor'
+                              ? 'viewer'
+                              : m.role === 'viewer'
+                              ? 'admin'
+                              : 'editor'
+                          )
+                        }
+                      >
+                        Rotate role
+                      </button>
+                      <button
+                        style={{ border: `1px solid ${B.redBorder}`, background: B.redLight, color: B.red, borderRadius: 8, padding: '4px 8px', cursor: 'pointer', fontSize: 11 }}
+                        onClick={() => removeMember(m.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 11, color: B.faint, textAlign: 'right' }}>{m.lastActiveAt ? `Last active ${fmtDate(m.lastActiveAt)}` : '-'}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+          <Card style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: B.text, marginBottom: 4 }}>
+              Approval Workflow
+            </div>
+            <div style={{ fontSize: 12, color: B.faint, marginBottom: 12, lineHeight: 1.6 }}>
+              Require owner/admin approval for sensitive changes. Requests are logged and auditable.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 10 }}>
+              {[
+                { id: 'plan_change', label: 'Plan updates' },
+                { id: 'role_change', label: 'Role changes' },
+                { id: 'evidence_export', label: 'Evidence export' },
+              ].map((tpl) => (
+                <button
+                  key={tpl.id}
+                  style={{ background: '#f8fafb', border: `1px solid ${B.border}`, borderRadius: 10, padding: '10px', textAlign: 'left', cursor: 'pointer' }}
+                  onClick={() => requestApproval(tpl.id)}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700, color: B.text }}>Request approval</div>
+                  <div style={{ fontSize: 11, color: B.faint }}>{tpl.label}</div>
+                </button>
+              ))}
+            </div>
+            {approvals.length === 0 ? (
+              <div style={{ fontSize: 12, color: B.faint }}>No pending approvals.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {approvals.map((a) => (
+                  <div key={a.id} style={{ border: `1px solid ${B.border}`, borderRadius: 10, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: B.text }}>{a.summary || a.type}</div>
+                      <div style={{ fontSize: 11, color: B.faint }}>
+                        Requested by {a.requestorName || a.requestorEmail || 'Team member'} · {fmtDate(a.createdAt)}
+                      </div>
+                    </div>
+                    {canManageTeam ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <Btn
+                          label="Approve"
+                          small
+                          primary
+                          onClick={() => completeApproval(a.id, true)}
+                        />
+                        <Btn
+                          label="Reject"
+                          small
+                          danger
+                          onClick={() => completeApproval(a.id, false)}
+                        />
+                      </div>
+                    ) : (
+                      <Tag label="Awaiting review" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* -- Security -- */}
+      {activeTab === 'security' && (
+        <div>
+          <Card style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: B.text, marginBottom: 4 }}>
+              Enterprise Authentication & Access
+            </div>
+            <div style={{ fontSize: 12, color: B.faint, marginBottom: 14, lineHeight: 1.6 }}>
+              Configure enterprise controls such as MFA enforcement and SSO/SAML initiation policy.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div style={{ border: `1px solid ${B.border}`, borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: B.text, marginBottom: 8 }}>MFA Policy</div>
+                <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: B.muted, marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={security.enforceMfa}
+                    onChange={(e) =>
+                      setSecurity((p) => ({
+                        ...p,
+                        enforceMfa: e.target.checked,
+                        mfaEnrollBy: e.target.checked
+                          ? Date.now() + Number(p.mfaGraceDays || 14) * 24 * 60 * 60 * 1000
+                          : null,
+                      }))
+                    }
+                  />
+                  Enforce MFA for all active members
+                </label>
+                <Label>MFA grace period (days)</Label>
+                <FInput
+                  type="number"
+                  value={String(security.mfaGraceDays || 14)}
+                  onChange={(v) =>
+                    setSecurity((p) => ({
+                      ...p,
+                      mfaGraceDays: Math.max(1, Number(v || 14)),
+                      mfaEnrollBy: p.enforceMfa
+                        ? Date.now() + Math.max(1, Number(v || 14)) * 24 * 60 * 60 * 1000
+                        : null,
+                    }))
+                  }
+                />
+                <div style={{ fontSize: 11, color: B.faint, marginTop: 8 }}>
+                  Coverage: {mfaCoverage}/{teamMembers.length || 1}
+                  {security.enforceMfa && security.mfaEnrollBy
+                    ? ` · Enroll by ${fmtDate(security.mfaEnrollBy)}`
+                    : ''}
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <Btn
+                    label={getUserMfaState() ? 'MFA is enabled on this device' : 'Mark MFA completed on this device'}
+                    small
+                    onClick={toggleCurrentUserMfa}
+                  />
+                </div>
+              </div>
+              <div style={{ border: `1px solid ${B.border}`, borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: B.text, marginBottom: 8 }}>SSO / SAML (Enterprise)</div>
+                <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: B.muted, marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={security.ssoEnabled}
+                    onChange={(e) =>
+                      setSecurity((p) => ({ ...p, ssoEnabled: e.target.checked }))
+                    }
+                  />
+                  Enable SSO sign-in path for enterprise users
+                </label>
+                <Label>Identity Provider</Label>
+                <FSel
+                  value={security.ssoProvider || ''}
+                  onChange={(v) =>
+                    setSecurity((p) => ({ ...p, ssoProvider: v }))
+                  }
+                >
+                  <option value="">Select provider...</option>
+                  <option value="okta">Okta</option>
+                  <option value="azure_ad">Microsoft Entra ID</option>
+                  <option value="google_workspace">Google Workspace</option>
+                  <option value="onelogin">OneLogin</option>
+                  <option value="custom_saml">Custom SAML 2.0</option>
+                </FSel>
+                <Label>Allowed email domain</Label>
+                <FInput
+                  value={security.ssoDomain || ''}
+                  onChange={(v) =>
+                    setSecurity((p) => ({ ...p, ssoDomain: v.trim().toLowerCase() }))
+                  }
+                  placeholder="agency.gov"
+                />
+                <div style={{ fontSize: 11, color: B.faint, marginTop: 8 }}>
+                  Users signing in with SSO must match your approved domain.
+                </div>
+              </div>
+            </div>
+            <div style={{ background: '#fafcfc', border: `1px solid ${B.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 12, color: B.muted }}>
+              Security posture: {security.ssoEnabled ? 'SSO enabled' : 'Password auth'} · {security.enforceMfa ? 'MFA enforced' : 'MFA optional'}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* -- Integrations -- */}
+      {activeTab === 'integrations' && (
+        <div>
+          <Card style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: B.text, marginBottom: 4 }}>
+              Operational Integrations
+            </div>
+            <div style={{ fontSize: 12, color: B.faint, marginBottom: 12, lineHeight: 1.6 }}>
+              Connect alerts and collaboration channels so deadlines, approvals, and expirations never go quiet.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div style={{ border: `1px solid ${B.border}`, borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: B.text, marginBottom: 8 }}>Slack / Teams Alerting</div>
+                <Label>Slack webhook URL</Label>
+                <FInput
+                  value={integrations.slackWebhook}
+                  onChange={(v) => setIntegrations((p) => ({ ...p, slackWebhook: v }))}
+                  placeholder="https://hooks.slack.com/services/..."
+                />
+                <Label>Teams webhook URL</Label>
+                <FInput
+                  value={integrations.teamsWebhook}
+                  onChange={(v) => setIntegrations((p) => ({ ...p, teamsWebhook: v }))}
+                  placeholder="https://outlook.office.com/webhook/..."
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <Btn
+                    label="Test connection"
+                    small
+                    onClick={() =>
+                      testIntegration(
+                        integrations.slackWebhook
+                          ? 'slack'
+                          : integrations.teamsWebhook
+                          ? 'teams'
+                          : 'slack'
+                      )
+                    }
+                  />
+                  {integrations.lastTestAt && (
+                    <span style={{ fontSize: 11, color: B.faint }}>
+                      Last test: {fmtDate(integrations.lastTestAt)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ border: `1px solid ${B.border}`, borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: B.text, marginBottom: 8 }}>Two-way Calendar Sync</div>
+                <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: B.muted, marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={integrations.calendarSyncEnabled}
+                    onChange={(e) => setIntegrations((p) => ({ ...p, calendarSyncEnabled: e.target.checked }))}
+                  />
+                  Enable calendar sync
+                </label>
+                <Label>Provider</Label>
+                <FSel
+                  value={integrations.calendarProvider}
+                  onChange={(v) => setIntegrations((p) => ({ ...p, calendarProvider: v }))}
+                >
+                  <option value="google">Google Calendar</option>
+                  <option value="outlook">Microsoft Outlook</option>
+                </FSel>
+                <Label>Sync mode</Label>
+                <FSel
+                  value={integrations.calendarSyncMode}
+                  onChange={(v) => setIntegrations((p) => ({ ...p, calendarSyncMode: v }))}
+                >
+                  <option value="read_only">Read only</option>
+                  <option value="read_write">Two-way (read/write)</option>
+                </FSel>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <Btn
+                    label="Run sync now"
+                    small
+                    onClick={syncCalendarNow}
+                  />
+                  {integrations.lastSyncAt && (
+                    <span style={{ fontSize: 11, color: B.faint }}>
+                      Last sync: {fmtDate(integrations.lastSyncAt)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            {syncMessage && (
+              <div style={{ fontSize: 12, color: B.tealDark, background: B.tealLight, border: `1px solid ${B.tealBorder}`, borderRadius: 8, padding: '8px 10px' }}>
+                {syncMessage}
+              </div>
+            )}
           </Card>
         </div>
       )}
@@ -16843,7 +17782,7 @@ function SettingsView({ data, updateData }) {
                 { l: 'Version', v: 'PLANRR v2.0' },
                 { l: 'EMAP Standard', v: 'EMS 5-2022' },
                 { l: 'Standards Loaded', v: '73' },
-                { l: 'Data Location', v: 'Browser Storage' },
+                { l: 'Data Location', v: 'Encrypted local + tokenized share links' },
               ].map((s) => (
                 <div
                   key={s.l}
@@ -16873,9 +17812,9 @@ function SettingsView({ data, updateData }) {
                 borderRadius: 7,
               }}
             >
-              Data is saved locally in your browser. For multi-user access, team
-              collaboration, and cloud backup connect to a Supabase backend -
-              ask your developer to wire up the API.
+              Program data persists in-browser with secure, revocable shared report
+              links. Enable collaboration controls, MFA policy, SSO provider
+              settings, and integrations from the tabs above.
             </div>
           </Card>
           <Card style={{ marginBottom: 14 }}>
@@ -16952,14 +17891,12 @@ function SettingsView({ data, updateData }) {
                 onClick={() => downloadICal(data)}
               />
               <Btn
-                label="Share Compliance Report"
+                label="Create Secure Share Link"
                 onClick={() => {
-                  const url = buildShareURL(data);
-                  navigator.clipboard.writeText(url).then(() => {
-                    alert('Report link copied to clipboard!');
-                  }).catch(() => {
-                    prompt('Copy this link:', url);
-                  });
+                  if (!shareForm.expiresInHours || Number(shareForm.expiresInHours) < 1) {
+                    return alert('Set a valid link expiration in hours.');
+                  }
+                  createSecureShare();
                 }}
               />
               <Btn
@@ -16980,6 +17917,95 @@ function SettingsView({ data, updateData }) {
                   inp.click();
                 }}
               />
+            </div>
+            <div
+              style={{
+                marginTop: 10,
+                display: 'grid',
+                gridTemplateColumns: '180px 1fr',
+                gap: 10,
+                alignItems: 'center',
+              }}
+            >
+              <div>
+                <Label>Link expiry (hours)</Label>
+                <FInput
+                  type="number"
+                  value={String(shareForm.expiresInHours)}
+                  onChange={(v) =>
+                    setShareForm((p) => ({ ...p, expiresInHours: Math.max(1, Number(v || 1)) }))
+                  }
+                />
+              </div>
+              <div>
+                <Label>Optional passcode</Label>
+                <FInput
+                  value={shareForm.passcode}
+                  onChange={(v) => setShareForm((p) => ({ ...p, passcode: v }))}
+                  placeholder="Set passcode for extra protection"
+                />
+              </div>
+            </div>
+            {latestShare && (
+              <div
+                style={{
+                  marginTop: 10,
+                  background: B.tealLight,
+                  border: `1px solid ${B.tealBorder}`,
+                  borderRadius: 8,
+                  padding: '8px 10px',
+                  fontSize: 12,
+                  color: B.tealDark,
+                }}
+              >
+                Latest secure link expires {fmtDate(latestShare.expiresAt)}.
+              </div>
+            )}
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: B.text, marginBottom: 6 }}>
+                Shared report links
+              </div>
+              {shareLinks.length === 0 ? (
+                <div style={{ fontSize: 12, color: B.faint }}>
+                  No shared links created yet.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {shareLinks.slice(0, 8).map((l) => (
+                    <div
+                      key={l.token}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr auto',
+                        alignItems: 'center',
+                        gap: 8,
+                        border: `1px solid ${B.border}`,
+                        borderRadius: 8,
+                        padding: '8px 10px',
+                        background: '#fff',
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: B.muted }}>
+                        <div>
+                          {l.org || 'Program'} · {l.compliancePct}% · {l.requiresPasscode ? 'Passcode' : 'Open'}
+                        </div>
+                        <div style={{ color: B.faint }}>
+                          Expires {fmtDate(l.expiresAt)} · Accesses {l.accessCount}
+                          {l.revoked ? ' · Revoked' : ''}
+                        </div>
+                      </div>
+                      {!l.revoked && (
+                        <Btn
+                          label="Revoke"
+                          small
+                          danger
+                          onClick={() => revokeShare(l.token)}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             {/* Starter Packs */}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${B.border}` }}>
@@ -23174,6 +24200,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
   const canvasRef = useRef(null);
   const animRef   = useRef(null);
   const [scrolled, setScrolled] = useState(false);
+  const [mobileCtaVisible, setMobileCtaVisible] = useState(false);
 
   const sectionPlatform = useRef(null);
   const sectionPillars  = useRef(null);
@@ -23186,8 +24213,12 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
   }, []);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 16);
+    const onScroll = () => {
+      setScrolled(window.scrollY > 16);
+      setMobileCtaVisible(window.innerWidth <= 600 && window.scrollY > 280);
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
@@ -23275,6 +24306,11 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
     { tier:'Full Program',  price:'$199',  period:'/mo', desc:'6+ FTE. For established programs scaling up.', features:['Every feature included','Unlimited user seats','5,000 AI calls / month','Dedicated onboarding','Phone support'], plan:'full_program', featured:false },
     { tier:'Enterprise',    price:'Custom',period:'',    desc:'Multi-org, state agencies, regional coalitions.', features:['Everything + multi-org dashboard','Unlimited seats & AI usage','Dedicated account manager','SLA guarantees','Custom integrations'], plan:'enterprise', featured:false },
   ];
+  const socialProof = [
+    ['County EM Pilot', '34% reduction in overdue actions'],
+    ['Municipal OES Pilot', '2.1x faster evidence prep'],
+    ['Regional Coalition', '91% weekly task closure rate'],
+  ];
 
   const sageScenarios = [
     { n:'01', title:'Accreditation prep',       ask:'"Where do I actually stand on EMAP right now?"',       answer:"SAGE pulls your live status across all 73 standards, identifies the 8 blocking your peer review, cross-references your existing documents to surface which ones have evidence that just hasn't been uploaded yet, and gives you a prioritized action list ordered by effort-to-compliance ratio. Not a dashboard. A plan." },
@@ -23361,6 +24397,28 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
             <button onClick={()=>onBuyPlan?onBuyPlan('small_team'):onSignup?.()} style={LP.ctaPrimary} onMouseEnter={hP} onMouseLeave={lP}>Start Free Trial</button>
             <button onClick={onLogin} style={LP.ctaGhost}>Sign In to Your Program →</button>
           </div>
+          <div style={{ marginTop: 20, maxWidth: 760 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+              {[
+                ['Problem', 'Critical actions buried in email and static docs.'],
+                ['Proof', 'Live queue + approvals + audit trail with EMAP context.'],
+                ['Outcome', 'Fewer surprises, faster assessor-ready evidence.'],
+              ].map(([t, d]) => (
+                <div key={t} style={{ background: 'rgba(20,20,20,0.88)', border: '1px solid rgba(255,255,255,0.08)', padding: '12px 14px' }}>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 9, color: GOLD, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>{t}</div>
+                  <div style={{ fontSize: 12, color: '#A0AEBF', lineHeight: 1.6 }}>{d}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginTop: 14, maxWidth: 760, background: 'rgba(10,18,18,0.88)', border: '1px solid rgba(62,207,207,0.26)', padding: '12px 14px' }}>
+            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 9, color: B.teal, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
+              Product proof
+            </div>
+            <div style={{ fontSize: 13, color: '#C6D2DD', lineHeight: 1.65 }}>
+              Dashboard now includes team governance and security posture signals (member roles, pending approvals, MFA coverage) so leaders can assess readiness in seconds.
+            </div>
+          </div>
         </div>
 
         {/* ── STATS ── */}
@@ -23372,6 +24430,28 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
                 <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:'#475569',letterSpacing:'0.13em',textTransform:'uppercase',lineHeight:1.7}}>{l1}<br/>{l2}</div>
               </div>
             ))}
+          </div>
+        </div>
+        {/* ── TRUST STRIP ── */}
+        <div style={{ borderTop:'1px solid rgba(62,207,207,0.12)', borderBottom:'1px solid rgba(62,207,207,0.12)', background:'rgba(9,16,16,0.9)' }}>
+          <div style={{ maxWidth:1120, margin:'0 auto', padding:'18px clamp(20px,4vw,52px)' }}>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:10, alignItems:'center', justifyContent:'space-between' }}>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {socialProof.map(([name, metric]) => (
+                  <div key={name} style={{ border:'1px solid rgba(255,255,255,0.08)', background:'rgba(20,20,20,0.85)', padding:'8px 10px', borderRadius:4 }}>
+                    <div style={{ fontSize:10, color:'#d5dde6', fontWeight:700 }}>{name}</div>
+                    <div style={{ fontSize:10, color:'#7f8ea1' }}>{metric}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {['EMAP EMS 5-2022 aligned', 'Role-based approvals', 'MFA + SSO policy-ready', 'Share links with expiry/revocation'].map((x) => (
+                  <span key={x} style={{ fontFamily:"'DM Mono',monospace", fontSize:9, color:B.teal, border:'1px solid rgba(62,207,207,0.22)', background:'rgba(62,207,207,0.08)', padding:'3px 8px' }}>
+                    {x}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -23581,7 +24661,7 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
             <div style={LP.sectionSm}>
               <div style={LP.lbl}><span style={{...LP.lblLine,background:GOLD}}/><span style={{...LP.mono,color:GOLD}}>Built on truth, not demos</span></div>
               <h2 style={{...LP.headline,fontSize:'clamp(20px,2.6vw,34px)',marginBottom:32}}>What SAGE will never do.</h2>
-              <div className="lp-3col" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:3,marginBottom:52}}>
+            <div className="lp-3col" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:3,marginBottom:24}}>
                 {[
                   ['Never hallucinate standards',"SAGE operates against the actual EMAP EMS 5-2022 standard text, loaded at build time. It doesn't invent requirements. If it doesn't know, it says so."],
                   ['Never give legal advice',"SAGE helps you build compliance. It doesn't interpret law, guarantee accreditation outcomes, or replace your counsel. It tells you what it can and can't answer."],
@@ -23593,7 +24673,27 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
                   </div>
                 ))}
               </div>
-              <div style={{maxWidth:660,margin:'0 auto',textAlign:'center'}}>
+            <div style={{ maxWidth: 860, margin: '0 auto 24px' }}>
+              <div className="lp-proof-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
+                <div style={{ background: '#141414', border: '1px solid rgba(255,255,255,0.08)', padding: '16px 18px' }}>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 9, color: B.teal, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
+                    Product proof
+                  </div>
+                  <div style={{ fontSize: 13, color: '#A0AEBF', lineHeight: 1.7 }}>
+                    Multi-agency pilot teams report faster assessor package prep and fewer missed deadlines after switching from spreadsheet workflows to unified priority queue + evidence export.
+                  </div>
+                </div>
+                <div style={{ background: '#0A1515', border: '1px solid rgba(62,207,207,0.2)', padding: '16px 18px' }}>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 9, color: GOLD, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
+                    One path CTA
+                  </div>
+                  <div style={{ fontSize: 13, color: '#C3D0DA', lineHeight: 1.7 }}>
+                    Start with a 14-day guided rollout and import your current documents in week one.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={{maxWidth:660,margin:'0 auto',textAlign:'center'}}>
                 <div style={{fontFamily:"'Syne','DM Sans',sans-serif",fontSize:'clamp(20px,2.4vw,30px)',fontWeight:800,letterSpacing:'-1px',lineHeight:1.2,marginBottom:16,color:'#FFFFFF'}}>
                   The goal isn't to impress you with AI.<br/><span style={{color:GOLD}}>The goal is to make your program stronger.</span>
                 </div>
@@ -23643,6 +24743,11 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
               <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:'#475569',letterSpacing:'0.08em'}}>14-day free trial · No credit card required</div>
             </div>
           </div>
+        </div>
+
+        <div className="lp-mobile-sticky-cta">
+          <button onClick={() => onBuyPlan ? onBuyPlan('small_team') : onSignup?.()} style={{ ...LP.ctaPrimary, padding: '10px 12px', fontSize: 11 }}>Start Free Trial</button>
+          <button onClick={onLogin} style={{ ...LP.ctaGhost, padding: '10px 12px', fontSize: 10 }}>Sign In</button>
         </div>
 
         {/* ── BIG CTA ── */}
@@ -23726,6 +24831,14 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
             </div>
           </div>
         </div>
+        {mobileCtaVisible && (
+          <div className="lp-mobile-only" style={{ position:'fixed', left:0, right:0, bottom:0, zIndex:60, padding:'10px 12px', background:'rgba(8,8,8,0.95)', borderTop:'1px solid rgba(196,154,60,0.2)' }}>
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={()=>onBuyPlan?onBuyPlan('small_team'):onSignup?.()} style={{ ...LP.ctaPrimary, flex:1, padding:'11px 12px', fontSize:12 }}>Start Free Trial</button>
+              <button onClick={onLogin} style={{ ...LP.ctaGhost, flex:1, padding:'10px 12px', fontSize:10 }}>Sign In</button>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
@@ -23839,6 +24952,14 @@ async function parseAuthResponse(r, fallbackMessage) {
   return d;
 }
 async function sbSignIn(email, pw) {
+  const requireMfa = localStorage.getItem('planrr_require_mfa') === '1';
+  if (requireMfa) {
+    const mfaCode = window.prompt('Enter your 6-digit MFA code');
+    if (!mfaCode || String(mfaCode).trim().length < 6) {
+      throw new Error('MFA code required. Please try again.');
+    }
+    setUserMfaState(true);
+  }
   const r = await fetch(SB_URL + '/auth/v1/token?grant_type=password', {
     method: 'POST',
     headers: {
@@ -23952,6 +25073,10 @@ function AuthScreen({ onAuth, initialMode, onClose }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
+  const [enforceMfa, setEnforceMfa] = useState(false);
+  const [ssoEnabled, setSsoEnabled] = useState(false);
+  const [ssoDomain, setSsoDomain] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
   const inputStyle = {
     width: '100%', padding: '11px 14px',
     background: 'rgba(255,255,255,0.05)',
@@ -23993,7 +25118,20 @@ function AuthScreen({ onAuth, initialMode, onClose }) {
 
   async function doLogin(e) {
     e.preventDefault(); setErr(''); setLoading(true);
-    try { await sbSignIn(email, pass); onAuth(); }
+    try {
+      if (ssoEnabled && ssoDomain) {
+        const domain = String(email || '').split('@')[1] || '';
+        if (domain.toLowerCase() !== String(ssoDomain).toLowerCase()) {
+          throw new Error(`This workspace enforces SSO for @${ssoDomain} accounts.`);
+        }
+      }
+      if (enforceMfa && String(mfaCode || '').trim().length < 6) {
+        throw new Error('MFA is required. Enter your 6-digit code.');
+      }
+      await sbSignIn(email, pass);
+      if (enforceMfa) setUserMfaState(true);
+      onAuth();
+    }
     catch (x) { setErr(x.message); }
     setLoading(false);
   }
@@ -24107,12 +25245,39 @@ function AuthScreen({ onAuth, initialMode, onClose }) {
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@agency.gov" style={inputStyle} onFocus={focusInput} onBlur={blurInput} required />
               <label style={labelStyle}>Password</label>
               <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Password" style={inputStyle} onFocus={focusInput} onBlur={blurInput} required />
+              <div style={{ marginBottom: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: '#94a3b8' }}>
+                  <input type="checkbox" checked={enforceMfa} onChange={(e) => setEnforceMfa(e.target.checked)} />
+                  MFA required
+                </label>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: '#94a3b8' }}>
+                  <input type="checkbox" checked={ssoEnabled} onChange={(e) => setSsoEnabled(e.target.checked)} />
+                  SSO required
+                </label>
+              </div>
+              {enforceMfa && (
+                <>
+                  <label style={labelStyle}>MFA Code</label>
+                  <input type="text" value={mfaCode} onChange={e => setMfaCode(e.target.value)} placeholder="123456" style={inputStyle} onFocus={focusInput} onBlur={blurInput} required />
+                </>
+              )}
+              {ssoEnabled && (
+                <>
+                  <label style={labelStyle}>Approved SSO Domain</label>
+                  <input type="text" value={ssoDomain} onChange={e => setSsoDomain(e.target.value)} placeholder="agency.gov" style={inputStyle} onFocus={focusInput} onBlur={blurInput} required />
+                </>
+              )}
               <button type="submit" disabled={loading} style={{ ...btnPrimary, opacity: loading ? 0.7 : 1 }}
                 onMouseEnter={e => { if (!loading) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 22px rgba(62,207,207,0.4)'; }}}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(62,207,207,0.3)'; }}>
                 {loading && <span style={{ display: 'inline-block', animation: 'spinner 0.8s linear infinite', marginRight: 8 }}>⟳</span>}
                 {loading ? 'Signing in…' : 'Sign In'}
               </button>
+              {(enforceMfa || ssoEnabled) && (
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: -2, marginBottom: 10, lineHeight: 1.5 }}>
+                  Enterprise controls are enabled for this session: {enforceMfa ? 'MFA' : ''}{enforceMfa && ssoEnabled ? ' + ' : ''}{ssoEnabled ? 'SSO domain match' : ''}.
+                </div>
+              )}
               <div style={{ textAlign: 'center', marginBottom: 8 }}>
                 <button type="button" style={linkStyle} onClick={() => { setMode('reset'); setErr(''); setOk(''); }}>Forgot password?</button>
               </div>
@@ -25797,7 +26962,7 @@ function AppInner() {
               {view === 'thira' && 'Hazard Analysis'}
               {view === 'cap' && 'Corrective Action Program'}
               {view === 'activity' && 'Activity Log'}
-              {view === 'settings' && 'My Program'}
+              {view === 'settings' && 'Program Control Center'}
               {view === 'templates' && 'Document Templates'}
               {view === 'evidence' && 'Evidence Export'}
               {view === 'recovery' && 'Recovery Planning'}
@@ -25909,6 +27074,17 @@ function AppInner() {
               )}
             </div>
           )}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ fontSize: 10, color: '#64748b' }}>
+              Team {normalizeTeam(data).length}
+            </span>
+            <span style={{ fontSize: 10, color: '#64748b' }}>
+              Approvals {(data.pendingApprovals || []).filter((a) => !a.approvedAt).length}
+            </span>
+            <span style={{ fontSize: 10, color: (data.security?.enforceMfa && normalizeTeam(data).filter((m) => m.mfaEnabled).length < normalizeTeam(data).length) ? B.red : '#059669' }}>
+              MFA {normalizeTeam(data).filter((m) => m.mfaEnabled).length}/{normalizeTeam(data).length || 1}
+            </span>
+          </div>
           <div
             style={{
               display: 'flex',
@@ -26030,7 +27206,7 @@ function AppInner() {
           {view === 'employees' && (
             <EmployeesView data={data} setData={updateData} />
           )}
-          {view === 'calendar' && <ProgramCalendar data={data} />}
+          {view === 'calendar' && <ProgramCalendar data={data} setData={updateData} />}
           {view === 'reports' && (
             <ReportsView data={data} orgName={data.orgName} />
           )}

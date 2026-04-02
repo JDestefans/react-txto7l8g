@@ -1,20 +1,60 @@
 import React from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { parseSharedReport } from '../services/shareReport';
+import { parseSharedReport, resolveSharedReport } from '../services/shareReport';
 
 const GOLD = '#c2964a';
 const TEAL = '#1BC9C4';
 
 export default function SharedReport() {
   const [params] = useSearchParams();
-  const data = parseSharedReport(params.get('d') || '');
+  const token = params.get('t') || '';
+  const legacyPayload = params.get('d') || '';
+  const [passcode, setPasscode] = React.useState('');
+  const [submittedPasscode, setSubmittedPasscode] = React.useState('');
+
+  const result = React.useMemo(() => {
+    if (token) return resolveSharedReport(token, submittedPasscode);
+    const legacy = parseSharedReport(legacyPayload);
+    return legacy ? { data: legacy, meta: { legacy: true } } : { error: 'not_found' };
+  }, [token, submittedPasscode, legacyPayload]);
+
+  const data = result?.data || null;
+
+  if (result?.error === 'passcode_required' || result?.error === 'invalid_passcode') {
+    return (
+      <div style={{ fontFamily: 'DM Sans,sans-serif', background: '#1C1F22', minHeight: '100vh', color: '#f0f4fa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ width: '100%', maxWidth: 420, background: '#252A2E', border: '1px solid #2E3439', borderRadius: 14, padding: 24 }}>
+          <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 8 }}>Protected shared report</div>
+          <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>
+            Enter the report passcode to continue.
+          </div>
+          <input
+            type="password"
+            value={passcode}
+            onChange={(e) => setPasscode(e.target.value)}
+            placeholder="Passcode"
+            style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #3b444b', background: '#1C1F22', color: '#f0f4fa', marginBottom: 12, fontSize: 13 }}
+          />
+          {result?.error === 'invalid_passcode' && (
+            <div style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>Incorrect passcode. Try again.</div>
+          )}
+          <button
+            onClick={() => setSubmittedPasscode(passcode)}
+            style={{ width: '100%', border: 'none', background: TEAL, color: '#0e1515', fontWeight: 700, padding: '10px 12px', borderRadius: 8, cursor: 'pointer' }}
+          >
+            Unlock report
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!data) {
     return (
       <div style={{ fontFamily: 'DM Sans,sans-serif', background: '#1C1F22', minHeight: '100vh', color: '#f0f4fa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>Invalid or expired report link</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>Invalid, expired, or revoked report link</div>
           <a href="/" style={{ color: GOLD, fontSize: 14, marginTop: 12, display: 'inline-block' }}>Go to planrr.app</a>
         </div>
       </div>
@@ -44,6 +84,11 @@ export default function SharedReport() {
           <div style={{ fontSize: 11, color: '#475569', marginTop: 8 }}>
             Generated {new Date(data.generated).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
           </div>
+          {!result?.meta?.legacy && result?.meta?.expiresAt && (
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+              Link expires {new Date(result.meta.expiresAt).toLocaleString()}
+            </div>
+          )}
         </div>
 
         <div style={{ background: '#252A2E', border: '1px solid #2E3439', borderRadius: 16, padding: 32, marginBottom: 24, textAlign: 'center' }}>
