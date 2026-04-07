@@ -6629,6 +6629,20 @@ function EmployeeDetail({ emp, onUpdate, onClose, data }) {
                     <option value="dsw">Disaster Service Worker (DSW)</option>
                   </FSel>
                 </div>
+                <div>
+                  <Label>COOP Continuity Role</Label>
+                  <FSel
+                    value={emp.coopRole || ''}
+                    onChange={(v) => u('coopRole', v)}
+                  >
+                    <option value="">Unassigned</option>
+                    {COOP_POSITION_KEYS.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </FSel>
+                </div>
               </div>
               <div
                 style={{
