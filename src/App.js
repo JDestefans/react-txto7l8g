@@ -26167,29 +26167,32 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
   ];
 
   const features = [
-    ['EMAP Standards',     'All 73 standards tracked live. Every change, every evidence upload, every gap surfaced automatically. Not a checklist — a real-time picture of where your program stands.', 'Accreditation Core'],
-    ['SAGE Priority Queue','Stop asking what to work on next. SAGE already knows. Expiring MOUs, overdue AARs, lapsed credentials — ranked by urgency, surfaced every session.', 'AI Intelligence'],
-    ['Exercises & AARs',  'Every AAR finding gets an owner, a due date, and a direct link to the standard it reveals. The loop closes when the gap does — not when the report is filed.', 'HSEEP Aligned'],
-    ['Document Templates','SAGE writes the first draft pre-filled with your program data. COOP, strategic plan, comms plan. You edit. You approve. You move on.', 'AI-Powered'],
-    ['Evidence Export',   'One click and every standard has its bundle — docs, training records, AARs, rationale. Ready the moment the assessor email lands.', 'Accreditation-Ready'],
-    ['Grant-EMAP Tracker','Your grant report says training was completed. Your records say otherwise. This module keeps those two things from diverging — and flags when a gap might cost you funding.', 'EMAP 3.4'],
-    ['Recovery Planning', "Most programs file their recovery plan once. This module treats recovery as a living discipline — phases, owners, dependencies that change as your community does.", 'EMAP 4.5.4'],
-    ['Mutual Aid Mapping','You have MOUs. Do you know who covers what? The coverage matrix shows resource gaps before a real event asks the question for you.', 'EMAP 4.7'],
-    ['FEMA/NIMS Alignment','EMAP progress and FEMA alignment in one place. Give leadership the full picture, not one credential in isolation.', 'ICS/NIMS'],
+    ['Program Command Dashboard', 'Live operating picture across standards, plans, training, incidents, grants, and corrective actions so leadership sees risk and momentum in one place.', 'Executive Ops'],
+    ['THIRA & Risk Intelligence', 'Track hazards, probability, and consequences; tie risk data directly to planning priorities, exercises, and capability decisions.', 'Risk & Preparedness'],
+    ['Plan Library + Governance', 'Manage versions, approvers, review cycles, signatures, and review evidence so plans stay current and auditable — not shelfware.', 'Plan Control'],
+    ['Mission Continuity (COOP)', 'Structured continuity records for essential functions with RTOs, succession depth, devolution triggers, and alternate facility readiness.', 'Continuity'],
+    ['Personnel & Credentials', 'Maintain staff profiles, certifications, task books, status, and deployability with visibility into expiration risk and staffing gaps.', 'Workforce Readiness'],
+    ['Training Role Matrix', 'Map position requirements (for example ICS/NIMS by COOP role) to completed records and credentials with green/red compliance by role.', 'Role Compliance'],
+    ['Exercises, Incidents & AARs', 'Run HSEEP workflows, capture findings, assign corrective actions, and prove the full improvement loop from event to closure.', 'Operational Learning'],
+    ['Resource & Mutual Aid Mapping', 'Track resource inventories and partner coverage so you can spot capability shortfalls before an activation exposes them.', 'Resource Coordination'],
+    ['Grant & Deliverable Tracking', 'Connect funding work to program outcomes and compliance artifacts so reporting and operations stay aligned.', 'Program Sustainability'],
+    ['Collaboration, Security & Integrations', 'Document-scoped collaboration approvals, MFA/SSO controls, secure sharing, and webhook/calendar integration support.', 'Enterprise Controls'],
+    ['SAGE Priority Engine', 'SAGE monitors live program context and surfaces what matters now — overdue risks, expiring commitments, and next-best actions.', 'AI Program Partner'],
+    ['Evidence + Submission Packaging', 'Generate assessor-ready and leadership-ready exports with mapped evidence, rationale, continuity data, and operational history.', 'Reporting & Exports'],
   ];
 
   const pillars = [
-    ['Nothing Expires Quietly',
-     "Your EOP was last reviewed 18 months ago. Your alternate EOC hasn't been verified since the previous director. Your MOU partner changed their coordinator and nobody updated the file. SAGE notices before you have to.",
+    ['Silent Readiness Decay',
+     "Reviews slip, owners change, and agreements expire quietly. planrr keeps the full operating baseline visible so drift gets fixed before it becomes failure.",
      GOLD],
-    ['Your Succession Line Is Probably Wrong',
-     "Your succession line references two positions that no longer exist. If your EM director is unavailable today, who's in charge? planrr turns your COOP from a filed document into a maintained record with actual people and actual depth.",
+    ['Continuity Without Guesswork',
+     "Essential functions, succession depth, and devolution procedures are structured and searchable, not buried in disconnected documents.",
      B.teal],
-    ['The Finding That Never Closes',
-     "The comms gap showed up in three consecutive AARs. It's still open. planrr connects every finding to an owner, a standard, and a due date. The loop closes when the gap does.",
+    ['Closed-Loop Improvement',
+     "Every exercise and incident finding is tracked to ownership and closure. The system proves what changed, not just what was documented.",
      GOLD],
-    ['What To Work On Today',
-     "You have 73 standards, 14 open corrective actions, 3 MOUs expiring in 60 days, and a training record 16 months out of date. SAGE surfaces what needs attention today — not next quarter.",
+    ['Operational Focus Every Day',
+     "SAGE prioritizes what needs action now across modules so teams spend less time hunting status and more time reducing risk.",
      B.teal],
   ];
 
@@ -26201,15 +26204,15 @@ function LandingPage({ onLogin, onSignup, onBuyPlan }) {
   ];
   const socialProof = [
     ['County EM Pilot', '34% reduction in overdue actions'],
-    ['Municipal OES Pilot', '2.1x faster evidence prep'],
+    ['Municipal OES Pilot', '2.1x faster readiness reporting cycles'],
     ['Regional Coalition', '91% weekly task closure rate'],
   ];
 
   const sageScenarios = [
-    { n:'01', title:'Accreditation prep',       ask:'"Where do I actually stand on EMAP right now?"',       answer:"SAGE pulls your live status across all 73 standards, identifies the 8 blocking your peer review, cross-references your existing documents to surface which ones have evidence that just hasn't been uploaded yet, and gives you a prioritized action list ordered by effort-to-compliance ratio. Not a dashboard. A plan." },
-    { n:'02', title:'Grant deliverable crunch', ask:'"My EMPG closeout is in 3 weeks. What am I missing?"', answer:"SAGE reviews your active grant deliverables, cross-checks them against your training records, exercise logs, and personnel data, identifies the two deliverables with documentation gaps, and drafts the narrative sections you're missing — with your program data pre-filled." },
-    { n:'03', title:'Post-exercise AAR',        ask:'"Help me write the AAR for last Tuesday\'s tabletop."', answer:"SAGE pulls your exercise record and drafts a complete HSEEP-compliant AAR with findings, strengths, and improvement plan pre-structured. It tags each finding to the EMAP standard it reveals, creates corrective action items with owners and due dates, and flags which match gaps from previous exercises. The loop closes automatically." },
-    { n:'04', title:'Monday morning',           ask:"You don't ask anything. You just log in.",             answer:"SAGE has already reviewed everything that changed since Friday. It surfaces the MOU expiring in 18 days, the corrective action 30 days overdue, the training record that lapsed over the weekend, and the one standard you could mark compliant today with a 10-minute upload. No prompt required. It's already done the work." },
+    { n:'01', title:'Weekly readiness brief',   ask:'"What is most likely to break this week?"',             answer:"SAGE scans plan governance dates, continuity readiness, staffing/training coverage, open corrective actions, and expiring partner commitments to produce a risk-ranked action brief for the week." },
+    { n:'02', title:'Grant deliverable crunch', ask:'"My EMPG closeout is in 3 weeks. What am I missing?"', answer:"SAGE reviews active grant deliverables, cross-checks training/exercise/personnel evidence, and highlights missing artifacts with draft narrative support ready to edit." },
+    { n:'03', title:'COOP exercise follow-up',  ask:'"We finished a COOP drill. What should we update?"',   answer:"SAGE links the COOP exercise to continuity records, flags succession or facility gaps exposed in the drill, and generates corrective actions with owners and due dates." },
+    { n:'04', title:'Monday morning',           ask:"You don't ask anything. You just log in.",             answer:"SAGE has already reviewed what changed since Friday and surfaces the highest-impact priorities first — from expiring agreements to overdue corrective actions and readiness gaps you can close today." },
   ];
 
   const LP = {

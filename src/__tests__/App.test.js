@@ -67,6 +67,6 @@ describe('App', () => {
   test('renders features section', () => {
     renderApp('/');
     expect(screen.getAllByText(/EMAP Standards/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/SAGE Priority Queue/i)).toBeInTheDocument();
+    expect(screen.getByText(/Mission Continuity/i)).toBeInTheDocument();
   });
 });
