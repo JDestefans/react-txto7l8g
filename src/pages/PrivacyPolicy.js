@@ -18,7 +18,7 @@ export default function PrivacyPolicy() {
           Privacy Policy
         </h1>
         <p style={{ color: '#475569', fontSize: 12, fontFamily: 'DM Mono,monospace', marginBottom: 32 }}>
-          Last updated: March 2026
+          Last updated: April 2026
         </p>
 
         <div style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.8 }}>
@@ -35,7 +35,7 @@ export default function PrivacyPolicy() {
           <p>When you use AI-powered features, your prompts and document content are sent to our AI processing endpoint. This data is used solely to generate responses and is not retained by the AI provider for training purposes.</p>
 
           <h2 style={{ color: '#f0f4fa', fontSize: 18, fontWeight: 700, marginTop: 32, marginBottom: 12 }}>5. Data Retention</h2>
-          <p>We retain your data for as long as your account is active. You can export your data at any time using the JSON export feature. Upon account deletion, your data will be removed within 30 days.</p>
+          <p>We retain your data for as long as your account is active. You can export your data at any time using the JSON export feature. After cancellation or account deletion, data remains available for up to 30 days and is then permanently deleted unless a different retention period is required by law.</p>
 
           <h2 style={{ color: '#f0f4fa', fontSize: 18, fontWeight: 700, marginTop: 32, marginBottom: 12 }}>6. Your Rights</h2>
           <p>You have the right to access, correct, export, and delete your personal data. Contact us at helloplanrr.app@gmail.com for any privacy-related requests.</p>

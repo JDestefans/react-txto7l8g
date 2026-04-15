@@ -103,7 +103,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: "Who owns our data if we cancel?",
-        a: `<p><strong>You own your data. Always.</strong> Export in PDF, CSV, or JSON at any time. On cancellation, data remains available for 90 days, then permanently deleted.</p>`,
+        a: `<p><strong>You own your data. Always.</strong> Export in PDF, CSV, or JSON at any time. On cancellation or account deletion, data is retained for up to 30 days, then permanently deleted.</p>`,
       },
       {
         q: 'What does "founding pricing locked for life" mean?',
@@ -125,7 +125,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: "Is it SOC 2 compliant?",
-        a: `<p>We are working toward SOC 2 Type II. We can provide security documentation and architecture overview on request.</p>
+        a: `<p>Our SOC 2 Type II program is in progress. We can provide security documentation and architecture overview on request.</p>
 <div class="pf-callout">If SOC 2 is a hard requirement, start with the 14-day trial while your security review is in progress. Contact helloplanrr.app@gmail.com.</div>`,
       },
       {

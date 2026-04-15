@@ -54,7 +54,7 @@ describe('App', () => {
   test('renders SOC 2 roadmap', () => {
     renderApp('/');
     expect(screen.getByText(/Secure Infrastructure/i)).toBeInTheDocument();
-    expect(screen.getByText(/SOC 2-certified cloud/i)).toBeInTheDocument();
+    expect(screen.getByText(/SOC 2 Type II program in progress/i)).toBeInTheDocument();
   });
 
   test('renders footer with legal links', () => {
