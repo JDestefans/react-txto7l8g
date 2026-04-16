@@ -1625,6 +1625,149 @@ function addActivity(updateData, type, module, detail) {
   }));
 }
 
+const IMPROVEMENT_PHASES = [
+  {
+    id: 'clarify',
+    label: 'Clarify the problem',
+    detail: 'Write a clear problem statement and assign an owner.',
+  },
+  {
+    id: 'measure',
+    label: 'Measure current performance',
+    detail: 'Capture baseline and target numbers so progress is measurable.',
+  },
+  {
+    id: 'analyze',
+    label: 'Find likely causes',
+    detail: 'Document the likely root cause before selecting a fix.',
+  },
+  {
+    id: 'improve',
+    label: 'Test a fix',
+    detail: 'Record the change that was tested and update current performance.',
+  },
+  {
+    id: 'control',
+    label: 'Keep it from slipping',
+    detail: 'Set a control review date and monitor for regression.',
+  },
+];
+const IMPROVEMENT_PHASE_MAP = IMPROVEMENT_PHASES.reduce((acc, p) => {
+  acc[p.id] = p;
+  return acc;
+}, {});
+function getImprovementPhaseMeta(phase) {
+  return IMPROVEMENT_PHASE_MAP[phase] || IMPROVEMENT_PHASE_MAP.clarify;
+}
+function getNextImprovementPhase(phase) {
+  const idx = IMPROVEMENT_PHASES.findIndex((p) => p.id === phase);
+  if (idx < 0 || idx === IMPROVEMENT_PHASES.length - 1) return phase;
+  return IMPROVEMENT_PHASES[idx + 1].id;
+}
+function toMetricNumber(value) {
+  if (value === null || value === undefined) return null;
+  const cleaned = String(value).trim().replace(/,/g, '');
+  if (!cleaned) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+function ensureCapImprovementDefaults(item) {
+  const phase =
+    item?.improvement?.phase &&
+    IMPROVEMENT_PHASES.some((p) => p.id === item.improvement.phase)
+      ? item.improvement.phase
+      : 'clarify';
+  return {
+    ...item,
+    improvement: {
+      phase,
+      problemStatement: '',
+      baselineMetric: '',
+      targetMetric: '',
+      currentMetric: '',
+      likelyCause: '',
+      countermeasure: '',
+      controlCheckDate: '',
+      ...(item?.improvement || {}),
+      phase,
+    },
+  };
+}
+function capPhaseMissingFields(item) {
+  const cap = ensureCapImprovementDefaults(item);
+  const imp = cap.improvement;
+  if (imp.phase === 'clarify') {
+    const missing = [];
+    if (!String(imp.problemStatement || '').trim()) missing.push('problem statement');
+    if (!String(cap.responsible || '').trim()) missing.push('owner');
+    return missing;
+  }
+  if (imp.phase === 'measure') {
+    const missing = [];
+    if (!String(imp.baselineMetric || '').trim()) missing.push('baseline metric');
+    if (!String(imp.targetMetric || '').trim()) missing.push('target metric');
+    return missing;
+  }
+  if (imp.phase === 'analyze') {
+    return String(imp.likelyCause || '').trim() ? [] : ['likely cause'];
+  }
+  if (imp.phase === 'improve') {
+    const missing = [];
+    if (!String(imp.countermeasure || '').trim()) missing.push('tested fix');
+    if (!String(imp.currentMetric || '').trim()) missing.push('current metric');
+    return missing;
+  }
+  if (imp.phase === 'control') {
+    return String(imp.controlCheckDate || '').trim() ? [] : ['control review date'];
+  }
+  return [];
+}
+function getCapNextStep(item) {
+  const cap = ensureCapImprovementDefaults(item);
+  const imp = cap.improvement;
+  const missing = capPhaseMissingFields(cap);
+  const phaseMeta = getImprovementPhaseMeta(imp.phase);
+  if (missing.length > 0) {
+    return {
+      phaseLabel: phaseMeta.label,
+      headline: 'Next step',
+      detail: `Add ${missing.join(' + ')} to continue.`,
+      readyToAdvance: false,
+      nextLabel: getImprovementPhaseMeta(getNextImprovementPhase(imp.phase)).label,
+    };
+  }
+  if (imp.phase === 'control') {
+    return {
+      phaseLabel: phaseMeta.label,
+      headline: 'Control check scheduled',
+      detail: imp.controlCheckDate
+        ? `Review on ${fmtDate(imp.controlCheckDate)} to verify gains hold.`
+        : 'Set a control review date to verify gains hold.',
+      readyToAdvance: false,
+      nextLabel: phaseMeta.label,
+    };
+  }
+  return {
+    phaseLabel: phaseMeta.label,
+    headline: 'Ready to advance',
+    detail: `Move to "${getImprovementPhaseMeta(
+      getNextImprovementPhase(imp.phase)
+    ).label}" when your team is ready.`,
+    readyToAdvance: true,
+    nextLabel: getImprovementPhaseMeta(getNextImprovementPhase(imp.phase)).label,
+  };
+}
+function hasCapMetricRegression(item) {
+  const cap = ensureCapImprovementDefaults(item);
+  const baseline = toMetricNumber(cap.improvement.baselineMetric);
+  const target = toMetricNumber(cap.improvement.targetMetric);
+  const current = toMetricNumber(cap.improvement.currentMetric);
+  if (baseline === null || target === null || current === null) return false;
+  if (target > baseline) return current < baseline;
+  if (target < baseline) return current > baseline;
+  return current !== target;
+}
+
 /* --- CROSS-PLATFORM DATA SYNC: Program Ops → EMAP Standards --- */
 function syncStandardsFromOps(data) {
   const stds = { ...(data.standards || {}) };
@@ -2005,6 +2148,37 @@ function buildNotifications(data) {
         module: 'grants',
       });
   });
+  (data.capItems || [])
+    .filter((raw) => !raw.closed)
+    .forEach((raw) => {
+      const c = ensureCapImprovementDefaults(raw);
+      const imp = c.improvement || {};
+      const reviewDays = daysUntil(imp.controlCheckDate);
+      if (imp.phase === 'control' && imp.controlCheckDate && reviewDays !== null && reviewDays < 60) {
+        n.push({
+          id: 'cap-control-' + c.id,
+          urgency: reviewDays < 0 ? 'overdue' : reviewDays < 3 ? 'urgent' : 'soon',
+          title:
+            reviewDays < 0
+              ? `Control review overdue: ${c.item || 'Corrective action'}`
+              : `Control review due: ${c.item || 'Corrective action'}`,
+          detail:
+            reviewDays < 0
+              ? `Review was due ${fmtDate(imp.controlCheckDate)}`
+              : `${reviewDays} day${reviewDays === 1 ? '' : 's'} remaining`,
+          module: 'cap',
+        });
+      }
+      if (hasCapMetricRegression(c)) {
+        n.push({
+          id: 'cap-regression-' + c.id,
+          urgency: 'urgent',
+          title: `Performance slipped: ${c.item || 'Corrective action'}`,
+          detail: `Current metric ${imp.currentMetric || '-'} moved away from baseline ${imp.baselineMetric || '-'}`,
+          module: 'cap',
+        });
+      }
+    });
   (data.grants || []).forEach((g) => {
     (g.deliverables || [])
       .filter((dv) => !dv.done && dv.due && daysUntil(dv.due) < 14)
@@ -17088,8 +17262,11 @@ function CapDashboard({ data, setData }) {
       });
     });
     return all;
-  }, [data.exercises]);
-  const allCAs = [...exCAs, ...capItems];
+  }, [data.exercises, data.incidents]);
+  const allCAs = useMemo(
+    () => [...exCAs, ...capItems].map((c) => ensureCapImprovementDefaults(c)),
+    [exCAs, capItems]
+  );
   const open = allCAs.filter((c) => !c.closed).length;
   const overdue = allCAs.filter(
     (c) => !c.closed && c.due && daysUntil(c.due) < 0
@@ -17099,7 +17276,12 @@ function CapDashboard({ data, setData }) {
   ).length;
   const save = () => {
     if (!form.item) return;
-    const ca = { ...form, id: uid(), closed: false, addedAt: Date.now() };
+    const ca = ensureCapImprovementDefaults({
+      ...form,
+      id: uid(),
+      closed: false,
+      addedAt: Date.now(),
+    });
     setData((prev) => ({ ...prev, capItems: [...(prev.capItems || []), ca] }));
     addActivity(setData, 'created', 'cap', `Added CAP item: ${form.item}`);
     setForm({
@@ -17115,18 +17297,70 @@ function CapDashboard({ data, setData }) {
     setShowForm(false);
   };
   const toggleCap = (id) => {
+    const selected = allCAs.find((c) => c.id === id);
     setData((prev) => ({
       ...prev,
       capItems: (prev.capItems || []).map((c) =>
         c.id === id ? { ...c, closed: !c.closed, closedAt: Date.now() } : c
       ),
     }));
+    if (selected?.closed) {
+      addActivity(setData, 'updated', 'cap', `Reopened CAP item: ${selected.item}`);
+    } else if (selected?.item) {
+      addActivity(setData, 'completed', 'cap', `Closed CAP item: ${selected.item}`);
+    }
   };
-  const removeCap = (id) =>
+  const removeCap = (id) => {
+    const selected = allCAs.find((c) => c.id === id);
     setData((prev) => ({
       ...prev,
       capItems: (prev.capItems || []).filter((c) => c.id !== id),
     }));
+    if (selected?.item) {
+      addActivity(setData, 'deleted', 'cap', `Removed CAP item: ${selected.item}`);
+    }
+  };
+  const updateCapImprovement = (id, patch) => {
+    setData((prev) => ({
+      ...prev,
+      capItems: (prev.capItems || []).map((raw) => {
+        if (raw.id !== id) return raw;
+        const normalized = ensureCapImprovementDefaults(raw);
+        return {
+          ...normalized,
+          improvement: { ...normalized.improvement, ...patch },
+        };
+      }),
+    }));
+  };
+  const advanceCapPhase = (item) => {
+    const normalized = ensureCapImprovementDefaults(item);
+    const missing = capPhaseMissingFields(normalized);
+    if (missing.length > 0) {
+      alert(`Complete ${missing.join(', ')} before moving forward.`);
+      return;
+    }
+    const current = normalized.improvement.phase;
+    const next = getNextImprovementPhase(current);
+    if (next === current) return;
+    updateCapImprovement(normalized.id, { phase: next });
+    addActivity(
+      setData,
+      'updated',
+      'cap',
+      `Advanced "${normalized.item}" workflow to: ${getImprovementPhaseMeta(next).label}`
+    );
+  };
+  const resetCapPhase = (item) => {
+    const normalized = ensureCapImprovementDefaults(item);
+    updateCapImprovement(normalized.id, { phase: 'clarify' });
+    addActivity(
+      setData,
+      'updated',
+      'cap',
+      `Reset "${normalized.item}" workflow to: ${getImprovementPhaseMeta('clarify').label}`
+    );
+  };
   const PRIORITY = {
     critical: { label: 'Critical', color: B.red, bg: B.redLight },
     high: { label: 'High', color: '#dc2626', bg: '#fef2f2' },
@@ -17403,10 +17637,21 @@ function CapDashboard({ data, setData }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {filtered.map((ca) => {
+            const normalized = ensureCapImprovementDefaults(ca);
             const pc = PRIORITY[ca.priority] || PRIORITY.medium;
             const days = daysUntil(ca.due);
             const isOverdue = !ca.closed && ca.due && days < 0;
             const isEx = ca.id?.startsWith('ex-');
+            const canEditWorkflow = !isEx && !ca.closed;
+            const imp = normalized.improvement;
+            const phaseMeta = getImprovementPhaseMeta(imp.phase);
+            const nextStep = getCapNextStep(normalized);
+            const missing = capPhaseMissingFields(normalized);
+            const metricDelta =
+              toMetricNumber(imp.currentMetric) !== null &&
+              toMetricNumber(imp.baselineMetric) !== null
+                ? toMetricNumber(imp.currentMetric) - toMetricNumber(imp.baselineMetric)
+                : null;
             return (
               <div
                 key={ca.id}
@@ -17518,7 +17763,198 @@ function CapDashboard({ data, setData }) {
                         From exercise
                       </span>
                     )}
+                    <span
+                      style={{
+                        background: '#f0f4f8',
+                        color: '#334155',
+                        padding: '1px 5px',
+                        borderRadius: 4,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {phaseMeta.label}
+                    </span>
                   </div>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      background: '#f8fafc',
+                      border: `1px solid ${B.border}`,
+                      borderRadius: 8,
+                      padding: '8px 10px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: B.muted,
+                        fontWeight: 700,
+                        marginBottom: 3,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                      }}
+                    >
+                      {nextStep.headline}
+                    </div>
+                    <div style={{ fontSize: 12, color: B.muted, lineHeight: 1.5 }}>
+                      {nextStep.detail}
+                    </div>
+                    {metricDelta !== null && (
+                      <div style={{ fontSize: 11, color: B.faint, marginTop: 4 }}>
+                        Baseline → current delta: {metricDelta > 0 ? '+' : ''}
+                        {metricDelta}
+                      </div>
+                    )}
+                  </div>
+                  {!isEx && !ca.closed && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, minmax(0,1fr))',
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <Label>Workflow Stage</Label>
+                        <FSel
+                          value={imp.phase}
+                          onChange={(v) => updateCapImprovement(ca.id, { phase: v })}
+                          style={{ background: canEditWorkflow ? '#f8fafb' : '#f1f5f9' }}
+                          disabled={!canEditWorkflow}
+                        >
+                          {IMPROVEMENT_PHASES.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </FSel>
+                        <div style={{ fontSize: 10, color: B.faint, marginTop: 4 }}>
+                          {phaseMeta.detail}
+                        </div>
+                      </div>
+                      {imp.phase === 'clarify' && (
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <Label>Problem Statement</Label>
+                          <FInput
+                            value={imp.problemStatement}
+                            onChange={(v) =>
+                              updateCapImprovement(ca.id, { problemStatement: v })
+                            }
+                            placeholder="What specifically is failing?"
+                            style={{ background: canEditWorkflow ? '#f8fafb' : '#f1f5f9' }}
+                          />
+                        </div>
+                      )}
+                      {imp.phase === 'measure' && (
+                        <>
+                          <div>
+                            <Label>Baseline Metric</Label>
+                            <FInput
+                              value={imp.baselineMetric}
+                              onChange={(v) =>
+                                updateCapImprovement(ca.id, { baselineMetric: v })
+                              }
+                              placeholder="Current value"
+                              style={{ background: canEditWorkflow ? '#f8fafb' : '#f1f5f9' }}
+                            />
+                          </div>
+                          <div>
+                            <Label>Target Metric</Label>
+                            <FInput
+                              value={imp.targetMetric}
+                              onChange={(v) =>
+                                updateCapImprovement(ca.id, { targetMetric: v })
+                              }
+                              placeholder="Goal value"
+                              style={{ background: canEditWorkflow ? '#f8fafb' : '#f1f5f9' }}
+                            />
+                          </div>
+                        </>
+                      )}
+                      {imp.phase === 'analyze' && (
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <Label>Likely Cause</Label>
+                          <FInput
+                            value={imp.likelyCause}
+                            onChange={(v) => updateCapImprovement(ca.id, { likelyCause: v })}
+                            placeholder="What is probably driving this issue?"
+                            style={{ background: canEditWorkflow ? '#f8fafb' : '#f1f5f9' }}
+                          />
+                        </div>
+                      )}
+                      {imp.phase === 'improve' && (
+                        <>
+                          <div style={{ gridColumn: 'span 2' }}>
+                            <Label>Tested Fix</Label>
+                            <FInput
+                              value={imp.countermeasure}
+                              onChange={(v) =>
+                                updateCapImprovement(ca.id, { countermeasure: v })
+                              }
+                              placeholder="What change did you test?"
+                              style={{ background: canEditWorkflow ? '#f8fafb' : '#f1f5f9' }}
+                            />
+                          </div>
+                          <div>
+                            <Label>Current Metric</Label>
+                            <FInput
+                              value={imp.currentMetric}
+                              onChange={(v) =>
+                                updateCapImprovement(ca.id, { currentMetric: v })
+                              }
+                              placeholder="Latest value"
+                              style={{ background: canEditWorkflow ? '#f8fafb' : '#f1f5f9' }}
+                            />
+                          </div>
+                        </>
+                      )}
+                      {imp.phase === 'control' && (
+                        <div>
+                          <Label>Control Check Date</Label>
+                          <FInput
+                            type="date"
+                            value={imp.controlCheckDate}
+                            onChange={(v) =>
+                              updateCapImprovement(ca.id, { controlCheckDate: v })
+                            }
+                            style={{ background: canEditWorkflow ? '#f8fafb' : '#f1f5f9' }}
+                          />
+                        </div>
+                      )}
+                      {!ca.closed && (
+                        <div
+                          style={{
+                            gridColumn: 'span 2',
+                            display: 'flex',
+                            gap: 8,
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          {nextStep.readyToAdvance && imp.phase !== 'control' && (
+                            <Btn
+                              label={`Advance to ${nextStep.nextLabel}`}
+                              small
+                              onClick={() => advanceCapPhase(ca)}
+                            />
+                          )}
+                          {imp.phase !== 'clarify' && (
+                            <Btn
+                              label="Reset to Clarify"
+                              small
+                              onClick={() => resetCapPhase(ca)}
+                            />
+                          )}
+                          {missing.length > 0 && (
+                            <span style={{ fontSize: 10, color: B.red }}>
+                              Missing: {missing.join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {!isEx && !ca.closed && (
                   <button
