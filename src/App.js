@@ -17806,7 +17806,7 @@ function CapDashboard({ data, setData }) {
                       </div>
                     )}
                   </div>
-                  {!isEx && (
+                  {!isEx && !ca.closed && (
                     <div
                       style={{
                         marginTop: 8,
