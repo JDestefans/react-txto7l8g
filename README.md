@@ -40,6 +40,13 @@ Deploy the following Edge Functions in your Supabase project:
 - `super-endpoint` — AI proxy (routes to Claude based on `model_tier`)
 - `create-checkout` — creates Stripe checkout sessions
 - `billing-portal` — opens Stripe customer billing portal
+- `send-collaboration-invite` — sends plan collaboration invite emails
+
+For collaboration invite email delivery, configure these Edge Function secrets:
+
+- `RESEND_API_KEY` — API key for Resend email delivery
+- `INVITE_FROM_EMAIL` — verified sender (example: `Planrr <invites@yourdomain.gov>`)
+- `PLANRR_APP_URL` (optional) — app base URL used for invite links
 
 ## Architecture
 

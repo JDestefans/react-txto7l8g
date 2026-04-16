@@ -971,6 +971,57 @@ async function callAIWithDoc(system, textBefore, fileData, onChunk) {
   }
 }
 
+async function sendPlanCollaborationInviteEmail({
+  planId,
+  planName,
+  collaboratorName,
+  collaboratorEmail,
+  permission,
+  inviteCode,
+  invitedByName,
+  invitedByEmail,
+}) {
+  const token = getAccessToken();
+  if (!token) return { sent: false, reason: 'not_authenticated' };
+  try {
+    const r = await fetch(SB_URL + '/functions/v1/send-collaboration-invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SB_KEY,
+        Authorization: 'Bearer ' + token,
+      },
+      body: JSON.stringify({
+        planId,
+        planName,
+        collaboratorName,
+        collaboratorEmail,
+        permission,
+        inviteCode,
+        invitedByName,
+        invitedByEmail,
+        appUrl: window.location.origin,
+      }),
+    });
+    let payload = {};
+    try {
+      payload = await r.json();
+    } catch {}
+    if (!r.ok) {
+      return {
+        sent: false,
+        reason:
+          payload?.error ||
+          payload?.reason ||
+          `send_invite_http_${r.status}`,
+      };
+    }
+    return { sent: !!payload?.sent, reason: payload?.reason || '' };
+  } catch (err) {
+    return { sent: false, reason: err?.message || 'request_failed' };
+  }
+}
+
 /* --- DOCUMENT → EMAP STANDARD MAPPING PIPELINE --------
    Multi-stage pipeline for mapping uploaded documents to EMAP standards:
    1. Chunk & summarize with fast model (cheaper)
@@ -9425,10 +9476,11 @@ function PlanLibrary({ data, setData }) {
   };
   const update = (id, f, v) =>
     mutatePlan(id, (p) => ({ ...p, [f]: v }));
-  const inviteCollaborator = (plan) => {
+  const inviteCollaborator = async (plan) => {
     const draft = getInviteDraft(plan.id);
     const email = String(draft.email || '').trim().toLowerCase();
     if (!email) return;
+    let invitedCollaborator = null;
     mutatePlan(plan.id, (target) => {
       const existing = (target.collaborators || []).find(
         (c) => String(c.email || '').toLowerCase() === email
@@ -9456,6 +9508,7 @@ function PlanLibrary({ data, setData }) {
             inviteCode: buildInviteCode(),
             accessScope: `plan:${target.id}`,
           };
+      invitedCollaborator = nextCollaborator;
       const collaborators = existing
         ? target.collaborators.map((c) => (c.id === existing.id ? nextCollaborator : c))
         : [...(target.collaborators || []), nextCollaborator];
@@ -9465,6 +9518,34 @@ function PlanLibrary({ data, setData }) {
       ...prev,
       [plan.id]: { ...getInviteDraft(plan.id), email: '', name: '' },
     }));
+    if (!invitedCollaborator) return;
+    const emailResult = await sendPlanCollaborationInviteEmail({
+      planId: plan.id,
+      planName: plan.name || 'Plan document',
+      collaboratorName: invitedCollaborator.name || '',
+      collaboratorEmail: invitedCollaborator.email || email,
+      permission: invitedCollaborator.permission || 'comment_only',
+      inviteCode: invitedCollaborator.inviteCode || '',
+      invitedByName: currentUser.name || '',
+      invitedByEmail: currentUser.email || '',
+    });
+    if (emailResult.sent) {
+      alert(`Invite email sent to ${invitedCollaborator.email}.`);
+      return;
+    }
+    if (
+      emailResult.reason === 'email_not_configured' ||
+      emailResult.reason === 'from_not_configured'
+    ) {
+      alert(
+        'Invite saved, but email is not configured yet. Add RESEND_API_KEY and INVITE_FROM_EMAIL in Supabase Edge Function secrets.'
+      );
+      return;
+    }
+    console.warn('planrr: collaboration invite email failed', emailResult.reason);
+    alert(
+      'Invite saved, but email delivery failed. Check Supabase function logs for send-collaboration-invite.'
+    );
   };
   const submitCollabRequest = (plan) => {
     const draft = getRequestDraft(plan.id, plan);
