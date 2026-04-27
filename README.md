@@ -11,6 +11,14 @@ npm start
 
 Dev server runs at http://localhost:3000
 
+## Release Safety and Resilience
+
+- Dependency posture is lockfile-driven (`package-lock.json`) with strict installs (`npm ci` in CI) and explicit peer-dep handling via `.npmrc`.
+- Launch-hardening Supabase assets include secure share links (`secure-share`), webhook/calendar dispatch (`integration-dispatch`), and auth config checks (`auth-health`).
+- Client data resilience now keeps rolling local snapshots and supports one-click recovery from the latest snapshot in `Settings > System`.
+
+See `docs/launch_hardening.md` for deployment and operational guidance.
+
 ## Environment Variables
 
 Copy `.env.example` to `.env` and configure:

@@ -8,10 +8,23 @@ import Founder from './pages/Founder';
 import FAQ from './pages/FAQ';
 import { STARTER_PACKS, applyStarterPack } from './data/starterPacks';
 import { downloadICal } from './services/calendar';
-import { createShareLink, listShareLinks, revokeShareLink } from './services/shareReport';
+import {
+  createShareLinkSecure,
+  listShareLinksSecure,
+  revokeShareLinkSecure,
+} from './services/shareReport';
+import {
+  sendIntegrationProbe,
+  runCalendarSync,
+  fetchAuthHealth,
+  fetchOpsReadiness,
+  syncSecurityPolicy,
+} from './services/launchHardening';
 import { buildGrantNarrativePrompt } from './services/grantHelper';
 import SAGE from './components/SAGE';
 // pdfExtract loaded dynamically to avoid Jest import.meta issues
+
+const CLIENT_STATE_SNAPSHOT_KEY = 'planrr_client_state_snapshot_v1';
 
 /* --- ERROR BOUNDARY ----------------------------------- */
 class ErrorBoundary extends Component {
@@ -2244,11 +2257,64 @@ async function loadData() {
 }
 
 let _saveQueued = false;
+const RESILIENCE_SNAPSHOT_KEY_PREFIX = 'planrr_resilience_snapshots_';
+const MAX_RESILIENCE_SNAPSHOTS = 20;
+const RESILIENCE_SNAPSHOT_INTERVAL_MS = 30 * 60 * 1000;
+let _lastResilienceSnapshotAt = 0;
+
+function getResilienceSnapshotKey() {
+  const uid = getUserId() || 'anonymous';
+  return `${RESILIENCE_SNAPSHOT_KEY_PREFIX}${uid}`;
+}
+
+function loadResilienceSnapshots() {
+  try {
+    const raw = localStorage.getItem(getResilienceSnapshotKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveResilienceSnapshot(data, reason = 'periodic') {
+  try {
+    const entry = {
+      id: uid(),
+      createdAt: Date.now(),
+      reason,
+      data,
+    };
+    const existing = loadResilienceSnapshots();
+    const next = [entry, ...existing].slice(0, MAX_RESILIENCE_SNAPSHOTS);
+    localStorage.setItem(getResilienceSnapshotKey(), JSON.stringify(next));
+    return entry;
+  } catch {
+    return null;
+  }
+}
+
+function getMostRecentResilienceSnapshot() {
+  const snapshots = loadResilienceSnapshots();
+  return snapshots.length > 0 ? snapshots[0] : null;
+}
+
+function maybeSaveResilienceSnapshot(data, reason = 'periodic', force = false) {
+  const now = Date.now();
+  if (!force && now - _lastResilienceSnapshotAt < RESILIENCE_SNAPSHOT_INTERVAL_MS) {
+    return null;
+  }
+  const saved = saveResilienceSnapshot(data, reason);
+  if (saved) _lastResilienceSnapshotAt = now;
+  return saved;
+}
+
 async function saveData(d) {
   const localKey = getLocalKey();
   try {
     localStorage.setItem(localKey, JSON.stringify(d));
   } catch {}
+  maybeSaveResilienceSnapshot(d, 'autosave');
   const token = getAccessToken();
   const userId = getUserId();
   if (!token || !userId || _saveQueued) return;
@@ -2266,8 +2332,12 @@ async function saveData(d) {
         },
         body: JSON.stringify({ user_id: userId, data: d }),
       });
-      if (!r.ok) console.warn('planrr: save to cloud failed', r.status);
+      if (!r.ok) {
+        maybeSaveResilienceSnapshot(d, 'cloud_write_failed', true);
+        console.warn('planrr: save to cloud failed', r.status);
+      }
     } catch (e) {
+      maybeSaveResilienceSnapshot(d, 'cloud_write_error', true);
       console.warn('planrr: save to cloud error', e.message);
     }
   }, 2000);
@@ -19039,7 +19109,13 @@ function ActivityLogView({ data, setData }) {
 /* -------------------------------------------------------
    SETTINGS
 ------------------------------------------------------- */
-function SettingsView({ data, updateData, setView }) {
+function SettingsView({
+  data,
+  updateData,
+  setView,
+  resilienceSummary = null,
+  onRecoverSnapshot = null,
+}) {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('org');
   const identity = useMemo(() => getCurrentUserIdentity(), []);
@@ -19054,6 +19130,13 @@ function SettingsView({ data, updateData, setView }) {
   });
   const [latestShare, setLatestShare] = useState(null);
   const [syncMessage, setSyncMessage] = useState('');
+  const [shareLinks, setShareLinks] = useState([]);
+  const [launchStatus, setLaunchStatus] = useState({
+    auth: null,
+    ops: null,
+    loading: false,
+    error: '',
+  });
   const [form, setForm] = useState({
     orgName: data.orgName || '',
     jurisdiction: data.jurisdiction || '',
@@ -19090,11 +19173,14 @@ function SettingsView({ data, updateData, setView }) {
   const [integrations, setIntegrations] = useState({
     slackWebhook: data.integrations?.slackWebhook || '',
     teamsWebhook: data.integrations?.teamsWebhook || '',
+    providerApiKey: data.integrations?.providerApiKey || '',
     calendarSyncEnabled: !!data.integrations?.calendarSyncEnabled,
     calendarProvider: data.integrations?.calendarProvider || 'google',
     calendarSyncMode: data.integrations?.calendarSyncMode || 'read_write',
     lastTestAt: data.integrations?.lastTestAt || null,
     lastSyncAt: data.integrations?.lastSyncAt || null,
+    lastDeliveryStatus: data.integrations?.lastDeliveryStatus || '',
+    lastDeliveryError: data.integrations?.lastDeliveryError || '',
   });
   const [roleSetup, setRoleSetup] = useState({
     roleProfile: data.roleProfile || 'additional_duty',
@@ -19114,7 +19200,34 @@ function SettingsView({ data, updateData, setView }) {
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
     [data.pendingApprovals]
   );
-  const shareLinks = useMemo(() => listShareLinks(), [saved, data]);
+  const refreshShareLinks = useCallback(async () => {
+    try {
+      const links = await listShareLinksSecure();
+      setShareLinks(links);
+    } catch (err) {
+      console.warn('planrr: unable to load secure share links', err?.message || err);
+      setShareLinks([]);
+    }
+  }, []);
+  useEffect(() => {
+    refreshShareLinks();
+  }, [refreshShareLinks]);
+  const refreshLaunchStatus = useCallback(async () => {
+    setLaunchStatus((prev) => ({ ...prev, loading: true, error: '' }));
+    try {
+      const [auth, ops] = await Promise.all([fetchAuthHealth(), fetchOpsReadiness()]);
+      setLaunchStatus({ auth, ops, loading: false, error: '' });
+    } catch (err) {
+      setLaunchStatus((prev) => ({
+        ...prev,
+        loading: false,
+        error: err?.message || 'Unable to load launch status.',
+      }));
+    }
+  }, []);
+  useEffect(() => {
+    refreshLaunchStatus();
+  }, [refreshLaunchStatus]);
   const mfaCoverage = useMemo(
     () => teamMembers.filter((m) => m.mfaEnabled).length,
     [teamMembers]
@@ -19325,31 +19438,46 @@ function SettingsView({ data, updateData, setView }) {
     setSaved((p) => !p);
   }, [identity.email, updateData]);
 
-  const createSecureShare = useCallback(() => {
-    const created = createShareLink(data, {
-      expiresInHours: Number(shareForm.expiresInHours || 168),
-      passcode: shareForm.passcode || '',
-    });
-    setLatestShare(created);
-    const msg = created.requiresPasscode
-      ? 'Secure report link copied (passcode required).'
-      : 'Secure report link copied.';
-    navigator.clipboard
-      .writeText(created.url)
-      .then(() => alert(msg))
-      .catch(() => prompt('Copy this secure report link:', created.url));
-    addActivity(updateData, 'created', 'settings', 'Generated secure shared report');
-    setSaved((p) => !p);
-  }, [data, shareForm.expiresInHours, shareForm.passcode, updateData]);
+  const createSecureShare = useCallback(async () => {
+    try {
+      const created = await createShareLinkSecure(data, {
+        expiresInHours: Number(shareForm.expiresInHours || 168),
+        passcode: shareForm.passcode || '',
+      });
+      setLatestShare(created);
+      await refreshShareLinks();
+      const msg = created.requiresPasscode
+        ? 'Secure report link copied (passcode required).'
+        : 'Secure report link copied.';
+      navigator.clipboard
+        .writeText(created.url)
+        .then(() => alert(msg))
+        .catch(() => prompt('Copy this secure report link:', created.url));
+      addActivity(updateData, 'created', 'settings', 'Generated secure shared report');
+      setSaved((p) => !p);
+    } catch (err) {
+      alert(err?.message || 'Unable to create secure share link.');
+    }
+  }, [data, shareForm.expiresInHours, shareForm.passcode, updateData, refreshShareLinks]);
 
-  const revokeShare = useCallback((token) => {
-    if (!window.confirm('Revoke this shared report link?')) return;
-    const ok = revokeShareLink(token);
-    if (ok) setSaved((v) => !v);
-  }, []);
+  const revokeShare = useCallback(
+    async (token) => {
+      if (!window.confirm('Revoke this shared report link?')) return;
+      try {
+        const ok = await revokeShareLinkSecure(token);
+        if (ok) {
+          await refreshShareLinks();
+          setSaved((v) => !v);
+        }
+      } catch (err) {
+        alert(err?.message || 'Unable to revoke secure share link.');
+      }
+    },
+    [refreshShareLinks]
+  );
 
   const testIntegration = useCallback(
-    (kind) => {
+    async (kind) => {
       const url =
         kind === 'slack'
           ? String(integrations.slackWebhook || '').trim()
@@ -19358,27 +19486,63 @@ function SettingsView({ data, updateData, setView }) {
         alert('Add a valid webhook URL first.');
         return;
       }
-      setIntegrations((p) => ({ ...p, lastTestAt: Date.now() }));
-      setSyncMessage(
-        `${kind === 'slack' ? 'Slack' : 'Teams'} connector validated locally.`
-      );
-      addActivity(
-        updateData,
-        'updated',
-        'settings',
-        `Validated ${kind === 'slack' ? 'Slack' : 'Teams'} integration`
-      );
-      setSaved((p) => !p);
+      try {
+        const result = await sendIntegrationProbe(
+          kind,
+          url,
+          `${kind === 'slack' ? 'Slack' : 'Teams'} connector validation from planrr settings.`
+        );
+        setIntegrations((p) => ({
+          ...p,
+          lastTestAt: Date.now(),
+          lastDeliveryStatus: result?.status || 'ok',
+          lastDeliveryError: '',
+        }));
+        setSyncMessage(
+          `${kind === 'slack' ? 'Slack' : 'Teams'} connector verified via server dispatch.`
+        );
+        addActivity(
+          updateData,
+          'updated',
+          'settings',
+          `Validated ${kind === 'slack' ? 'Slack' : 'Teams'} integration`
+        );
+        setSaved((p) => !p);
+      } catch (err) {
+        setIntegrations((p) => ({
+          ...p,
+          lastTestAt: Date.now(),
+          lastDeliveryStatus: 'error',
+          lastDeliveryError: err?.message || 'Delivery probe failed',
+        }));
+        setSyncMessage(err?.message || 'Connector validation failed.');
+      }
     },
     [integrations.slackWebhook, integrations.teamsWebhook, updateData]
   );
 
-  const syncCalendarNow = useCallback(() => {
-    setIntegrations((p) => ({ ...p, lastSyncAt: Date.now() }));
-    setSyncMessage('Calendar sync completed successfully.');
-    addActivity(updateData, 'updated', 'settings', 'Ran calendar sync');
-    setSaved((p) => !p);
-  }, [updateData]);
+  const syncCalendarNow = useCallback(async () => {
+    try {
+      const result = await runCalendarSync({
+        provider: integrations.calendarProvider,
+        mode: integrations.calendarSyncMode,
+        events: (data.calendar || []).slice(0, 200).map((e) => ({
+          id: e.id,
+          title: e.title || e.event || 'Planrr event',
+          start: e.start || e.date || null,
+          end: e.end || null,
+        })),
+      });
+      setIntegrations((p) => ({ ...p, lastSyncAt: Date.now() }));
+      setSyncMessage(
+        `Calendar sync completed successfully (${result.syncedEvents || 0} records).`
+      );
+      addActivity(updateData, 'updated', 'settings', 'Ran calendar sync');
+      setSaved((p) => !p);
+    } catch (err) {
+      setSyncMessage(err?.message || 'Calendar sync failed.');
+    }
+  }, [updateData, integrations.calendarProvider, integrations.calendarSyncMode, data.calendar]);
 
   const assignQueueItem = useCallback(
     (itemKey, assignee) => {
@@ -19510,11 +19674,11 @@ function SettingsView({ data, updateData, setView }) {
   }, [updateData, roleSetup]);
 
   const securityImplementationStatus =
-    'Policy controls are active in-app. Full IdP-backed SSO/SAML challenge enforcement should be configured through your production identity provider and backend auth policy.';
+    'Policy controls are active in-app with authenticated policy checks. Full IdP-backed SSO/SAML challenge enforcement still requires production identity provider rollout.';
   const integrationImplementationStatus =
-    'Connectors are configured in-app with local validation and manual sync triggers. Production webhook delivery and provider API synchronization should be enabled in deployment.';
+    'Connectors now execute authenticated server-side webhook and calendar sync checks. Production provider credentials and API scopes should be finalized in deployment.';
   const sharingImplementationStatus =
-    'Secure share links are currently managed in this browser-local token store. Production rollout should use server-side token storage and cryptographic passcode hashing.';
+    'Secure share links now use server-side token storage with hashed passcodes. Legacy browser-local links remain readable for backwards compatibility.';
 
   // Live PDF preview data
   const previewAccent = brand.accentColor || B.teal;
@@ -20065,6 +20229,28 @@ function SettingsView({ data, updateData, setView }) {
             <div style={{ marginTop: 8, fontSize: 11, color: B.faint, lineHeight: 1.6 }}>
               Implementation status: {securityImplementationStatus}
             </div>
+            <div style={{ marginTop: 10, border: `1px solid ${B.border}`, borderRadius: 10, padding: '10px 12px', background: '#fafcfc' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: B.text, marginBottom: 4 }}>
+                Launch auth readiness
+              </div>
+              {launchStatus.loading ? (
+                <div style={{ fontSize: 11, color: B.faint }}>Checking auth health...</div>
+              ) : launchStatus.auth ? (
+                <div style={{ fontSize: 11, color: B.muted, lineHeight: 1.6 }}>
+                  <div>Invite sender configured: {launchStatus.auth?.checks?.fromConfigured ? 'Yes' : 'No'}</div>
+                  <div>Invite delivery key configured: {launchStatus.auth?.checks?.resendConfigured ? 'Yes' : 'No'}</div>
+                  <div>Service role configured: {launchStatus.auth?.checks?.serviceRoleConfigured ? 'Yes' : 'No'}</div>
+                  <div>Enterprise SSO env configured: {launchStatus.auth?.checks?.ssoConfigured ? 'Yes' : 'No'}</div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 11, color: B.faint }}>Auth health unavailable.</div>
+              )}
+              {launchStatus.error && (
+                <div style={{ marginTop: 6, fontSize: 11, color: B.red }}>
+                  {launchStatus.error}
+                </div>
+              )}
+            </div>
           </Card>
         </div>
       )}
@@ -20162,6 +20348,23 @@ function SettingsView({ data, updateData, setView }) {
             )}
             <div style={{ marginTop: 8, fontSize: 11, color: B.faint, lineHeight: 1.6 }}>
               Implementation status: {integrationImplementationStatus}
+            </div>
+            <div style={{ marginTop: 10, border: `1px solid ${B.border}`, borderRadius: 10, padding: '10px 12px', background: '#fafcfc' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: B.text, marginBottom: 4 }}>
+                Launch integration readiness
+              </div>
+              {launchStatus.loading ? (
+                <div style={{ fontSize: 11, color: B.faint }}>Checking integration readiness...</div>
+              ) : launchStatus.ops ? (
+                <div style={{ fontSize: 11, color: B.muted, lineHeight: 1.6 }}>
+                  <div>Dispatch function: {launchStatus.ops?.checks?.dispatchFunction ? 'Configured' : 'Missing'}</div>
+                  <div>Google calendar secrets: {launchStatus.ops?.checks?.googleCalendar ? 'Configured' : 'Missing'}</div>
+                  <div>Outlook calendar secrets: {launchStatus.ops?.checks?.outlookCalendar ? 'Configured' : 'Missing'}</div>
+                  <div>Share migration applied: {launchStatus.ops?.checks?.shareTablesReady ? 'Ready' : 'Not detected'}</div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 11, color: B.faint }}>Integration readiness unavailable.</div>
+              )}
             </div>
           </Card>
         </div>
@@ -20872,7 +21075,7 @@ function SettingsView({ data, updateData, setView }) {
                 { l: 'Version', v: 'PLANRR v2.0' },
                 { l: 'EMAP Standard', v: 'EMS 5-2022' },
                 { l: 'Standards Loaded', v: '73' },
-                { l: 'Data Location', v: 'Encrypted local + tokenized share links' },
+                { l: 'Data Location', v: 'Encrypted local + server tokenized share links' },
               ].map((s) => (
                 <div
                   key={s.l}
@@ -20903,7 +21106,7 @@ function SettingsView({ data, updateData, setView }) {
               }}
             >
               Program data persists in-browser with secure, revocable shared report
-              links. Enable collaboration controls, MFA policy, SSO provider
+              links backed by server-side token storage. Enable collaboration controls, MFA policy, SSO provider
               settings, and integrations from the tabs above.
             </div>
           </Card>
@@ -21081,6 +21284,7 @@ function SettingsView({ data, updateData, setView }) {
                         </div>
                         <div style={{ color: B.faint }}>
                           Expires {fmtDate(l.expiresAt)} · Accesses {l.accessCount}
+                          {l.storage === 'local' ? ' · Local fallback' : ' · Server'}
                           {l.revoked ? ' · Revoked' : ''}
                         </div>
                       </div>
@@ -21100,6 +21304,37 @@ function SettingsView({ data, updateData, setView }) {
             <div style={{ marginTop: 8, fontSize: 11, color: B.faint, lineHeight: 1.6 }}>
               Implementation status: {sharingImplementationStatus}
             </div>
+            {resilienceSummary && (
+              <div
+                style={{
+                  marginTop: 8,
+                  border: `1px solid ${B.border}`,
+                  borderRadius: 8,
+                  padding: '8px 10px',
+                  fontSize: 11,
+                  color: B.muted,
+                  background: '#fafcfc',
+                  lineHeight: 1.6,
+                }}
+              >
+                <div style={{ fontWeight: 700, color: B.text, marginBottom: 4 }}>
+                  Data resilience
+                </div>
+                <div>
+                  Local snapshots: {resilienceSummary.count}
+                  {resilienceSummary.latestAt
+                    ? ` · Latest ${fmtDate(resilienceSummary.latestAt)} (${resilienceSummary.latestReason || 'periodic'})`
+                    : ' · No snapshot yet'}
+                </div>
+                <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <Btn
+                    label="Recover latest snapshot"
+                    small
+                    onClick={() => onRecoverSnapshot && onRecoverSnapshot()}
+                  />
+                </div>
+              </div>
+            )}
             {/* Starter Packs */}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${B.border}` }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: B.text, marginBottom: 10 }}>
@@ -28609,8 +28844,8 @@ function AmbientNodeBackground({ dark = true, density = 3600, maxLink = 96 }) {
 
 
 /* AUTH */
-var SB_URL = process.env.REACT_APP_SUPABASE_URL || 'https://ltnbvwnhtsaebyslbhil.supabase.co';
-var SB_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY ||
+export var SB_URL = process.env.REACT_APP_SUPABASE_URL || 'https://ltnbvwnhtsaebyslbhil.supabase.co';
+export var SB_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0bmJ2d25odHNhZWJ5c2xiaGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMTk0NDYsImV4cCI6MjA4OTU5NTQ0Nn0.VrfVyQPiWzVo7VpQJtRyKQgNBtoq3Du-uGCAGsH815c';
 async function parseAuthResponse(r, fallbackMessage) {
   let d = {};
@@ -30277,6 +30512,7 @@ function AppInner() {
   );
   const saveTimer = useRef(null);
   const refreshTimer = useRef(null);
+  const [resilienceBanner, setResilienceBanner] = useState('');
 
   useEffect(() => {
     if (!authed) return;
@@ -30304,6 +30540,17 @@ function AppInner() {
     init();
     return () => clearTimeout(refreshTimer.current);
   }, [authed]);
+  useEffect(() => {
+    if (!authed || data) return;
+    const snapshot = getMostRecentResilienceSnapshot();
+    if (!snapshot) return;
+    const ageHours = Math.round(
+      Math.max(0, Date.now() - Number(snapshot.createdAt || Date.now())) / (60 * 60 * 1000)
+    );
+    setResilienceBanner(
+      `Resilience snapshot available (${snapshot.reason || 'autosave'}, ${ageHours}h old).`
+    );
+  }, [authed, data]);
 
   useEffect(() => {
     if (!authed) {
@@ -30374,6 +30621,7 @@ function AppInner() {
         loaded.explainMode = !!d.explainMode;
         const synced = syncStandardsFromOps(loaded);
         if (synced) loaded.standards = synced;
+        maybeSaveResilienceSnapshot(loaded, 'load_success', true);
         setData(loaded);
         setCurrentDataRef(loaded);
         if (!d.orgName) setOnboarding(true);
@@ -30383,7 +30631,9 @@ function AppInner() {
         ALL_STANDARDS.forEach((s) => {
           stds[s.id] = initRecord();
         });
-        setData({ ...initData(), standards: stds });
+        const seeded = { ...initData(), standards: stds };
+        maybeSaveResilienceSnapshot(seeded, 'init_seed', true);
+        setData(seeded);
         setOnboarding(true);
       }
       setLoaded(true);
@@ -30479,6 +30729,13 @@ function AppInner() {
       navigate('/app/sage', { replace: true });
     }
   }, [pathView, navigate]);
+  useEffect(() => {
+    if (!authed || !loaded || !data) return;
+    const interval = setInterval(() => {
+      maybeSaveResilienceSnapshot(data, 'heartbeat');
+    }, RESILIENCE_SNAPSHOT_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [authed, loaded, data]);
   if (!authed)
     return (
       <>
@@ -31037,7 +31294,40 @@ function AppInner() {
             <ActivityLogView data={data} setData={updateData} />
           )}
           {view === 'settings' && (
-            <SettingsView data={data} updateData={updateData} setView={setView} />
+            <SettingsView
+              data={data}
+              updateData={updateData}
+              setView={setView}
+              resilienceSummary={describeResilienceState()}
+              onRecoverSnapshot={() => {
+                const recovered = recoverFromLatestResilienceSnapshot();
+                if (!recovered) {
+                  alert('No resilience snapshot available to recover.');
+                  return;
+                }
+                const stds = {};
+                ALL_STANDARDS.forEach((s) => {
+                  stds[s.id] = recovered.standards?.[s.id] || initRecord();
+                });
+                const loaded = {
+                  ...initData(),
+                  ...recovered,
+                  standards: stds,
+                  employees: recovered.employees || [],
+                  grants: recovered.grants || [],
+                  thira: recovered.thira || { hazards: [], lastUpdated: '', nextDue: '' },
+                  capItems: recovered.capItems || [],
+                  activityLog: recovered.activityLog || [],
+                  journey: recovered.journey || {},
+                  incidents: recovered.incidents || [],
+                };
+                setData(loaded);
+                setCurrentDataRef(loaded);
+                saveData(loaded);
+                setResilienceBanner('Recovered data from latest resilience snapshot.');
+                alert('Recovered from local resilience snapshot.');
+              }}
+            />
           )}
           {view === 'templates' && (
             <DocTemplatesView data={data} orgName={data.orgName} />
@@ -31077,6 +31367,25 @@ function AppInner() {
             onOpenRecord={openRecordFromSearch}
             onClose={() => setSearchOpen(false)}
           />
+        )}
+        {resilienceBanner && (
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 16,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: '#ecfeff',
+              border: `1px solid ${B.tealBorder}`,
+              color: B.tealDark,
+              borderRadius: 10,
+              padding: '8px 12px',
+              fontSize: 12,
+              zIndex: 1000,
+            }}
+          >
+            {resilienceBanner}
+          </div>
         )}
       </div>
     </div>

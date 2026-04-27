@@ -1,3 +1,10 @@
+import {
+  createSecureShareServer,
+  listSecureSharesServer,
+  revokeSecureShareServer,
+  resolveSecureShareServer,
+} from './launchHardening';
+
 const SHARE_STORE_KEY = 'planrr_shared_reports_v1';
 
 function encode(str) {
@@ -114,6 +121,34 @@ export function createShareLink(data, options = {}) {
   };
 }
 
+export async function createShareLinkSecure(data, options = {}) {
+  try {
+    const report = generateShareableReport(data);
+    const serverResult = await createSecureShareServer({
+      report,
+      expiresInHours: Number(options?.expiresInHours || 168),
+      passcode: options?.passcode || '',
+    });
+    return {
+      token: serverResult.token,
+      url: serverResult.url,
+      expiresAt: serverResult.expiresAt,
+      requiresPasscode: serverResult.requiresPasscode,
+      auditId: serverResult.auditId || null,
+      storage: 'server',
+    };
+  } catch (err) {
+    const fallback = createShareLink(data, options);
+    return {
+      ...fallback,
+      storage: 'local',
+      warning:
+        err?.message ||
+        'Falling back to local-only share link storage. Configure secure-share function and database migration.',
+    };
+  }
+}
+
 export function buildShareURL(data, options = {}) {
   return createShareLink(data, options).url;
 }
@@ -132,6 +167,27 @@ export function listShareLinks() {
   }));
 }
 
+export async function listShareLinksSecure() {
+  try {
+    const items = await listSecureSharesServer();
+    return items.map((item) => ({
+      token: item.token,
+      createdAt: item.createdAt || item.created_at,
+      expiresAt: item.expiresAt || item.expires_at,
+      revoked: !!item.revoked,
+      accessCount: item.accessCount ?? item.access_count ?? 0,
+      lastAccessedAt: item.lastAccessedAt || item.last_accessed_at || null,
+      requiresPasscode: !!(item.requiresPasscode ?? item.requires_passcode),
+      org: item.org || '',
+      compliancePct: item.compliancePct ?? item.compliance_pct ?? 0,
+      storage: 'server',
+      id: item.id || null,
+    }));
+  } catch {
+    return listShareLinks().map((x) => ({ ...x, storage: 'local' }));
+  }
+}
+
 export function revokeShareLink(token) {
   const t = String(token || '').trim();
   if (!t) return false;
@@ -143,6 +199,16 @@ export function revokeShareLink(token) {
   });
   if (changed) saveStore(next);
   return changed;
+}
+
+export async function revokeShareLinkSecure(token) {
+  try {
+    const ok = await revokeSecureShareServer(token);
+    if (!ok) return false;
+    return true;
+  } catch {
+    return revokeShareLink(token);
+  }
 }
 
 export function resolveSharedReport(token, passcode) {
@@ -177,6 +243,34 @@ export function resolveSharedReport(token, passcode) {
       requiresPasscode: updated.requiresPasscode,
     },
   };
+}
+
+export async function resolveSharedReportSecure(token, passcode) {
+  try {
+    const data = await resolveSecureShareServer(token, passcode);
+    return {
+      data: data.data || data.report,
+      meta: {
+        token: data?.meta?.token || data.token,
+        expiresAt: data?.meta?.expiresAt || data.expiresAt,
+        accessCount: data?.meta?.accessCount || data.accessCount || 0,
+        lastAccessedAt: data?.meta?.lastAccessedAt || data.lastAccessedAt || null,
+        requiresPasscode: !!(data?.meta?.requiresPasscode || data.requiresPasscode),
+      },
+    };
+  } catch (err) {
+    const msg = String(err?.message || '');
+    if (msg === 'passcode_required') return { error: 'passcode_required' };
+    if (msg === 'invalid_passcode') return { error: 'invalid_passcode' };
+    if (msg === 'not_found') return { error: 'not_found' };
+    if (msg === 'revoked') return { error: 'revoked' };
+    if (msg === 'expired') return { error: 'expired' };
+    return resolveSharedReport(token, passcode);
+  }
+}
+
+export async function resolveServerSharedReport(token, passcode) {
+  return resolveSharedReportSecure(token, passcode);
 }
 
 export function parseSharedReport(encodedData) {

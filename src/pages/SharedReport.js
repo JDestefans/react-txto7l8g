@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { parseSharedReport, resolveSharedReport } from '../services/shareReport';
+import { parseSharedReport, resolveSharedReport, resolveServerSharedReport } from '../services/shareReport';
 
 const GOLD = '#c2964a';
 const TEAL = '#1BC9C4';
@@ -11,14 +11,50 @@ export default function SharedReport() {
   const legacyPayload = params.get('d') || '';
   const [passcode, setPasscode] = React.useState('');
   const [submittedPasscode, setSubmittedPasscode] = React.useState('');
+  const [serverResult, setServerResult] = React.useState(null);
+  const [serverLoading, setServerLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    async function run() {
+      if (!token) {
+        if (active) setServerResult(null);
+        return;
+      }
+      setServerLoading(true);
+      const result = await resolveServerSharedReport(token, submittedPasscode);
+      if (active) {
+        setServerResult(result);
+        setServerLoading(false);
+      }
+    }
+    run();
+    return () => {
+      active = false;
+    };
+  }, [token, submittedPasscode]);
 
   const result = React.useMemo(() => {
-    if (token) return resolveSharedReport(token, submittedPasscode);
+    if (token) {
+      if (serverResult) return serverResult;
+      if (serverLoading) return { loading: true };
+      return resolveSharedReport(token, submittedPasscode);
+    }
     const legacy = parseSharedReport(legacyPayload);
     return legacy ? { data: legacy, meta: { legacy: true } } : { error: 'not_found' };
-  }, [token, submittedPasscode, legacyPayload]);
+  }, [token, submittedPasscode, legacyPayload, serverResult, serverLoading]);
 
   const data = result?.data || null;
+
+  if (result?.loading) {
+    return (
+      <div style={{ fontFamily: 'DM Sans,sans-serif', background: '#1C1F22', minHeight: '100vh', color: '#f0f4fa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 14, color: '#94a3b8' }}>Loading shared report…</div>
+        </div>
+      </div>
+    );
+  }
 
   if (result?.error === 'passcode_required' || result?.error === 'invalid_passcode') {
     return (
