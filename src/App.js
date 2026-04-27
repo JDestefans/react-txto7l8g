@@ -2309,6 +2309,22 @@ function maybeSaveResilienceSnapshot(data, reason = 'periodic', force = false) {
   return saved;
 }
 
+function recoverFromLatestResilienceSnapshot() {
+  const latest = getMostRecentResilienceSnapshot();
+  if (!latest || !latest.data || typeof latest.data !== 'object') return null;
+  return latest.data;
+}
+
+function describeResilienceState() {
+  const snapshots = loadResilienceSnapshots();
+  const latest = snapshots[0] || null;
+  return {
+    count: snapshots.length,
+    latestAt: latest?.createdAt || null,
+    latestReason: latest?.reason || '',
+  };
+}
+
 async function saveData(d) {
   const localKey = getLocalKey();
   try {
