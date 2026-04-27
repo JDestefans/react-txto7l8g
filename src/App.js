@@ -8,10 +8,23 @@ import Founder from './pages/Founder';
 import FAQ from './pages/FAQ';
 import { STARTER_PACKS, applyStarterPack } from './data/starterPacks';
 import { downloadICal } from './services/calendar';
-import { createShareLink, listShareLinks, revokeShareLink } from './services/shareReport';
+import {
+  createShareLinkSecure,
+  listShareLinksSecure,
+  revokeShareLinkSecure,
+} from './services/shareReport';
+import {
+  sendIntegrationProbe,
+  runCalendarSync,
+  fetchAuthHealth,
+  fetchOpsReadiness,
+  syncSecurityPolicy,
+} from './services/launchHardening';
 import { buildGrantNarrativePrompt } from './services/grantHelper';
 import SAGE from './components/SAGE';
 // pdfExtract loaded dynamically to avoid Jest import.meta issues
+
+const CLIENT_STATE_SNAPSHOT_KEY = 'planrr_client_state_snapshot_v1';
 
 /* --- ERROR BOUNDARY ----------------------------------- */
 class ErrorBoundary extends Component {
@@ -77,6 +90,63 @@ const VIEW_TITLES = {
   mutualaid: 'Mutual Aid Map',
   journey: 'Accreditation Journey',
   sage: 'SAGE — AI Partner',
+};
+
+const UX_MODE_OPTIONS = [
+  { id: 'guided', label: 'Guided Mode' },
+  { id: 'power', label: 'Power Mode' },
+];
+
+const ROLE_PROFILE_OPTIONS = [
+  {
+    id: 'additional_duty',
+    label: 'Additional-duty EM',
+    helper:
+      'Best for staff who run emergency management as one part of a broader role.',
+  },
+  {
+    id: 'em_director',
+    label: 'EM Director / Manager',
+    helper: 'Best for program leads responsible for enterprise readiness outcomes.',
+  },
+  {
+    id: 'planner_analyst',
+    label: 'Planner / Analyst / Admin',
+    helper: 'Best for heavy app operators maintaining plans, evidence, and workflows.',
+  },
+];
+
+const ROLE_PROFILE_DEFAULT_WIDGETS = {
+  additional_duty: {
+    compliance: true,
+    alerts: true,
+    smartQueue: true,
+    modules: true,
+    readiness: true,
+    accredTimeline: false,
+    nims: false,
+    grantAlignment: false,
+  },
+  em_director: {
+    compliance: true,
+    alerts: true,
+    smartQueue: true,
+    modules: true,
+    readiness: false,
+    accredTimeline: true,
+    nims: true,
+    grantAlignment: true,
+  },
+  planner_analyst: {
+    compliance: true,
+    alerts: true,
+    smartQueue: true,
+    modules: true,
+    readiness: true,
+    accredTimeline: true,
+    nims: true,
+    grantAlignment: false,
+  },
 };
 
 /* --- BRAND (fixed contrast) --------------------------- */
@@ -1553,8 +1623,180 @@ function ensurePlanAccreditationDefaults(plan) {
         : 12,
     lastReviewEvidence: base.lastReviewEvidence || '',
     reviewHistory: Array.isArray(base.reviewHistory) ? base.reviewHistory : [],
+    partnerPlans: Array.isArray(base.partnerPlans) ? base.partnerPlans : [],
     coopData: normalizeCoopData(base.coopData),
   };
+}
+const UX_MODE_LABELS = {
+  guided: 'Guided Mode',
+  power: 'Power Mode',
+};
+const ROLE_PROFILE_LABELS = {
+  additional_duty: 'Additional-duty EM',
+  em_director: 'EM Director / Manager',
+  planner_analyst: 'Planner / Analyst',
+};
+function normalizePartnerPlan(raw = {}) {
+  return {
+    id: raw.id || uid(),
+    partnerId: raw.partnerId || '',
+    partnerPlanType: raw.partnerPlanType || '',
+    status: raw.status || 'draft',
+    effectiveDate: raw.effectiveDate || '',
+    nextReviewDate: raw.nextReviewDate || '',
+    owner: raw.owner || '',
+    lastReviewedBy: raw.lastReviewedBy || '',
+    assumptions: raw.assumptions || '',
+    notes: raw.notes || '',
+    docs: Array.isArray(raw.docs) ? raw.docs : [],
+    updatedAt: raw.updatedAt || Date.now(),
+  };
+}
+function normalizePartnerPlans(list = []) {
+  return Array.isArray(list)
+    ? list.map((entry) => normalizePartnerPlan(entry))
+    : [];
+}
+function applyRoleProfileDefaults(prev, roleProfile, mode) {
+  const resolvedRole = ROLE_PROFILE_DEFAULT_WIDGETS[roleProfile]
+    ? roleProfile
+    : 'additional_duty';
+  const resolvedMode = mode === 'power' ? 'power' : 'guided';
+  return {
+    ...prev,
+    roleProfile: resolvedRole,
+    uxMode: resolvedMode,
+    dashboardWidgets: {
+      ...(prev.dashboardWidgets || {}),
+      ...(ROLE_PROFILE_DEFAULT_WIDGETS[resolvedRole] || {}),
+    },
+  };
+}
+function computeDataConfidence(data) {
+  const plans = (data?.plans || []).map((p) =>
+    ensurePlanAccreditationDefaults(p)
+  );
+  const staleThreshold = Date.now() - 90 * 24 * 60 * 60 * 1000;
+  const stalePlans = plans.filter((plan) => {
+    const ts = Number(plan.addedAt || plan.updatedAt || 0);
+    return ts > 0 && ts < staleThreshold;
+  }).length;
+  const missingOwners = plans.filter((plan) => !String(plan.owner || '').trim())
+    .length;
+  const missingPlanDates = plans.filter(
+    (plan) => !String(plan.nextReview || '').trim()
+  ).length;
+  const partnerPlanIssues = plans.reduce((acc, plan) => {
+    return (
+      acc +
+      normalizePartnerPlans(plan.partnerPlans).filter(
+        (entry) =>
+          !String(entry.owner || '').trim() ||
+          !String(entry.nextReviewDate || '').trim()
+      ).length
+    );
+  }, 0);
+  const checks = [
+    {
+      key: 'owners',
+      label: 'Plans missing owner',
+      value: missingOwners,
+      module: 'plans',
+    },
+    {
+      key: 'review_dates',
+      label: 'Plans missing review date',
+      value: missingPlanDates,
+      module: 'plans',
+    },
+    {
+      key: 'partner_plan_dates',
+      label: 'Partner plans missing owner/review',
+      value: partnerPlanIssues,
+      module: 'plans',
+    },
+    {
+      key: 'stale_plans',
+      label: 'Plans stale >90 days',
+      value: stalePlans,
+      module: 'plans',
+    },
+  ];
+  const failed = checks.filter((item) => item.value > 0);
+  const score = Math.max(0, 100 - failed.length * 18);
+  return { score, checks, failed };
+}
+function buildNextBestActions({ smartQueue = [], checklist = [], confidence }) {
+  const actions = [];
+  smartQueue.slice(0, 6).forEach((item) => {
+    actions.push({
+      key: `queue-${item.label}`,
+      title: item.label,
+      detail: item.detail,
+      module: item.module,
+      urgency: item.urgency || 1,
+      source: 'Priority queue',
+      emap: item.emap || '',
+    });
+  });
+  checklist
+    .filter((item) => !item.done)
+    .slice(0, 5)
+    .forEach((item) => {
+      actions.push({
+        key: `check-${item.label}`,
+        title: item.label,
+        detail: item.note || 'Complete this readiness baseline item.',
+        module: item.module,
+        urgency: 1,
+        source: 'Readiness checklist',
+        emap: item.emapRef || '',
+      });
+    });
+  (confidence?.failed || []).slice(0, 4).forEach((item) => {
+    actions.push({
+      key: `confidence-${item.key}`,
+      title: item.label,
+      detail: `${item.value} item${item.value === 1 ? '' : 's'} need attention`,
+      module: item.module,
+      urgency: 2,
+      source: 'Data confidence',
+      emap: '',
+    });
+  });
+  const seen = new Set();
+  return actions
+    .filter((item) => {
+      if (seen.has(item.key)) return false;
+      seen.add(item.key);
+      return true;
+    })
+    .sort((a, b) => b.urgency - a.urgency)
+    .slice(0, 10);
+}
+function buildNavForMode(nav, mode = 'guided') {
+  if (mode !== 'guided') return nav;
+  const guidedHidden = new Set([
+    'package',
+    'templates',
+    'evidence',
+    'recovery',
+    'mutualaid',
+    'reports',
+    'calendar',
+    'activity',
+    'journey',
+  ]);
+  return (nav || [])
+    .map((group) => ({
+      ...group,
+      items: (group.items || []).filter(
+        (item) =>
+          !guidedHidden.has(item.id) &&
+          !(group.group === 'Compliance' && item.id === 'accreditation')
+      ),
+    }))
+    .filter((group) => (group.items || []).length > 0);
 }
 const timeAgo = (ts) => {
   if (!ts) return null;
@@ -1623,6 +1865,10 @@ function initData() {
     team: [],
     pendingApprovals: [],
     approvalsHistory: [],
+    uxMode: 'guided',
+    roleProfile: 'additional_duty',
+    sageResponseStyle: 'operational',
+    explainMode: false,
     security: {
       enforceMfa: false,
       ssoEnabled: false,
@@ -2011,11 +2257,80 @@ async function loadData() {
 }
 
 let _saveQueued = false;
+const RESILIENCE_SNAPSHOT_KEY_PREFIX = 'planrr_resilience_snapshots_';
+const MAX_RESILIENCE_SNAPSHOTS = 20;
+const RESILIENCE_SNAPSHOT_INTERVAL_MS = 30 * 60 * 1000;
+let _lastResilienceSnapshotAt = 0;
+
+function getResilienceSnapshotKey() {
+  const uid = getUserId() || 'anonymous';
+  return `${RESILIENCE_SNAPSHOT_KEY_PREFIX}${uid}`;
+}
+
+function loadResilienceSnapshots() {
+  try {
+    const raw = localStorage.getItem(getResilienceSnapshotKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveResilienceSnapshot(data, reason = 'periodic') {
+  try {
+    const entry = {
+      id: uid(),
+      createdAt: Date.now(),
+      reason,
+      data,
+    };
+    const existing = loadResilienceSnapshots();
+    const next = [entry, ...existing].slice(0, MAX_RESILIENCE_SNAPSHOTS);
+    localStorage.setItem(getResilienceSnapshotKey(), JSON.stringify(next));
+    return entry;
+  } catch {
+    return null;
+  }
+}
+
+function getMostRecentResilienceSnapshot() {
+  const snapshots = loadResilienceSnapshots();
+  return snapshots.length > 0 ? snapshots[0] : null;
+}
+
+function maybeSaveResilienceSnapshot(data, reason = 'periodic', force = false) {
+  const now = Date.now();
+  if (!force && now - _lastResilienceSnapshotAt < RESILIENCE_SNAPSHOT_INTERVAL_MS) {
+    return null;
+  }
+  const saved = saveResilienceSnapshot(data, reason);
+  if (saved) _lastResilienceSnapshotAt = now;
+  return saved;
+}
+
+function recoverFromLatestResilienceSnapshot() {
+  const latest = getMostRecentResilienceSnapshot();
+  if (!latest || !latest.data || typeof latest.data !== 'object') return null;
+  return latest.data;
+}
+
+function describeResilienceState() {
+  const snapshots = loadResilienceSnapshots();
+  const latest = snapshots[0] || null;
+  return {
+    count: snapshots.length,
+    latestAt: latest?.createdAt || null,
+    latestReason: latest?.reason || '',
+  };
+}
+
 async function saveData(d) {
   const localKey = getLocalKey();
   try {
     localStorage.setItem(localKey, JSON.stringify(d));
   } catch {}
+  maybeSaveResilienceSnapshot(d, 'autosave');
   const token = getAccessToken();
   const userId = getUserId();
   if (!token || !userId || _saveQueued) return;
@@ -2033,8 +2348,12 @@ async function saveData(d) {
         },
         body: JSON.stringify({ user_id: userId, data: d }),
       });
-      if (!r.ok) console.warn('planrr: save to cloud failed', r.status);
+      if (!r.ok) {
+        maybeSaveResilienceSnapshot(d, 'cloud_write_failed', true);
+        console.warn('planrr: save to cloud failed', r.status);
+      }
     } catch (e) {
+      maybeSaveResilienceSnapshot(d, 'cloud_write_error', true);
       console.warn('planrr: save to cloud error', e.message);
     }
   }, 2000);
@@ -8920,7 +9239,12 @@ function TrainingManager({ data, setData }) {
 /* -------------------------------------------------------
    PARTNERS (with attachments)
 ------------------------------------------------------- */
-function PartnerRegistry({ data, setData }) {
+function PartnerRegistry({
+  data,
+  setData,
+  focusPartnerId = null,
+  focusNonce = 0,
+}) {
   const [showForm, setShowForm] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [form, setForm] = useState({
@@ -8999,6 +9323,10 @@ function PartnerRegistry({ data, setData }) {
       });
     return data.partners;
   }, [data.partners, filter]);
+  useEffect(() => {
+    if (!focusPartnerId) return;
+    setSelectedId(focusPartnerId);
+  }, [focusPartnerId, focusNonce]);
   return (
     <div style={{ padding: '28px clamp(24px,3vw,48px)', maxWidth: 960 }}>
       <div
@@ -9187,16 +9515,35 @@ function PartnerRegistry({ data, setData }) {
 /* -------------------------------------------------------
    PLAN LIBRARY (with attachments)
 ------------------------------------------------------- */
-function PlanLibrary({ data, setData }) {
+function PlanLibrary({
+  data,
+  setData,
+  explainMode = false,
+  focusPlanId = null,
+  focusSection = null,
+}) {
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const currentUser = useMemo(() => getCurrentUserIdentity(), []);
   const [inviteDrafts, setInviteDrafts] = useState({});
   const [requestDrafts, setRequestDrafts] = useState({});
+  const [partnerPlanDrafts, setPartnerPlanDrafts] = useState({});
   const plans = useMemo(
     () => (data.plans || []).map((p) => ensurePlanAccreditationDefaults(p)),
     [data.plans]
   );
+  useEffect(() => {
+    if (!focusPlanId) return;
+    setExpandedId(focusPlanId);
+    if (focusSection === 'collaboration') {
+      requestAnimationFrame(() => {
+        const node = document.getElementById(`plan-collab-${focusPlanId}`);
+        if (node) {
+          node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    }
+  }, [focusPlanId, focusSection]);
   const mutatePlan = useCallback(
     (planId, mutate) => {
       setData((prev) => ({
@@ -9237,6 +9584,27 @@ function PlanLibrary({ data, setData }) {
   );
   const setRequestField = useCallback((planId, field, value) => {
     setRequestDrafts((prev) => ({
+      ...prev,
+      [planId]: { ...(prev[planId] || {}), [field]: value },
+    }));
+  }, []);
+  const getPartnerPlanDraft = useCallback(
+    (planId) =>
+      partnerPlanDrafts[planId] || {
+        partnerId: '',
+        partnerPlanType: '',
+        status: 'draft',
+        effectiveDate: '',
+        nextReviewDate: '',
+        owner: '',
+        lastReviewedBy: '',
+        assumptions: '',
+        notes: '',
+      },
+    [partnerPlanDrafts]
+  );
+  const setPartnerPlanField = useCallback((planId, field, value) => {
+    setPartnerPlanDrafts((prev) => ({
       ...prev,
       [planId]: { ...(prev[planId] || {}), [field]: value },
     }));
@@ -9409,6 +9777,61 @@ function PlanLibrary({ data, setData }) {
     }
     mutatePlan(plan.id, (target) => ({ ...target, status: nextStatus }));
   }, [mutatePlan]);
+  const addPartnerPlan = useCallback(
+    (plan) => {
+      const draft = getPartnerPlanDraft(plan.id);
+      if (!draft.partnerId || !String(draft.partnerPlanType || '').trim()) return;
+      const nextEntry = normalizePartnerPlan({
+        ...draft,
+        id: uid(),
+        updatedAt: Date.now(),
+      });
+      mutatePlan(plan.id, (target) => ({
+        ...target,
+        partnerPlans: [...normalizePartnerPlans(target.partnerPlans), nextEntry],
+      }));
+      setPartnerPlanDrafts((prev) => ({
+        ...prev,
+        [plan.id]: {
+          ...getPartnerPlanDraft(plan.id),
+          partnerId: '',
+          partnerPlanType: '',
+          status: 'draft',
+          effectiveDate: '',
+          nextReviewDate: '',
+          owner: '',
+          lastReviewedBy: '',
+          assumptions: '',
+          notes: '',
+        },
+      }));
+    },
+    [getPartnerPlanDraft, mutatePlan]
+  );
+  const updatePartnerPlan = useCallback(
+    (plan, partnerPlanId, field, value) => {
+      mutatePlan(plan.id, (target) => ({
+        ...target,
+        partnerPlans: normalizePartnerPlans(target.partnerPlans).map((entry) =>
+          entry.id === partnerPlanId
+            ? { ...entry, [field]: value, updatedAt: Date.now() }
+            : entry
+        ),
+      }));
+    },
+    [mutatePlan]
+  );
+  const removePartnerPlan = useCallback(
+    (plan, partnerPlanId) => {
+      mutatePlan(plan.id, (target) => ({
+        ...target,
+        partnerPlans: normalizePartnerPlans(target.partnerPlans).filter(
+          (entry) => entry.id !== partnerPlanId
+        ),
+      }));
+    },
+    [mutatePlan]
+  );
   const [form, setForm] = useState({
     name: '',
     type: 'EOP',
@@ -9749,6 +10172,24 @@ function PlanLibrary({ data, setData }) {
               </FSel>
             </div>
           </div>
+          {explainMode && (
+            <div
+              style={{
+                marginBottom: 10,
+                border: `1px solid ${B.tealBorder}`,
+                background: B.tealLight,
+                borderRadius: 8,
+                padding: '8px 10px',
+                fontSize: 11,
+                color: B.tealDark,
+                lineHeight: 1.5,
+              }}
+            >
+              Plain-language: Keep each plan owner and next review date current so
+              your team knows who is accountable and when the plan must be
+              refreshed.
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <Btn label="Save" onClick={save} primary />
             <Btn label="Cancel" onClick={() => setShowForm(false)} />
@@ -10679,6 +11120,420 @@ function PlanLibrary({ data, setData }) {
                         )
                       }
                     />
+                    <div
+                      id={`plan-collab-${plan.id}`}
+                      style={{
+                        marginTop: 10,
+                        border: `1px solid ${B.border}`,
+                        borderRadius: 8,
+                        background: '#fff',
+                        padding: '12px 12px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                          alignItems: 'center',
+                          marginBottom: 6,
+                        }}
+                      >
+                        <div
+                          style={{ fontSize: 12, fontWeight: 700, color: B.text }}
+                        >
+                          Partner plans (interoperability record)
+                        </div>
+                        <Tag
+                          label={`${normalizePartnerPlans(plan.partnerPlans).length} linked`}
+                          color={B.blue}
+                          bg={B.blueLight}
+                          border={B.blueBorder}
+                        />
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: B.faint,
+                          marginBottom: 10,
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        Track partner-specific plan artifacts tied to this plan,
+                        including owner, review cycle, assumptions, and supporting
+                        documents.
+                        {explainMode
+                          ? ' This captures how your plan aligns with each partner during coordination.'
+                          : ''}
+                      </div>
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr 140px',
+                          gap: 8,
+                          marginBottom: 8,
+                        }}
+                      >
+                        <div>
+                          <Label>Partner</Label>
+                          <FSel
+                            value={getPartnerPlanDraft(plan.id).partnerId || ''}
+                            onChange={(v) =>
+                              setPartnerPlanField(plan.id, 'partnerId', v)
+                            }
+                          >
+                            <option value="">Select partner...</option>
+                            {(data.partners || []).map((partner) => (
+                              <option key={partner.id} value={partner.id}>
+                                {partner.name}
+                              </option>
+                            ))}
+                          </FSel>
+                        </div>
+                        <div>
+                          <Label>Partner plan type</Label>
+                          <FInput
+                            value={
+                              getPartnerPlanDraft(plan.id).partnerPlanType || ''
+                            }
+                            onChange={(v) =>
+                              setPartnerPlanField(plan.id, 'partnerPlanType', v)
+                            }
+                            placeholder="Hospital surge annex, utility restoration SOP..."
+                          />
+                        </div>
+                        <div>
+                          <Label>Status</Label>
+                          <FSel
+                            value={getPartnerPlanDraft(plan.id).status || 'draft'}
+                            onChange={(v) =>
+                              setPartnerPlanField(plan.id, 'status', v)
+                            }
+                          >
+                            <option value="draft">Draft</option>
+                            <option value="in_review">In review</option>
+                            <option value="approved">Approved</option>
+                            <option value="expired">Expired</option>
+                          </FSel>
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr 1fr 1fr auto',
+                          gap: 8,
+                          marginBottom: 8,
+                          alignItems: 'end',
+                        }}
+                      >
+                        <div>
+                          <Label>Effective date</Label>
+                          <FInput
+                            type="date"
+                            value={
+                              getPartnerPlanDraft(plan.id).effectiveDate || ''
+                            }
+                            onChange={(v) =>
+                              setPartnerPlanField(plan.id, 'effectiveDate', v)
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Next review</Label>
+                          <FInput
+                            type="date"
+                            value={
+                              getPartnerPlanDraft(plan.id).nextReviewDate || ''
+                            }
+                            onChange={(v) =>
+                              setPartnerPlanField(plan.id, 'nextReviewDate', v)
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Owner</Label>
+                          <FInput
+                            value={getPartnerPlanDraft(plan.id).owner || ''}
+                            onChange={(v) =>
+                              setPartnerPlanField(plan.id, 'owner', v)
+                            }
+                            placeholder="Role or name"
+                          />
+                        </div>
+                        <div>
+                          <Label>Last reviewed by</Label>
+                          <FInput
+                            value={
+                              getPartnerPlanDraft(plan.id).lastReviewedBy || ''
+                            }
+                            onChange={(v) =>
+                              setPartnerPlanField(plan.id, 'lastReviewedBy', v)
+                            }
+                            placeholder="Reviewer"
+                          />
+                        </div>
+                        <Btn
+                          label="Add"
+                          onClick={() => addPartnerPlan(plan)}
+                          disabled={
+                            !String(
+                              getPartnerPlanDraft(plan.id).partnerId || ''
+                            ).trim() ||
+                            !String(
+                              getPartnerPlanDraft(plan.id).partnerPlanType || ''
+                            ).trim()
+                          }
+                          primary
+                        />
+                      </div>
+                      <div style={{ marginBottom: 8 }}>
+                        <Label>Interoperability assumptions (for new entry)</Label>
+                        <FTextarea
+                          rows={2}
+                          value={getPartnerPlanDraft(plan.id).assumptions || ''}
+                          onChange={(v) =>
+                            setPartnerPlanField(plan.id, 'assumptions', v)
+                          }
+                          placeholder="Key assumptions for communications, authority, resource sharing, and coordination timing."
+                        />
+                      </div>
+                      <div style={{ marginBottom: 8 }}>
+                        <Label>Notes (for new entry)</Label>
+                        <FTextarea
+                          rows={2}
+                          value={getPartnerPlanDraft(plan.id).notes || ''}
+                          onChange={(v) =>
+                            setPartnerPlanField(plan.id, 'notes', v)
+                          }
+                          placeholder="Partner-specific context, constraints, or operating notes."
+                        />
+                      </div>
+                      {normalizePartnerPlans(plan.partnerPlans).length === 0 ? (
+                        <div style={{ fontSize: 11, color: B.faint }}>
+                          No partner plans linked yet.
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 6,
+                          }}
+                        >
+                          {normalizePartnerPlans(plan.partnerPlans).map(
+                            (entry) => {
+                              const partner = (data.partners || []).find(
+                                (p) => p.id === entry.partnerId
+                              );
+                              return (
+                                <div
+                                  key={entry.id}
+                                  style={{
+                                    border: `1px solid ${B.border}`,
+                                    borderRadius: 7,
+                                    background: '#fafcfc',
+                                    padding: '8px 8px',
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center',
+                                      gap: 8,
+                                      marginBottom: 6,
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        fontSize: 11,
+                                        color: B.text,
+                                        fontWeight: 700,
+                                      }}
+                                    >
+                                      {partner?.name || 'Unknown partner'} ·{' '}
+                                      {entry.partnerPlanType || 'Partner plan'}
+                                    </div>
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        gap: 6,
+                                        alignItems: 'center',
+                                      }}
+                                    >
+                                      <Tag
+                                        label={entry.status || 'draft'}
+                                        color={
+                                          entry.status === 'approved'
+                                            ? B.green
+                                            : entry.status === 'expired'
+                                            ? B.red
+                                            : B.amber
+                                        }
+                                        bg={
+                                          entry.status === 'approved'
+                                            ? B.greenLight
+                                            : entry.status === 'expired'
+                                            ? B.redLight
+                                            : B.amberLight
+                                        }
+                                        border={
+                                          entry.status === 'approved'
+                                            ? B.greenBorder
+                                            : entry.status === 'expired'
+                                            ? B.redBorder
+                                            : B.amberBorder
+                                        }
+                                      />
+                                      <button
+                                        onClick={() =>
+                                          removePartnerPlan(plan, entry.id)
+                                        }
+                                        style={{
+                                          border: `1px solid ${B.border}`,
+                                          borderRadius: 6,
+                                          background: '#fff',
+                                          color: B.text,
+                                          fontSize: 11,
+                                          padding: '5px 8px',
+                                          cursor: 'pointer',
+                                        }}
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: 'grid',
+                                      gridTemplateColumns:
+                                        '1fr 1fr 1fr 1fr',
+                                      gap: 8,
+                                      marginBottom: 6,
+                                    }}
+                                  >
+                                    <div>
+                                      <Label>Owner</Label>
+                                      <FInput
+                                        value={entry.owner || ''}
+                                        onChange={(v) =>
+                                          updatePartnerPlan(
+                                            plan,
+                                            entry.id,
+                                            'owner',
+                                            v
+                                          )
+                                        }
+                                        placeholder="Owner"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label>Last reviewed by</Label>
+                                      <FInput
+                                        value={entry.lastReviewedBy || ''}
+                                        onChange={(v) =>
+                                          updatePartnerPlan(
+                                            plan,
+                                            entry.id,
+                                            'lastReviewedBy',
+                                            v
+                                          )
+                                        }
+                                        placeholder="Reviewer"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label>Effective date</Label>
+                                      <FInput
+                                        type="date"
+                                        value={entry.effectiveDate || ''}
+                                        onChange={(v) =>
+                                          updatePartnerPlan(
+                                            plan,
+                                            entry.id,
+                                            'effectiveDate',
+                                            v
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label>Next review date</Label>
+                                      <FInput
+                                        type="date"
+                                        value={entry.nextReviewDate || ''}
+                                        onChange={(v) =>
+                                          updatePartnerPlan(
+                                            plan,
+                                            entry.id,
+                                            'nextReviewDate',
+                                            v
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                  <div style={{ marginBottom: 6 }}>
+                                    <Label>Interoperability assumptions</Label>
+                                    <FTextarea
+                                      rows={2}
+                                      value={entry.assumptions || ''}
+                                      onChange={(v) =>
+                                        updatePartnerPlan(
+                                          plan,
+                                          entry.id,
+                                          'assumptions',
+                                          v
+                                        )
+                                      }
+                                      placeholder="Assumptions for interoperable operations with this partner."
+                                    />
+                                  </div>
+                                  <div style={{ marginBottom: 6 }}>
+                                    <Label>Notes</Label>
+                                    <FTextarea
+                                      rows={2}
+                                      value={entry.notes || ''}
+                                      onChange={(v) =>
+                                        updatePartnerPlan(
+                                          plan,
+                                          entry.id,
+                                          'notes',
+                                          v
+                                        )
+                                      }
+                                      placeholder="Operational notes."
+                                    />
+                                  </div>
+                                  <Attachments
+                                    docs={entry.docs || []}
+                                    compact
+                                    onAdd={(doc) =>
+                                      updatePartnerPlan(
+                                        plan,
+                                        entry.id,
+                                        'docs',
+                                        [...(entry.docs || []), doc]
+                                      )
+                                    }
+                                    onRemove={(docId) =>
+                                      updatePartnerPlan(
+                                        plan,
+                                        entry.id,
+                                        'docs',
+                                        (entry.docs || []).filter(
+                                          (doc) => doc.id !== docId
+                                        )
+                                      )
+                                    }
+                                  />
+                                </div>
+                              );
+                            }
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <div
                       style={{
                         marginTop: 10,
@@ -12513,7 +13368,17 @@ function ResourcesView({ data, setData }) {
 /* -------------------------------------------------------
    SIDEBAR
 ------------------------------------------------------- */
-function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapsed, onToggleCollapse }) {
+function Sidebar({
+  view,
+  setView,
+  data,
+  notifCount,
+  orgName,
+  onEditOrg,
+  collapsed,
+  onToggleCollapse,
+  uxMode = 'guided',
+}) {
   const sidebarCanvasRef = useRef(null);
   const sidebarAnimRef = useRef(null);
 
@@ -12624,6 +13489,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapse
       ],
     },
   ];
+  const navForMode = buildNavForMode(nav, uxMode);
   const counts = {
     training: data.training.length,
     exercises: data.exercises.length,
@@ -12842,7 +13708,7 @@ function Sidebar({ view, setView, data, notifCount, orgName, onEditOrg, collapse
         )}
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: collapsed ? '8px 4px' : '8px 0' }}>
-        {nav.map((g, gi) => (
+        {navForMode.map((g, gi) => (
           <div key={g.group || 'top'}>
             {g.group && !collapsed && (
               <div
@@ -18259,7 +19125,13 @@ function ActivityLogView({ data, setData }) {
 /* -------------------------------------------------------
    SETTINGS
 ------------------------------------------------------- */
-function SettingsView({ data, updateData }) {
+function SettingsView({
+  data,
+  updateData,
+  setView,
+  resilienceSummary = null,
+  onRecoverSnapshot = null,
+}) {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('org');
   const identity = useMemo(() => getCurrentUserIdentity(), []);
@@ -18274,6 +19146,13 @@ function SettingsView({ data, updateData }) {
   });
   const [latestShare, setLatestShare] = useState(null);
   const [syncMessage, setSyncMessage] = useState('');
+  const [shareLinks, setShareLinks] = useState([]);
+  const [launchStatus, setLaunchStatus] = useState({
+    auth: null,
+    ops: null,
+    loading: false,
+    error: '',
+  });
   const [form, setForm] = useState({
     orgName: data.orgName || '',
     jurisdiction: data.jurisdiction || '',
@@ -18310,11 +19189,20 @@ function SettingsView({ data, updateData }) {
   const [integrations, setIntegrations] = useState({
     slackWebhook: data.integrations?.slackWebhook || '',
     teamsWebhook: data.integrations?.teamsWebhook || '',
+    providerApiKey: data.integrations?.providerApiKey || '',
     calendarSyncEnabled: !!data.integrations?.calendarSyncEnabled,
     calendarProvider: data.integrations?.calendarProvider || 'google',
     calendarSyncMode: data.integrations?.calendarSyncMode || 'read_write',
     lastTestAt: data.integrations?.lastTestAt || null,
     lastSyncAt: data.integrations?.lastSyncAt || null,
+    lastDeliveryStatus: data.integrations?.lastDeliveryStatus || '',
+    lastDeliveryError: data.integrations?.lastDeliveryError || '',
+  });
+  const [roleSetup, setRoleSetup] = useState({
+    roleProfile: data.roleProfile || 'additional_duty',
+    uxMode: data.uxMode || 'guided',
+    sageResponseStyle: data.sageResponseStyle || 'operational',
+    plainLanguageEnabled: data.explainMode === true,
   });
 
   const logoRef = useRef();
@@ -18328,7 +19216,34 @@ function SettingsView({ data, updateData }) {
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
     [data.pendingApprovals]
   );
-  const shareLinks = useMemo(() => listShareLinks(), [saved, data]);
+  const refreshShareLinks = useCallback(async () => {
+    try {
+      const links = await listShareLinksSecure();
+      setShareLinks(links);
+    } catch (err) {
+      console.warn('planrr: unable to load secure share links', err?.message || err);
+      setShareLinks([]);
+    }
+  }, []);
+  useEffect(() => {
+    refreshShareLinks();
+  }, [refreshShareLinks]);
+  const refreshLaunchStatus = useCallback(async () => {
+    setLaunchStatus((prev) => ({ ...prev, loading: true, error: '' }));
+    try {
+      const [auth, ops] = await Promise.all([fetchAuthHealth(), fetchOpsReadiness()]);
+      setLaunchStatus({ auth, ops, loading: false, error: '' });
+    } catch (err) {
+      setLaunchStatus((prev) => ({
+        ...prev,
+        loading: false,
+        error: err?.message || 'Unable to load launch status.',
+      }));
+    }
+  }, []);
+  useEffect(() => {
+    refreshLaunchStatus();
+  }, [refreshLaunchStatus]);
   const mfaCoverage = useMemo(
     () => teamMembers.filter((m) => m.mfaEnabled).length,
     [teamMembers]
@@ -18539,31 +19454,46 @@ function SettingsView({ data, updateData }) {
     setSaved((p) => !p);
   }, [identity.email, updateData]);
 
-  const createSecureShare = useCallback(() => {
-    const created = createShareLink(data, {
-      expiresInHours: Number(shareForm.expiresInHours || 168),
-      passcode: shareForm.passcode || '',
-    });
-    setLatestShare(created);
-    const msg = created.requiresPasscode
-      ? 'Secure report link copied (passcode required).'
-      : 'Secure report link copied.';
-    navigator.clipboard
-      .writeText(created.url)
-      .then(() => alert(msg))
-      .catch(() => prompt('Copy this secure report link:', created.url));
-    addActivity(updateData, 'created', 'settings', 'Generated secure shared report');
-    setSaved((p) => !p);
-  }, [data, shareForm.expiresInHours, shareForm.passcode, updateData]);
+  const createSecureShare = useCallback(async () => {
+    try {
+      const created = await createShareLinkSecure(data, {
+        expiresInHours: Number(shareForm.expiresInHours || 168),
+        passcode: shareForm.passcode || '',
+      });
+      setLatestShare(created);
+      await refreshShareLinks();
+      const msg = created.requiresPasscode
+        ? 'Secure report link copied (passcode required).'
+        : 'Secure report link copied.';
+      navigator.clipboard
+        .writeText(created.url)
+        .then(() => alert(msg))
+        .catch(() => prompt('Copy this secure report link:', created.url));
+      addActivity(updateData, 'created', 'settings', 'Generated secure shared report');
+      setSaved((p) => !p);
+    } catch (err) {
+      alert(err?.message || 'Unable to create secure share link.');
+    }
+  }, [data, shareForm.expiresInHours, shareForm.passcode, updateData, refreshShareLinks]);
 
-  const revokeShare = useCallback((token) => {
-    if (!window.confirm('Revoke this shared report link?')) return;
-    const ok = revokeShareLink(token);
-    if (ok) setSaved((v) => !v);
-  }, []);
+  const revokeShare = useCallback(
+    async (token) => {
+      if (!window.confirm('Revoke this shared report link?')) return;
+      try {
+        const ok = await revokeShareLinkSecure(token);
+        if (ok) {
+          await refreshShareLinks();
+          setSaved((v) => !v);
+        }
+      } catch (err) {
+        alert(err?.message || 'Unable to revoke secure share link.');
+      }
+    },
+    [refreshShareLinks]
+  );
 
   const testIntegration = useCallback(
-    (kind) => {
+    async (kind) => {
       const url =
         kind === 'slack'
           ? String(integrations.slackWebhook || '').trim()
@@ -18572,27 +19502,63 @@ function SettingsView({ data, updateData }) {
         alert('Add a valid webhook URL first.');
         return;
       }
-      setIntegrations((p) => ({ ...p, lastTestAt: Date.now() }));
-      setSyncMessage(
-        `${kind === 'slack' ? 'Slack' : 'Teams'} connector validated locally.`
-      );
-      addActivity(
-        updateData,
-        'updated',
-        'settings',
-        `Validated ${kind === 'slack' ? 'Slack' : 'Teams'} integration`
-      );
-      setSaved((p) => !p);
+      try {
+        const result = await sendIntegrationProbe(
+          kind,
+          url,
+          `${kind === 'slack' ? 'Slack' : 'Teams'} connector validation from planrr settings.`
+        );
+        setIntegrations((p) => ({
+          ...p,
+          lastTestAt: Date.now(),
+          lastDeliveryStatus: result?.status || 'ok',
+          lastDeliveryError: '',
+        }));
+        setSyncMessage(
+          `${kind === 'slack' ? 'Slack' : 'Teams'} connector verified via server dispatch.`
+        );
+        addActivity(
+          updateData,
+          'updated',
+          'settings',
+          `Validated ${kind === 'slack' ? 'Slack' : 'Teams'} integration`
+        );
+        setSaved((p) => !p);
+      } catch (err) {
+        setIntegrations((p) => ({
+          ...p,
+          lastTestAt: Date.now(),
+          lastDeliveryStatus: 'error',
+          lastDeliveryError: err?.message || 'Delivery probe failed',
+        }));
+        setSyncMessage(err?.message || 'Connector validation failed.');
+      }
     },
     [integrations.slackWebhook, integrations.teamsWebhook, updateData]
   );
 
-  const syncCalendarNow = useCallback(() => {
-    setIntegrations((p) => ({ ...p, lastSyncAt: Date.now() }));
-    setSyncMessage('Calendar sync completed successfully.');
-    addActivity(updateData, 'updated', 'settings', 'Ran calendar sync');
-    setSaved((p) => !p);
-  }, [updateData]);
+  const syncCalendarNow = useCallback(async () => {
+    try {
+      const result = await runCalendarSync({
+        provider: integrations.calendarProvider,
+        mode: integrations.calendarSyncMode,
+        events: (data.calendar || []).slice(0, 200).map((e) => ({
+          id: e.id,
+          title: e.title || e.event || 'Planrr event',
+          start: e.start || e.date || null,
+          end: e.end || null,
+        })),
+      });
+      setIntegrations((p) => ({ ...p, lastSyncAt: Date.now() }));
+      setSyncMessage(
+        `Calendar sync completed successfully (${result.syncedEvents || 0} records).`
+      );
+      addActivity(updateData, 'updated', 'settings', 'Ran calendar sync');
+      setSaved((p) => !p);
+    } catch (err) {
+      setSyncMessage(err?.message || 'Calendar sync failed.');
+    }
+  }, [updateData, integrations.calendarProvider, integrations.calendarSyncMode, data.calendar]);
 
   const assignQueueItem = useCallback(
     (itemKey, assignee) => {
@@ -18696,6 +19662,7 @@ function SettingsView({ data, updateData }) {
 
   const tabs = [
     { id: 'org', label: 'Organization' },
+    { id: 'experience', label: 'Experience' },
     { id: 'collab', label: 'Collaboration' },
     { id: 'security', label: 'Security' },
     { id: 'integrations', label: 'Integrations' },
@@ -18703,12 +19670,31 @@ function SettingsView({ data, updateData }) {
     { id: 'export', label: 'Export Preview' },
     { id: 'system', label: 'System' },
   ];
+  const applyRoleSetup = useCallback(() => {
+    updateData((prev) => {
+      const next = applyRoleProfileDefaults(
+        prev,
+        roleSetup.roleProfile,
+        roleSetup.uxMode
+      );
+      return {
+        ...next,
+        sageResponseStyle:
+          roleSetup.sageResponseStyle === 'training_explain'
+            ? 'training_explain'
+            : 'operational',
+        explainMode: roleSetup.plainLanguageEnabled === true,
+      };
+    });
+    setSaved((p) => !p);
+  }, [updateData, roleSetup]);
+
   const securityImplementationStatus =
-    'Policy controls are active in-app. Full IdP-backed SSO/SAML challenge enforcement should be configured through your production identity provider and backend auth policy.';
+    'Policy controls are active in-app with authenticated policy checks. Full IdP-backed SSO/SAML challenge enforcement still requires production identity provider rollout.';
   const integrationImplementationStatus =
-    'Connectors are configured in-app with local validation and manual sync triggers. Production webhook delivery and provider API synchronization should be enabled in deployment.';
+    'Connectors now execute authenticated server-side webhook and calendar sync checks. Production provider credentials and API scopes should be finalized in deployment.';
   const sharingImplementationStatus =
-    'Secure share links are currently managed in this browser-local token store. Production rollout should use server-side token storage and cryptographic passcode hashing.';
+    'Secure share links now use server-side token storage with hashed passcodes. Legacy browser-local links remain readable for backwards compatibility.';
 
   // Live PDF preview data
   const previewAccent = brand.accentColor || B.teal;
@@ -18901,6 +19887,104 @@ function SettingsView({ data, updateData }) {
                   placeholder="em@agency.gov"
                 />
               </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'experience' && (
+        <div>
+          <Card style={{ marginBottom: 14 }}>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+                color: B.text,
+                marginBottom: 8,
+              }}
+            >
+              Experience profile and product mode
+            </div>
+            <div style={{ fontSize: 12, color: B.faint, marginBottom: 14, lineHeight: 1.6 }}>
+              Tune the interface for your role and familiarity. Guided mode reduces complexity while Power mode exposes all modules.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <div>
+                <Label>Role profile</Label>
+                <FSel
+                  value={roleSetup.roleProfile}
+                  onChange={(v) => setRoleSetup((prev) => ({ ...prev, roleProfile: v }))}
+                >
+                  {ROLE_PROFILE_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </FSel>
+                <div style={{ fontSize: 11, color: B.faint, marginTop: 4 }}>
+                  {(ROLE_PROFILE_OPTIONS.find((opt) => opt.id === roleSetup.roleProfile) || ROLE_PROFILE_OPTIONS[0]).helper}
+                </div>
+              </div>
+              <div>
+                <Label>UI mode</Label>
+                <FSel
+                  value={roleSetup.uxMode}
+                  onChange={(v) => setRoleSetup((prev) => ({ ...prev, uxMode: v }))}
+                >
+                  {UX_MODE_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </FSel>
+                <div style={{ fontSize: 11, color: B.faint, marginTop: 4 }}>
+                  Guided mode hides advanced modules and keeps the most common workflows up front.
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <div>
+                <Label>SAGE response style</Label>
+                <FSel
+                  value={roleSetup.sageResponseStyle}
+                  onChange={(v) =>
+                    setRoleSetup((prev) => ({ ...prev, sageResponseStyle: v }))
+                  }
+                >
+                  <option value="operational">Operational (concise)</option>
+                  <option value="training_explain">Training / Explain</option>
+                </FSel>
+              </div>
+              <div>
+                <Label>Plain-language support</Label>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    color: B.text,
+                    marginTop: 8,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={roleSetup.plainLanguageEnabled !== false}
+                    onChange={(e) =>
+                      setRoleSetup((prev) => ({
+                        ...prev,
+                        plainLanguageEnabled: e.target.checked,
+                      }))
+                    }
+                  />
+                  Show plain-language explainers in complex modules
+                </label>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Btn label="Apply Experience Profile" onClick={applyRoleSetup} primary />
+              <Btn label="Open Dashboard" onClick={() => setView && setView('dashboard')} />
             </div>
           </Card>
         </div>
@@ -19161,6 +20245,28 @@ function SettingsView({ data, updateData }) {
             <div style={{ marginTop: 8, fontSize: 11, color: B.faint, lineHeight: 1.6 }}>
               Implementation status: {securityImplementationStatus}
             </div>
+            <div style={{ marginTop: 10, border: `1px solid ${B.border}`, borderRadius: 10, padding: '10px 12px', background: '#fafcfc' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: B.text, marginBottom: 4 }}>
+                Launch auth readiness
+              </div>
+              {launchStatus.loading ? (
+                <div style={{ fontSize: 11, color: B.faint }}>Checking auth health...</div>
+              ) : launchStatus.auth ? (
+                <div style={{ fontSize: 11, color: B.muted, lineHeight: 1.6 }}>
+                  <div>Invite sender configured: {launchStatus.auth?.checks?.fromConfigured ? 'Yes' : 'No'}</div>
+                  <div>Invite delivery key configured: {launchStatus.auth?.checks?.resendConfigured ? 'Yes' : 'No'}</div>
+                  <div>Service role configured: {launchStatus.auth?.checks?.serviceRoleConfigured ? 'Yes' : 'No'}</div>
+                  <div>Enterprise SSO env configured: {launchStatus.auth?.checks?.ssoConfigured ? 'Yes' : 'No'}</div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 11, color: B.faint }}>Auth health unavailable.</div>
+              )}
+              {launchStatus.error && (
+                <div style={{ marginTop: 6, fontSize: 11, color: B.red }}>
+                  {launchStatus.error}
+                </div>
+              )}
+            </div>
           </Card>
         </div>
       )}
@@ -19258,6 +20364,23 @@ function SettingsView({ data, updateData }) {
             )}
             <div style={{ marginTop: 8, fontSize: 11, color: B.faint, lineHeight: 1.6 }}>
               Implementation status: {integrationImplementationStatus}
+            </div>
+            <div style={{ marginTop: 10, border: `1px solid ${B.border}`, borderRadius: 10, padding: '10px 12px', background: '#fafcfc' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: B.text, marginBottom: 4 }}>
+                Launch integration readiness
+              </div>
+              {launchStatus.loading ? (
+                <div style={{ fontSize: 11, color: B.faint }}>Checking integration readiness...</div>
+              ) : launchStatus.ops ? (
+                <div style={{ fontSize: 11, color: B.muted, lineHeight: 1.6 }}>
+                  <div>Dispatch function: {launchStatus.ops?.checks?.dispatchFunction ? 'Configured' : 'Missing'}</div>
+                  <div>Google calendar secrets: {launchStatus.ops?.checks?.googleCalendar ? 'Configured' : 'Missing'}</div>
+                  <div>Outlook calendar secrets: {launchStatus.ops?.checks?.outlookCalendar ? 'Configured' : 'Missing'}</div>
+                  <div>Share migration applied: {launchStatus.ops?.checks?.shareTablesReady ? 'Ready' : 'Not detected'}</div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 11, color: B.faint }}>Integration readiness unavailable.</div>
+              )}
             </div>
           </Card>
         </div>
@@ -19968,7 +21091,7 @@ function SettingsView({ data, updateData }) {
                 { l: 'Version', v: 'PLANRR v2.0' },
                 { l: 'EMAP Standard', v: 'EMS 5-2022' },
                 { l: 'Standards Loaded', v: '73' },
-                { l: 'Data Location', v: 'Encrypted local + tokenized share links' },
+                { l: 'Data Location', v: 'Encrypted local + server tokenized share links' },
               ].map((s) => (
                 <div
                   key={s.l}
@@ -19999,7 +21122,7 @@ function SettingsView({ data, updateData }) {
               }}
             >
               Program data persists in-browser with secure, revocable shared report
-              links. Enable collaboration controls, MFA policy, SSO provider
+              links backed by server-side token storage. Enable collaboration controls, MFA policy, SSO provider
               settings, and integrations from the tabs above.
             </div>
           </Card>
@@ -20177,6 +21300,7 @@ function SettingsView({ data, updateData }) {
                         </div>
                         <div style={{ color: B.faint }}>
                           Expires {fmtDate(l.expiresAt)} · Accesses {l.accessCount}
+                          {l.storage === 'local' ? ' · Local fallback' : ' · Server'}
                           {l.revoked ? ' · Revoked' : ''}
                         </div>
                       </div>
@@ -20196,6 +21320,37 @@ function SettingsView({ data, updateData }) {
             <div style={{ marginTop: 8, fontSize: 11, color: B.faint, lineHeight: 1.6 }}>
               Implementation status: {sharingImplementationStatus}
             </div>
+            {resilienceSummary && (
+              <div
+                style={{
+                  marginTop: 8,
+                  border: `1px solid ${B.border}`,
+                  borderRadius: 8,
+                  padding: '8px 10px',
+                  fontSize: 11,
+                  color: B.muted,
+                  background: '#fafcfc',
+                  lineHeight: 1.6,
+                }}
+              >
+                <div style={{ fontWeight: 700, color: B.text, marginBottom: 4 }}>
+                  Data resilience
+                </div>
+                <div>
+                  Local snapshots: {resilienceSummary.count}
+                  {resilienceSummary.latestAt
+                    ? ` · Latest ${fmtDate(resilienceSummary.latestAt)} (${resilienceSummary.latestReason || 'periodic'})`
+                    : ' · No snapshot yet'}
+                </div>
+                <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <Btn
+                    label="Recover latest snapshot"
+                    small
+                    onClick={() => onRecoverSnapshot && onRecoverSnapshot()}
+                  />
+                </div>
+              </div>
+            )}
             {/* Starter Packs */}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${B.border}` }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: B.text, marginBottom: 10 }}>
@@ -20283,7 +21438,14 @@ const DASHBOARD_WIDGETS = {
   grantAlignment: { label: 'Grant-EMAP Alignment', default: false },
 };
 
-function Dashboard({ data, setView, orgName, updateData }) {
+function Dashboard({
+  data,
+  setView,
+  orgName,
+  updateData,
+  uxMode = 'guided',
+  roleProfile = 'additional_duty',
+}) {
   const widgets = data.dashboardWidgets || Object.fromEntries(Object.entries(DASHBOARD_WIDGETS).map(([k, v]) => [k, v.default]));
   const showWidget = (id) => widgets[id] !== false;
   const [showWidgetSettings, setShowWidgetSettings] = useState(false);
@@ -20622,6 +21784,11 @@ function Dashboard({ data, setView, orgName, updateData }) {
   ];
   const checkDone = checklist.filter((c) => c.done).length;
   const checkPct = Math.round((checkDone / checklist.length) * 100);
+  const confidence = useMemo(() => computeDataConfidence(data), [data]);
+  const nextBestActions = useMemo(
+    () => buildNextBestActions({ smartQueue, checklist, confidence }),
+    [smartQueue, checklist, confidence]
+  );
 
   const modules = [
     {
@@ -21099,6 +22266,144 @@ function Dashboard({ data, setView, orgName, updateData }) {
           </div>
         </Card>}
       </div>}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1.35fr 1fr',
+          gap: 14,
+          marginBottom: 16,
+        }}
+      >
+        <Card style={{ padding: '16px 18px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 10,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: B.muted,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+              }}
+            >
+              Next best actions
+            </div>
+            <Tag
+              label={`${nextBestActions.length} queued`}
+              color={nextBestActions.length > 0 ? B.amber : B.green}
+              bg={nextBestActions.length > 0 ? B.amberLight : B.greenLight}
+              border={nextBestActions.length > 0 ? B.amberBorder : B.greenBorder}
+            />
+          </div>
+          {nextBestActions.length === 0 ? (
+            <div style={{ fontSize: 12, color: B.faint }}>
+              No immediate actions. Continue regular readiness maintenance.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                maxHeight: 210,
+                overflowY: 'auto',
+              }}
+            >
+              {nextBestActions.map((item) => (
+                <div
+                  key={item.key}
+                  onClick={() => setView(item.module)}
+                  style={{
+                    border: `1px solid ${B.border}`,
+                    borderRadius: 7,
+                    padding: '8px 10px',
+                    background: '#fafcfc',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      alignItems: 'center',
+                      marginBottom: 3,
+                    }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 700, color: B.text }}>
+                      {item.title}
+                    </div>
+                    <span style={{ fontSize: 10, color: B.faint }}>
+                      {item.source}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: B.faint, lineHeight: 1.45 }}>
+                    {item.detail}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+        <Card style={{ padding: '16px 18px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 10,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: B.muted,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+              }}
+            >
+              Data confidence
+            </div>
+            <Tag
+              label={`${confidence.score}%`}
+              color={confidence.score >= 80 ? B.green : confidence.score >= 60 ? B.amber : B.red}
+              bg={confidence.score >= 80 ? B.greenLight : confidence.score >= 60 ? B.amberLight : B.redLight}
+              border={confidence.score >= 80 ? B.greenBorder : confidence.score >= 60 ? B.amberBorder : B.redBorder}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(confidence.checks || []).map((check) => (
+              <div
+                key={check.key}
+                onClick={() => setView(check.module)}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  padding: '7px 8px',
+                  borderRadius: 6,
+                  border: `1px solid ${check.value > 0 ? B.amberBorder : B.greenBorder}`,
+                  background: check.value > 0 ? B.amberLight : B.greenLight,
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ fontSize: 11, color: B.text }}>{check.label}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: check.value > 0 ? B.amber : B.green }}>
+                  {check.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
 
       {/* Next Up Smart Queue + Time-to-Accreditation + FEMA/NIMS Badge */}
       {(showWidget('smartQueue') || showWidget('accredTimeline') || showWidget('nims')) && <div
@@ -22614,7 +23919,7 @@ function BulkIntake({ data, updateData }) {
 /* -------------------------------------------------------
    GLOBAL SEARCH
 ------------------------------------------------------- */
-function GlobalSearch({ data, setView, onClose }) {
+function GlobalSearch({ data, setView, onClose, onOpenRecord }) {
   const [query, setQuery] = useState('');
   const inputRef = useRef();
   useEffect(() => {
@@ -22927,31 +24232,38 @@ function GlobalSearch({ data, setView, onClose }) {
                     {typeLabels[type] || type}
                   </div>
                   {items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        setView(item.module);
-                        onClose();
-                      }}
-                      style={{
-                        display: 'flex',
-                        gap: 10,
-                        alignItems: 'center',
-                        width: '100%',
-                        padding: '8px 16px',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        fontFamily: "'DM Sans',sans-serif",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = B.tealLight)
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = 'none')
-                      }
-                    >
+                    <div key={item.id}>
+                      <button
+                        onClick={() => {
+                          if (
+                            onOpenRecord &&
+                            (item.type === 'plan' || item.type === 'partner')
+                          ) {
+                            onOpenRecord(item.module, item.id);
+                          } else {
+                            setView(item.module);
+                          }
+                          onClose();
+                        }}
+                        style={{
+                          display: 'flex',
+                          gap: 10,
+                          alignItems: 'center',
+                          width: '100%',
+                          padding: '8px 16px',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          fontFamily: "'DM Sans',sans-serif",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = B.tealLight)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = 'none')
+                        }
+                      >
                       <span
                         style={{
                           width: 26,
@@ -23017,8 +24329,68 @@ function GlobalSearch({ data, setView, onClose }) {
                           {item.sub}
                         </div>
                       </div>
-                      <span style={{ fontSize: 11, color: B.border }}>-</span>
-                    </button>
+                        <span style={{ fontSize: 11, color: B.border }}>-</span>
+                      </button>
+                      {(item.type === 'plan' || item.type === 'partner') && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 6,
+                            padding: '0 16px 8px 52px',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <button
+                            onClick={() => {
+                              if (onOpenRecord) {
+                                onOpenRecord(item.module, item.id);
+                              } else {
+                                setView(item.module);
+                              }
+                              onClose();
+                            }}
+                            style={{
+                              border: `1px solid ${B.border}`,
+                              borderRadius: 999,
+                              padding: '2px 8px',
+                              fontSize: 10,
+                              color: B.muted,
+                              background: '#fff',
+                              cursor: 'pointer',
+                              fontFamily: "'DM Sans',sans-serif",
+                            }}
+                          >
+                            Open record
+                          </button>
+                          {item.type === 'plan' && (
+                            <button
+                              onClick={() => {
+                                if (onOpenRecord) {
+                                  onOpenRecord(item.module, item.id, {
+                                    section: 'collaboration',
+                                  });
+                                } else {
+                                  setView(item.module);
+                                }
+                                onClose();
+                              }}
+                              style={{
+                                border: `1px solid ${B.tealBorder}`,
+                                borderRadius: 999,
+                                padding: '2px 8px',
+                                fontSize: 10,
+                                color: B.tealDark,
+                                background: B.tealLight,
+                                cursor: 'pointer',
+                                fontFamily: "'DM Sans',sans-serif",
+                              }}
+                            >
+                              Open collaboration
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               ))}
@@ -27488,8 +28860,8 @@ function AmbientNodeBackground({ dark = true, density = 3600, maxLink = 96 }) {
 
 
 /* AUTH */
-var SB_URL = process.env.REACT_APP_SUPABASE_URL || 'https://ltnbvwnhtsaebyslbhil.supabase.co';
-var SB_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY ||
+export var SB_URL = process.env.REACT_APP_SUPABASE_URL || 'https://ltnbvwnhtsaebyslbhil.supabase.co';
+export var SB_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0bmJ2d25odHNhZWJ5c2xiaGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMTk0NDYsImV4cCI6MjA4OTU5NTQ0Nn0.VrfVyQPiWzVo7VpQJtRyKQgNBtoq3Du-uGCAGsH815c';
 async function parseAuthResponse(r, fallbackMessage) {
   let d = {};
@@ -27903,9 +29275,11 @@ function AuthScreen({ onAuth, initialMode, onClose }) {
   );
 }
 
-function FirstRunWelcome({ onDone, setView }) {
+function FirstRunWelcome({ onDone, setView, onCompleteProfile }) {
   const [step, setStep] = useState(0);
   const [path, setPath] = useState(null);
+  const [roleProfile, setRoleProfile] = useState('additional_duty');
+  const [mode, setMode] = useState('guided');
   const totalSteps = 5;
   const pct = Math.round((step / totalSteps) * 100);
 
@@ -28096,6 +29470,64 @@ function FirstRunWelcome({ onDone, setView }) {
                     want to organize them and track EMAP compliance.
                   </div>
                 </button>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 10,
+                  marginBottom: 12,
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: '#64748b',
+                      marginBottom: 5,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Role profile
+                  </div>
+                  <FSel value={roleProfile} onChange={setRoleProfile}>
+                    {ROLE_PROFILE_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </FSel>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: '#64748b',
+                      marginBottom: 5,
+                      fontWeight: 600,
+                    }}
+                  >
+                    UI mode
+                  </div>
+                  <FSel value={mode} onChange={setMode}>
+                    {UX_MODE_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </FSel>
+                </div>
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: '#94a3b8',
+                  lineHeight: 1.6,
+                  marginBottom: 4,
+                }}
+              >
+                {(ROLE_PROFILE_OPTIONS.find((opt) => opt.id === roleProfile) ||
+                  ROLE_PROFILE_OPTIONS[0]).helper}
               </div>
             </>
           )}
@@ -28533,6 +29965,9 @@ function FirstRunWelcome({ onDone, setView }) {
               {step >= 4 && (
                 <button
                   onClick={() => {
+                    if (onCompleteProfile) {
+                      onCompleteProfile({ roleProfile, uxMode: mode });
+                    }
                     setView(path === 'new' ? 'settings' : 'intake');
                     onDone();
                   }}
@@ -28871,7 +30306,7 @@ function FeedbackModal() {
   );
 }
 
-function SagePageView({ data, orgName }) {
+function SagePageView({ data, orgName, responseStyle = 'operational' }) {
   const overall = useMemo(() => {
     const c = { compliant:0, in_progress:0, needs_review:0, not_started:0 };
     ALL_STANDARDS.forEach(s => c[data.standards?.[s.id]?.status || 'not_started']++);
@@ -28879,10 +30314,16 @@ function SagePageView({ data, orgName }) {
     return { ...c, total, pct: Math.round((c.compliant / total) * 100) };
   }, [data.standards]);
 
-  const [msgs, setMsgs] = useState([{
-    role: 'assistant',
-    content: `Hi — I'm SAGE, your planrr.app AI program partner.\n\nI have full context on your program: ${overall.compliant}/${overall.total} EMAP standards compliant (${overall.pct}%), ${(data.training||[]).length} training records, ${(data.exercises||[]).length} exercises, ${(data.partners||[]).length} partner agreements, ${(data.employees||[]).length} personnel, ${(data.grants||[]).filter(g=>g.status==='active').length} active grants, and ${(data.thira?.hazards||[]).length} hazards profiled.\n\nI don't answer generic EM questions. I answer yours — specific to this program, this jurisdiction, this moment. What do you need?`,
-  }]);
+  const initialMessage =
+    responseStyle === 'training_explain'
+      ? `Hi — I'm SAGE, your planrr.app AI program partner.\n\nI have full context on your program: ${overall.compliant}/${overall.total} EMAP standards compliant (${overall.pct}%), ${(data.training||[]).length} training records, ${(data.exercises||[]).length} exercises, ${(data.partners||[]).length} partner agreements, ${(data.employees||[]).length} personnel, ${(data.grants||[]).filter(g=>g.status==='active').length} active grants, and ${(data.thira?.hazards||[]).length} hazards profiled.\n\nTraining / Explain mode is on: I can break down EMAP language, explain why each recommendation matters, and include plain-language steps.\n\nWhat are you working on right now?`
+      : `Hi — I'm SAGE, your planrr.app AI program partner.\n\nI have full context on your program: ${overall.compliant}/${overall.total} EMAP standards compliant (${overall.pct}%), ${(data.training||[]).length} training records, ${(data.exercises||[]).length} exercises, ${(data.partners||[]).length} partner agreements, ${(data.employees||[]).length} personnel, ${(data.grants||[]).filter(g=>g.status==='active').length} active grants, and ${(data.thira?.hazards||[]).length} hazards profiled.\n\nI don't answer generic EM questions. I answer yours — specific to this program, this jurisdiction, this moment. What do you need?`;
+  const [msgs, setMsgs] = useState([
+    {
+      role: 'assistant',
+      content: initialMessage,
+    },
+  ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const endRef = useRef();
@@ -28910,8 +30351,12 @@ function SagePageView({ data, orgName }) {
     try {
       let r = '';
       setMsgs(p => [...p, { role: 'assistant', content: '' }]);
+      const styleInstruction =
+        responseStyle === 'training_explain'
+          ? '\n\nRESPONSE STYLE: Use Training/Explain mode. Define acronyms in plain language, include short why-it-matters context, and provide step-by-step practical guidance.'
+          : '\n\nRESPONSE STYLE: Use Operational mode. Keep answers concise, actionable, and focused on immediate execution decisions.';
       await callAI(
-        getSYS(),
+        getSYS() + styleInstruction,
         hist.map(m => `${m.role === 'user' ? 'User' : 'SAGE'}: ${m.content}`).join('\n') + '\nUser: ' + msg,
         (chunk) => {
           r += chunk;
@@ -29045,6 +30490,7 @@ function AppInner() {
   const [subStatus, setSubStatus] = useState(null); // null=loading, 'active'|'trialing'|'none'
   const [authMode, setAuthMode] = useState(null); // null | "login" | "signup"
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchIntent, setSearchIntent] = useState(null);
   const [authed, setAuthed] = useState(() => {
     const status = isLoggedIn();
     return status === true || status === 'needs_refresh';
@@ -29055,6 +30501,10 @@ function AppInner() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem('planrr_sidebar_collapsed') === '1'; } catch { return false; }
   });
+  const uxMode = data?.uxMode === 'power' ? 'power' : 'guided';
+  const roleProfile = data?.roleProfile || 'additional_duty';
+  const sageResponseStyle = data?.sageResponseStyle || 'operational';
+  const explainMode = !!data?.explainMode;
   const toggleCollapse = () => {
     setSidebarCollapsed(p => {
       const next = !p;
@@ -29062,8 +30512,23 @@ function AppInner() {
       return next;
     });
   };
+  const activeSearchIntent =
+    searchIntent && searchIntent.view === view ? searchIntent : null;
+  const openRecordFromSearch = useCallback(
+    (targetView, id, options = {}) => {
+      setView(targetView);
+      setSearchIntent({
+        view: targetView,
+        id,
+        section: options.section || null,
+        ts: Date.now(),
+      });
+    },
+    [setView]
+  );
   const saveTimer = useRef(null);
   const refreshTimer = useRef(null);
+  const [resilienceBanner, setResilienceBanner] = useState('');
 
   useEffect(() => {
     if (!authed) return;
@@ -29091,6 +30556,17 @@ function AppInner() {
     init();
     return () => clearTimeout(refreshTimer.current);
   }, [authed]);
+  useEffect(() => {
+    if (!authed || data) return;
+    const snapshot = getMostRecentResilienceSnapshot();
+    if (!snapshot) return;
+    const ageHours = Math.round(
+      Math.max(0, Date.now() - Number(snapshot.createdAt || Date.now())) / (60 * 60 * 1000)
+    );
+    setResilienceBanner(
+      `Resilience snapshot available (${snapshot.reason || 'autosave'}, ${ageHours}h old).`
+    );
+  }, [authed, data]);
 
   useEffect(() => {
     if (!authed) {
@@ -29155,8 +30631,13 @@ function AppInner() {
           journey: d.journey || {},
           incidents: d.incidents || [],
         };
+        loaded.uxMode = d.uxMode === 'power' ? 'power' : 'guided';
+        loaded.roleProfile = d.roleProfile || 'additional_duty';
+        loaded.sageResponseStyle = d.sageResponseStyle || 'operational';
+        loaded.explainMode = !!d.explainMode;
         const synced = syncStandardsFromOps(loaded);
         if (synced) loaded.standards = synced;
+        maybeSaveResilienceSnapshot(loaded, 'load_success', true);
         setData(loaded);
         setCurrentDataRef(loaded);
         if (!d.orgName) setOnboarding(true);
@@ -29166,7 +30647,9 @@ function AppInner() {
         ALL_STANDARDS.forEach((s) => {
           stds[s.id] = initRecord();
         });
-        setData({ ...initData(), standards: stds });
+        const seeded = { ...initData(), standards: stds };
+        maybeSaveResilienceSnapshot(seeded, 'init_seed', true);
+        setData(seeded);
         setOnboarding(true);
       }
       setLoaded(true);
@@ -29231,10 +30714,15 @@ function AppInner() {
       state,
       standards: stds,
     };
-    setData(d);
+    const seeded = applyRoleProfileDefaults(
+      d,
+      d.roleProfile || 'additional_duty',
+      d.uxMode || 'guided'
+    );
+    setData(seeded);
     setOnboarding(false);
     setFirstRun(true);
-    saveData(d);
+    saveData(seeded);
   }, []);
   const recentAccount = isRecentlyCreatedAccount();
   const hasLegacyAccountData = !!(
@@ -29257,6 +30745,13 @@ function AppInner() {
       navigate('/app/sage', { replace: true });
     }
   }, [pathView, navigate]);
+  useEffect(() => {
+    if (!authed || !loaded || !data) return;
+    const interval = setInterval(() => {
+      maybeSaveResilienceSnapshot(data, 'heartbeat');
+    }, RESILIENCE_SNAPSHOT_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [authed, loaded, data]);
   if (!authed)
     return (
       <>
@@ -29435,6 +30930,7 @@ function AppInner() {
           data={data}
           notifCount={notifications.length}
           orgName={data.orgName}
+          uxMode={uxMode}
           collapsed={sidebarCollapsed}
           onToggleCollapse={toggleCollapse}
           onEditOrg={() => {
@@ -29739,7 +31235,14 @@ function AppInner() {
             />
           )}
           {view === 'dashboard' && (
-            <Dashboard data={data} setView={setView} orgName={data.orgName} updateData={updateData} />
+            <Dashboard
+              data={data}
+              setView={setView}
+              orgName={data.orgName}
+              updateData={updateData}
+              uxMode={uxMode}
+              roleProfile={roleProfile}
+            />
           )}
           {view === 'accreditation' && (
             <AccreditationView data={data} updateData={updateData} />
@@ -29757,9 +31260,30 @@ function AppInner() {
             <ExerciseManager data={data} setData={updateData} />
           )}
           {view === 'partners' && (
-            <PartnerRegistry data={data} setData={updateData} />
+            <PartnerRegistry
+              data={data}
+              setData={updateData}
+              focusPartnerId={
+                view === 'partners' && activeSearchIntent?.id
+                  ? activeSearchIntent.id
+                  : null
+              }
+              focusNonce={activeSearchIntent?.ts || 0}
+            />
           )}
-          {view === 'plans' && <PlanLibrary data={data} setData={updateData} />}
+          {view === 'plans' && (
+            <PlanLibrary
+              data={data}
+              setData={updateData}
+              explainMode={explainMode}
+              focusPlanId={
+                view === 'plans' && activeSearchIntent?.id
+                  ? activeSearchIntent.id
+                  : null
+              }
+              focusSection={activeSearchIntent?.section || null}
+            />
+          )}
           {view === 'resources' && (
             <ResourcesView data={data} setData={updateData} />
           )}
@@ -29771,7 +31295,11 @@ function AppInner() {
             <ReportsView data={data} orgName={data.orgName} />
           )}
           {view === 'sage' && (
-            <SagePageView data={data} orgName={data.orgName} />
+            <SagePageView
+              data={data}
+              orgName={data.orgName}
+              responseStyle={sageResponseStyle}
+            />
           )}
           {view === 'grants' && (
             <GrantTracker data={data} setData={updateData} />
@@ -29782,7 +31310,40 @@ function AppInner() {
             <ActivityLogView data={data} setData={updateData} />
           )}
           {view === 'settings' && (
-            <SettingsView data={data} updateData={updateData} />
+            <SettingsView
+              data={data}
+              updateData={updateData}
+              setView={setView}
+              resilienceSummary={describeResilienceState()}
+              onRecoverSnapshot={() => {
+                const recovered = recoverFromLatestResilienceSnapshot();
+                if (!recovered) {
+                  alert('No resilience snapshot available to recover.');
+                  return;
+                }
+                const stds = {};
+                ALL_STANDARDS.forEach((s) => {
+                  stds[s.id] = recovered.standards?.[s.id] || initRecord();
+                });
+                const loaded = {
+                  ...initData(),
+                  ...recovered,
+                  standards: stds,
+                  employees: recovered.employees || [],
+                  grants: recovered.grants || [],
+                  thira: recovered.thira || { hazards: [], lastUpdated: '', nextDue: '' },
+                  capItems: recovered.capItems || [],
+                  activityLog: recovered.activityLog || [],
+                  journey: recovered.journey || {},
+                  incidents: recovered.incidents || [],
+                };
+                setData(loaded);
+                setCurrentDataRef(loaded);
+                saveData(loaded);
+                setResilienceBanner('Recovered data from latest resilience snapshot.');
+                alert('Recovered from local resilience snapshot.');
+              }}
+            />
           )}
           {view === 'templates' && (
             <DocTemplatesView data={data} orgName={data.orgName} />
@@ -29804,6 +31365,11 @@ function AppInner() {
               updateData({ welcomeDismissed: true });
             }}
             setView={setView}
+            onCompleteProfile={({ roleProfile: nextRole, uxMode: nextMode }) => {
+              updateData((prev) =>
+                applyRoleProfileDefaults(prev, nextRole, nextMode)
+              );
+            }}
           />
         )}
         <FeedbackModal />
@@ -29814,8 +31380,28 @@ function AppInner() {
             setView={(v) => {
               setView(v);
             }}
+            onOpenRecord={openRecordFromSearch}
             onClose={() => setSearchOpen(false)}
           />
+        )}
+        {resilienceBanner && (
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 16,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: '#ecfeff',
+              border: `1px solid ${B.tealBorder}`,
+              color: B.tealDark,
+              borderRadius: 10,
+              padding: '8px 12px',
+              fontSize: 12,
+              zIndex: 1000,
+            }}
+          >
+            {resilienceBanner}
+          </div>
         )}
       </div>
     </div>
